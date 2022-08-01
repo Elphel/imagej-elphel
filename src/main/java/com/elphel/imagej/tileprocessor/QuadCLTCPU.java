@@ -453,18 +453,25 @@ public class QuadCLTCPU {
 			double min_strength, // =     0.08;
 			int    seed_rows, // =        5; // sky should appear in this top rows 
 			int    lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+			double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
+			int shrink_for_temp,          // shrink before finding hottest sky
 			double sky_highest_min,       //  =   -50; // 100; // lowest absolute value should not be higher (requires photometric) 
 			int    width,
 			double [] strength,
 			double [] spread,
 			double [] disparity,
 			double [] avg_val,
-			int debugLevel) {
+			int debugLevel) { // >0 to show
 		if ((strength == null) || (spread==null)) {
 			return null;
 		}
+//		int shrink_for_temp = 10;
+//		double sky_temp_override = -300;      // really cold average seed - ignore lowest_sky_row filter
 		double [] temp_scales = null;
 		boolean failure = false;
+		double temp_cold = Double.NaN;
+		double temp_hot =  Double.NaN;
+
 		if (avg_val != null) {
 			int num_bins = 1000;
 			double min_temp = Double.NaN, max_temp=Double.NaN, avg_temp = 0;
@@ -499,8 +506,8 @@ public class QuadCLTCPU {
 				for (int i = 1; i < num_bins; i++) { // make cumulative, last is 1.0;
 					hist[i] += hist[i-1];
 				}
-				double temp_cold = min_temp;
-				double temp_hot =  max_temp;
+				temp_cold = min_temp;
+				temp_hot =  max_temp;
 				for (int i = 0; i < num_bins; i++) {
 					if (hist[i] > cold_frac) {
 						double d = hist[i];
@@ -543,7 +550,7 @@ public class QuadCLTCPU {
 		
 		
 		String [] dbg_in_titles =    {"fom", "strength", "spread", "disparity", "avg_val", "tscale"};
-		String [] dbg_titles = {"sky", "seed", "max", "shrank"};
+		String [] dbg_titles = {"sky", "seed", "max", "shrank","full_shrank"};
 		
 		if (debugLevel>0) {
 			double [] fom = new double[strength.length];
@@ -593,6 +600,8 @@ public class QuadCLTCPU {
 				dbg_img[3][i] = sky_tiles[i]? 1 : 0;
 			}			
 		}
+		// Calculate average seed "temperature"
+		
 		tn.growSelection(
 				2*width ,        // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				sky_tiles,       // boolean [] tiles,
@@ -603,12 +612,30 @@ public class QuadCLTCPU {
 					sky_tiles,         // boolean [] tiles,
 					null);             // boolean [] prohibit)
 		}
+		double sky_max_temp = Double.NaN;
+		if (avg_val != null) {
+			boolean [] shrank_sky = sky_tiles.clone();
+			tn.shrinkSelection(
+					shrink_for_temp,   // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					shrank_sky,        // boolean [] tiles,
+					null);             // boolean [] prohibit)
+			
+			for (int i = 0; i < sky_tiles.length; i++) if (shrank_sky[i]){
+				if (!(sky_max_temp >= avg_val[i])) {
+					sky_max_temp = avg_val[i];
+				}
+			}
+			if (dbg_img != null) {
+				for (int i = 0; i < sky_tiles.length; i++) {
+					dbg_img[4][i] = shrank_sky[i]? 1 : 0;
+				}
+			}			
+		}
 
 		if (dbg_img != null) {
 			for (int i = 0; i < sky_tiles.length; i++) {
 				dbg_img[0][i] = sky_tiles[i]? 1 : 0;
 			}
-			
 			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_img,
 					width,
@@ -617,10 +644,17 @@ public class QuadCLTCPU {
 					"sky_selection",
 					dbg_titles); //	dsrbg_titles);
 		}
+		
+		
 		for (int i = lowest_sky_row*width; i < sky_tiles.length; i++) {
 			if (sky_tiles[i]) {
 				System.out.println("getBlueSky(): sky area appeared too low - at row "+(i/width)+" >= "+lowest_sky_row+" removing blue sky");
-				failure = true;
+				if (sky_max_temp < sky_temp_override) {
+					System.out.println("But detected sky is cold enough ("+sky_max_temp+" < "+sky_temp_override+
+							"), so this test is bypassed");
+				} else { 
+					failure = true;
+				}
 				break;
 			}
 		}
@@ -650,6 +684,8 @@ public class QuadCLTCPU {
 			double min_strength, // =     0.08;
 			int    seed_rows, // =        5; // sky should appear in this top rows
 			int    lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+			double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
+			int    shrink_for_temp,       // shrink before finding hottest sky
 			double sky_highest_max,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 			double [] strength,
 			double [] spread,
@@ -669,6 +705,8 @@ public class QuadCLTCPU {
 				min_strength, // =     0.08;
 				seed_rows, // =        5; // sky should appear in this top rows 
 				lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+				sky_temp_override,     // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
+				shrink_for_temp,       // int shrink_for_temp,          // shrink before finding hottest sky
 				sky_highest_max,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 				width,
 				strength,

@@ -4047,8 +4047,6 @@ public class OpticalFlow {
     	
     	boolean show_dsi_image =             clt_parameters.imp.show_ranges && !batch_mode;
     	boolean show_images =                clt_parameters.imp.show_images && !batch_mode;
-//    	boolean show_color_nan =     clt_parameters.imp.show_color_nan;
-//    	boolean show_mono_nan =      clt_parameters.imp.show_mono_nan;
     	int min_num_scenes =                 clt_parameters.imp.min_num_scenes; // abandon series if there are less than this number of scenes in it 
     	
     	boolean show_images_bgfg =           clt_parameters.imp.show_images_bgfg && !batch_mode;
@@ -4060,8 +4058,6 @@ public class OpticalFlow {
 		
 		boolean [] save_mapped_mono_color =  {clt_parameters.imp.save_mapped_mono, clt_parameters.imp.save_mapped_color};
 		boolean [] gen_avi_mono_color =      {clt_parameters.imp.gen_avi_mono, clt_parameters.imp.gen_avi_color};
-//		boolean show_mapped_color =  clt_parameters.imp.show_mapped_color && !batch_mode;
-//		boolean show_mapped_mono =   clt_parameters.imp.show_mapped_mono && !batch_mode;
 		boolean [] show_mono_color =        {
 				clt_parameters.imp.show_mapped_mono && !batch_mode,
 				clt_parameters.imp.show_mapped_color && !batch_mode};
@@ -4084,7 +4080,6 @@ public class OpticalFlow {
 				clt_parameters.imp.generate_bg};
 		boolean generate_stereo =            clt_parameters.imp.generate_stereo;
 		
-//		double [] stereo_bases =         clt_parameters.imp.stereo_bases; // {0.0, 200.0, 500.0, 1000.0}; 
 		double [][] stereo_views =       clt_parameters.imp.stereo_views; // {0.0, 200.0, 500.0, 1000.0}; 
 		boolean [] generate_stereo_var = clt_parameters.imp.generate_stereo_var;
 		
@@ -4094,8 +4089,6 @@ public class OpticalFlow {
 		final Color anaglyph_right = clt_parameters.imp.anaglyph_right;
 		
 		int     stereo_gap =         clt_parameters.imp.stereo_gap;
-//		double  stereo_intereye =    clt_parameters.imp.stereo_intereye;
-//		double  stereo_phone_width = clt_parameters.imp.stereo_phone_width;
 		
 		int     extra_hor_tile =     clt_parameters.imp.extra_hor_tile;
 		int     extra_vert_tile =    clt_parameters.imp.extra_vert_tile;
@@ -4108,7 +4101,6 @@ public class OpticalFlow {
 	    boolean run_ffmpeg =         clt_parameters.imp.run_ffmpeg;
 		String  video_ext =          clt_parameters.imp.video_ext;
 		String  video_codec =        clt_parameters.imp.video_codec.toLowerCase();
-//		String  video_extra =        clt_parameters.imp.video_extra;
 		int     video_crf =          clt_parameters.imp.video_crf;
 		boolean remove_avi =         clt_parameters.imp.remove_avi;
 		boolean um_mono =            clt_parameters.imp.um_mono;
@@ -4124,7 +4116,6 @@ public class OpticalFlow {
 		final Color annotate_color_color = clt_parameters.imp.annotate_color_color;
 		final Color annotate_color_mono =  clt_parameters.imp.annotate_color_mono;
 		
-//		boolean  readjust_orient =   clt_parameters.imp.readjust_orient;
 		boolean  test_ers =          clt_parameters.imp.test_ers && !batch_mode;
 		int     test_ers0 =          clt_parameters.imp.test_ers0; // try adjusting a pair of scenes with ERS. Reference scene index
 		int     test_ers1 =          clt_parameters.imp.test_ers1; // try adjusting a pair of scenes with ERS. Other scene index
@@ -4145,6 +4136,8 @@ public class OpticalFlow {
  		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
  		double min_strength =        clt_parameters.imp.min_strength;
  		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
+ 		double sky_bottom_override = clt_parameters.imp.sky_bottom_override;
+ 		int    sky_override_shrink = clt_parameters.imp.sky_override_shrink;
 		
 		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
 		
@@ -4280,7 +4273,9 @@ public class OpticalFlow {
 							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
 							min_strength, // =     0.08;
 							seed_rows, // =        5; // sky should appear in this top rows 
-							lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+							lowest_sky_row,        //  =   50;// appears that low - invalid, remove completely
+							sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
+							sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
 							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 							dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
 							dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
@@ -4332,6 +4327,8 @@ public class OpticalFlow {
 							min_strength, // =     0.08;
 							seed_rows, // =        5; // sky should appear in this top rows
 							lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+							sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
+							sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
 							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 							dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
 							dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
@@ -12823,7 +12820,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	{
 		boolean       show_debug_images = (debug_image_name != null);
 
-		String [] mvTitles = {"dx", "dy", "conf", "blur", "blurX","blurY","clust","mask"};
+		String [] mvTitles = {"dx", "dy", "conf", "blur", "blurX","blurY","clust","filtclust","re-clust","mask"};
 		boolean mov_en =         clt_parameters.imp.mov_en; // true;  // enable detection/removal of the moving objects during pose matching
 		if (!mov_en) {
 			return null;
@@ -12835,6 +12832,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		double  mov_thresh_abs=  clt_parameters.imp.mov_thresh_abs; // 1.0;   // sqrt(dx^2+dy^2) in moving areas 
 		double  mov_clust_max =  clt_parameters.imp.mov_clust_max; // 1.5;   // cluster maximum should exceed threshold this times
 		int     mov_grow =       clt_parameters.imp.mov_grow; // 4;     // grow detected moving area
+		int     mov_max_len =    clt_parameters.imp.mov_max_len; // 0 - no limit 
+		
+		double frac_clust =     0.25;//  cluster tiles compared to cluster max
 		double  mov_max_std2 =   mov_max_std * mov_max_std;
 		double  mov_thresh_rel2 = mov_thresh_rel* mov_thresh_rel;
 		double  mov_thresh_abs2 = mov_thresh_abs * mov_thresh_abs;
@@ -12875,6 +12875,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			}
 		}		
 		boolean [] move_mask = null; 
+		double [] clust_max = null;
+		int [][] minx_maxx_miny_maxy = null;
 		process_movements:
 		{	
 			if (sl2 > mov_max_std2) {
@@ -12935,7 +12937,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			for (int nTile=0; nTile < clusters.length;nTile++) if (clusters[nTile] > max_clust_num) {
 				max_clust_num = clusters[nTile];
 			}
-			double [] clust_max = new double [max_clust_num];
+			clust_max = new double [max_clust_num];
 			for (int nTile=0; nTile < clusters.length;nTile++) if (clusters[nTile] > 0) {
 				int i = clusters[nTile]-1;
 				if (mov_obj[1][nTile] > clust_max[i]) {
@@ -12954,9 +12956,24 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					System.out.println("getMovementMask(): Cluster "+i+(good_clusters[i]?"*":" ")+", max = "+clust_max[i]);
 				}
 			}
+			
 			if(show_debug_images) {		
 				for (int nTile = 0; nTile <  motion.length; nTile++) if (clusters[nTile] > 0){
 					 dbg_img[6][nTile] = clusters[nTile];
+				}
+			}
+			// remove tiles much lower than cluster max
+			for (int nTile=0; nTile < clusters.length;nTile++) if (clusters[nTile] > 0) {
+				int iclust = clusters[nTile] - 1;
+				double threshold = clust_max[iclust] * frac_clust;
+				if (!good_clusters[iclust] || (mov_obj[1][nTile] < threshold)) {
+					clusters[nTile] = 0;
+				}
+			}
+			
+			if(show_debug_images) {		
+				for (int nTile = 0; nTile <  motion.length; nTile++) if (clusters[nTile] > 0){
+					 dbg_img[7][nTile] = clusters[nTile];
 				}
 			}
 			
@@ -12966,17 +12983,99 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				}
 				break process_movements;
 			}
+			
 			move_mask = new boolean [clusters.length];
 			for (int nTile=0; nTile < clusters.length; nTile++) if (clusters[nTile] > 0) {
 				move_mask[nTile] = good_clusters[clusters[nTile] -1];
 			}
+			
 			tn.growSelection(
 					mov_grow,  // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 					move_mask, // boolean [] tiles,
 					null);     // boolean [] prohibit);
+			
+			// Re-clusterize
+
+			clusters = tn.enumerateClusters(
+					move_mask, // boolean [] tiles,
+					false); // boolean ordered)
+			if(show_debug_images) {		
+				for (int nTile = 0; nTile <  motion.length; nTile++) if (clusters[nTile] > 0){
+					 dbg_img[8][nTile] = clusters[nTile];
+				}
+			}
+			
+			// Measure cluster sizes and remove too big ones
+			if (mov_max_len > 0) {
+				max_clust_num = 0;
+				for (int nTile=0; nTile < clusters.length;nTile++) if (clusters[nTile] > max_clust_num) {
+					max_clust_num = clusters[nTile];
+				}
+				minx_maxx_miny_maxy = new int [max_clust_num][];
+				for (int nTile = 0; nTile <  motion.length; nTile++) if (clusters[nTile] > 0){
+					int x = nTile % tilesX;
+					int y = nTile / tilesX;
+					int iclust = clusters[nTile] - 1;
+					if (minx_maxx_miny_maxy[iclust] == null) {
+						minx_maxx_miny_maxy[iclust] = new int[] {x,x,y,y};
+					}
+					if (x < minx_maxx_miny_maxy[iclust][0]) minx_maxx_miny_maxy[iclust][0] = x;
+					if (x > minx_maxx_miny_maxy[iclust][1]) minx_maxx_miny_maxy[iclust][1] = x;
+					if (y < minx_maxx_miny_maxy[iclust][2]) minx_maxx_miny_maxy[iclust][2] = y;
+					if (y > minx_maxx_miny_maxy[iclust][3]) minx_maxx_miny_maxy[iclust][3] = y;
+				}
+				
+				num_good_clusters = 0;
+				good_clusters = new boolean[max_clust_num];
+				for (int iclust = 0; iclust < max_clust_num; iclust++) {
+					if (    (minx_maxx_miny_maxy[iclust] != null) &&
+							((minx_maxx_miny_maxy[iclust][1] - minx_maxx_miny_maxy[iclust][0]) <= mov_max_len) &&
+							((minx_maxx_miny_maxy[iclust][3] - minx_maxx_miny_maxy[iclust][2]) <= mov_max_len)) {
+						good_clusters[iclust] = true;
+						num_good_clusters ++;
+					} else {
+						minx_maxx_miny_maxy[iclust] = null;
+					}
+				}
+				if (num_good_clusters == 0) {
+					if (debug_level>0) {
+						System.out.println("getMovementMask(): No small enough moving clusters (of total "+clust_max.length+"), aborting movement processing");
+					}
+					break process_movements;
+				}
+				
+				if (debug_level>0) { // -1) {
+					System.out.println("getMovementMask(): Got "+max_clust_num+" clusters, of them good - "+num_good_clusters );
+					for (int i = 0; i < minx_maxx_miny_maxy.length; i++) {
+						int sizex = minx_maxx_miny_maxy[i][1] - minx_maxx_miny_maxy[i][0];
+						int sizey = minx_maxx_miny_maxy[i][3] - minx_maxx_miny_maxy[i][2];
+						int max_size =  (sizex>sizey)? sizex:sizey;
+						System.out.println("getMovementMask(): Cluster "+i+(good_clusters[i]?"*":" ")+
+								", max_size="+max_size+" ("+sizex+", "+sizey+")"+
+								", xmin = "+minx_maxx_miny_maxy[i][0]+
+								", xmax = "+minx_maxx_miny_maxy[i][1]+
+								", ymin = "+minx_maxx_miny_maxy[i][2]+
+								", ymax = "+minx_maxx_miny_maxy[i][3]);
+					}
+				}
+				// remove too large clusters
+				if (mov_max_len > 0) {
+					for (int nTile=0; nTile < clusters.length; nTile++) if (clusters[nTile] > 0) {
+						int iclust = clusters[nTile] - 1;
+						if (!good_clusters[iclust]) {
+							clusters[nTile] = 0;
+						}
+					}
+				}
+				move_mask = new boolean [clusters.length];
+				for (int nTile=0; nTile < clusters.length; nTile++) if (clusters[nTile] > 0) {
+					move_mask[nTile] = good_clusters[clusters[nTile] -1];
+				}
+			}
+			
 			if(show_debug_images) {		
 				for (int nTile = 0; nTile <  motion.length; nTile++) if (move_mask[nTile]){
-					 dbg_img[7][nTile] = 1.0;
+					 dbg_img[9][nTile] = 1.0;
 				}
 			}
 
@@ -12996,7 +13095,16 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				for (int nTile=0; nTile<move_mask.length;nTile++) if (move_mask[nTile]) {
 					num_mov++;
 				}
-				System.out.println("getMovementMask(): Created moving objects mask of "+num_mov+" tiles.");
+				System.out.print("getMovementMask(): Created moving objects mask of "+num_mov+" tiles. Sizes:");
+				if (minx_maxx_miny_maxy != null) {
+					for (int iclust = 0; iclust < minx_maxx_miny_maxy.length; iclust++) if (minx_maxx_miny_maxy[iclust] != null){
+						int sizex = minx_maxx_miny_maxy[iclust][1] - minx_maxx_miny_maxy[iclust][0];
+						int sizey = minx_maxx_miny_maxy[iclust][3] - minx_maxx_miny_maxy[iclust][2];
+						int max_size =  (sizex>sizey)? sizex:sizey;
+						System.out.print(" "+max_size);
+					}
+				}
+				System.out.println();
 
 			} else {
 				System.out.println("getMovementMask(): No moving objects mask is created.");

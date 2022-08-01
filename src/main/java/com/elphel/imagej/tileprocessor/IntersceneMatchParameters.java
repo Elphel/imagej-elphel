@@ -147,7 +147,10 @@ public class IntersceneMatchParameters {
 	public  double  sky_lim =                         15.0; // then expand to product of strength by diff_second below this
 	public  int     sky_expand_extra =                 0; // 1?
 	public  double  min_strength =                     0.08;
-	public  int     lowest_sky_row =                  50;// appears that low - invalid, remove completely
+	public  int     lowest_sky_row =                  50; // appears that low - invalid, remove completely
+	public  double  sky_bottom_override =           -300; // maximal average sky value to override lowest_sky_row test
+	public  int     sky_override_shrink =             10; // shrink detected sky before finding hottest tile there
+	
 	
 	// Some "AGC" to adjust how much to discard
 	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
@@ -201,12 +204,13 @@ public class IntersceneMatchParameters {
 	public  boolean mov_en =                        true;  // enable detection/removal of the moving objects during pose matching
 	public  double  mov_sigma =                     1.5;   // pix - weighted-blur offsets before detection
 	// next two to prevent motion detection while errors are too big
-	public  double  mov_max_std =                   0.5;   // pix
+	public  double  mov_max_std =                   1.2;   // pix
 	public  double  mov_thresh_rel =                3.5;   // .0;   // exceed average error
 	public  double  mov_thresh_abs=                 0.5;   // sqrt(dx^2+dy^2) in moving areas 
 	public  double  mov_clust_max =                 1.5;   // cluster maximum should exceed threshold this times
 	public  int     mov_grow =                      4;     // grow detected moving area
-	public  boolean mov_show =                      true; // show debug images for movement detection
+	public  int     mov_max_len =                   0;     // (0 - no limit) do not remove moving objects if they do not fit into the square   
+	public  boolean mov_show =                      true;  // show debug images for movement detection
 	public  int     mov_debug_level =               1;     // >0 verbose
 	//LMA parameters
 	public  boolean [] adjust_atr = new boolean [] {true,true,true};
@@ -529,7 +533,11 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Modify strength to be at least this",    this.min_strength, 5,7,"",
 				"Input strength has some with zero values resulting in zero FOM. Make them at least this.");
 		gd.addNumericField("Lowest sky row",                         this.lowest_sky_row, 0,3,"",
-				"Last defense - if the detected sky area reaches near-bottom of the page - it is invalid, remove it (but keep in debug images)");
+				"Last defense - if the detected sky area reaches near-bottom of the page - it is invalid, remove it (but keep in debug images).");
+		gd.addNumericField("Hottest sky tile to override lowest row",this.sky_bottom_override, 5,7,"",
+				"If the detected sky is all cold enough, bypass lowest row test, allow to raise camera.");
+		gd.addNumericField("Shrink before finding hottest sky",      this.sky_override_shrink, 0,3,"",
+				"Shrink detected sky before looking for the hottest skyt tile (blurred skyline in wet atmosphere).");
 		
 		gd.addTab         ("Inter-Match", "Parameters for full-resolution scene matching");
 //		gd.addTab("Interscene Equalization","Equalization of the interscene correlation confidence to improve camera X,Y,Z matching");
@@ -634,7 +642,10 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Cluster max over threshold",             this.mov_clust_max, 6,7,"",
 				"Moving cluster should contain tile with this exceed over thresholds");
 		gd.addNumericField("Moving cluster grow",                    this.mov_grow, 0,3,"",
-				"Standard grow values - 1 - ortho, 2 - diagonal, 3 - twice orto, 4 - twice diagonal");
+				"Standard grow values - 1 - ortho, 2 - diagonal, 3 - twice orto, 4 - twice diagonal.");
+		gd.addNumericField("Maximal movement size",                    this.mov_max_len, 0,3,"tiles",
+				"Do not remove moving objects if they do not fit into the square with this side.");
+		
 		gd.addCheckbox ("Show movement debug images",                this.mov_show,
 				"Disabled if 'Debug Level for interscene match' < 1");
 		gd.addNumericField("Debug level for movement detection (0/1)", this.mov_debug_level, 0,3,"",
@@ -901,6 +912,8 @@ public class IntersceneMatchParameters {
 		this.sky_expand_extra =   (int) gd.getNextNumber();	
 		this.min_strength =             gd.getNextNumber();    
 		this.lowest_sky_row =     (int) gd.getNextNumber();
+		this.sky_bottom_override =      gd.getNextNumber();    
+		this.sky_override_shrink =(int) gd.getNextNumber();
 		
 		this.margin =             (int) gd.getNextNumber();
 		this.sensor_mask_inter=   (int) gd.getNextNumber();
@@ -942,6 +955,8 @@ public class IntersceneMatchParameters {
 		this.mov_thresh_abs =           gd.getNextNumber();
 		this.mov_clust_max =            gd.getNextNumber();
 		this.mov_grow =           (int) gd.getNextNumber();
+		this.mov_max_len =        (int) gd.getNextNumber();
+		
 		this.mov_show =                 gd.getNextBoolean();
 		this.mov_debug_level =    (int) gd.getNextNumber();
 		this.adjust_atr[0] =            gd.getNextBoolean();
@@ -1169,7 +1184,8 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"sky_expand_extra",     this.sky_expand_extra+"");    // int
 		properties.setProperty(prefix+"min_strength",         this.min_strength+"");        // double
 		properties.setProperty(prefix+"lowest_sky_row",       this.lowest_sky_row+"");      // int
-	
+		properties.setProperty(prefix+"sky_bottom_override",  this.sky_bottom_override+""); // double
+		properties.setProperty(prefix+"sky_override_shrink",  this.sky_override_shrink+""); // int
 		
 		properties.setProperty(prefix+"margin",               this.margin+"");              // int
 		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
@@ -1211,6 +1227,8 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"mov_thresh_abs",       this.mov_thresh_abs+"");      // double
 		properties.setProperty(prefix+"mov_clust_max",        this.mov_clust_max+"");       // double
 		properties.setProperty(prefix+"mov_grow",             this.mov_grow+"");            // int
+		properties.setProperty(prefix+"mov_max_len",          this.mov_max_len+"");         // int
+		
 		properties.setProperty(prefix+"mov_show",             this.mov_show+"");            // boolean
 		properties.setProperty(prefix+"mov_debug_level",      this.mov_debug_level+"");     // int
 		properties.setProperty(prefix+"adjust_atr_0",         this.adjust_atr[0]+"");       // boolean
@@ -1389,7 +1407,8 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"sky_expand_extra")!=null)     this.sky_expand_extra=Integer.parseInt(properties.getProperty(prefix+"sky_expand_extra"));
 		if (properties.getProperty(prefix+"min_strength")!=null)         this.min_strength=Double.parseDouble(properties.getProperty(prefix+"min_strength"));
 		if (properties.getProperty(prefix+"lowest_sky_row")!=null)       this.lowest_sky_row=Integer.parseInt(properties.getProperty(prefix+"lowest_sky_row"));
-		
+		if (properties.getProperty(prefix+"sky_bottom_override")!=null)  this.sky_bottom_override=Double.parseDouble(properties.getProperty(prefix+"sky_bottom_override"));
+		if (properties.getProperty(prefix+"sky_override_shrink")!=null)  this.sky_override_shrink=Integer.parseInt(properties.getProperty(prefix+"sky_override_shrink"));
 		
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
@@ -1431,6 +1450,8 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"mov_thresh_abs")!=null)       this.mov_thresh_abs=Double.parseDouble(properties.getProperty(prefix+"mov_thresh_abs"));
 		if (properties.getProperty(prefix+"mov_clust_max")!=null)        this.mov_clust_max=Double.parseDouble(properties.getProperty(prefix+"mov_clust_max"));
 		if (properties.getProperty(prefix+"mov_grow")!=null)             this.mov_grow=Integer.parseInt(properties.getProperty(prefix+"mov_grow"));
+		if (properties.getProperty(prefix+"mov_max_len")!=null)          this.mov_max_len=Integer.parseInt(properties.getProperty(prefix+"mov_max_len"));
+
 		if (properties.getProperty(prefix+"mov_show")!=null)             this.mov_show=Boolean.parseBoolean(properties.getProperty(prefix+"mov_show"));
 		if (properties.getProperty(prefix+"mov_debug_level")!=null)      this.mov_debug_level=Integer.parseInt(properties.getProperty(prefix+"mov_debug_level"));
 		if (properties.getProperty(prefix+"adjust_atr_0")!=null)         this.adjust_atr[0]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_0"));		
@@ -1626,6 +1647,8 @@ public class IntersceneMatchParameters {
 		imp.sky_expand_extra =      this.sky_expand_extra;
 		imp.min_strength =          this.min_strength;
 		imp.lowest_sky_row =        this.lowest_sky_row;
+		imp.sky_bottom_override =   this.sky_bottom_override;
+		imp.sky_override_shrink =   this.sky_override_shrink;
 		
 		imp.margin                = this.margin;
 		imp.sensor_mask_inter     = this.sensor_mask_inter;
@@ -1667,6 +1690,7 @@ public class IntersceneMatchParameters {
 		imp.mov_thresh_abs        = this.mov_thresh_abs;
 		imp.mov_clust_max         = this.mov_clust_max;
 		imp.mov_grow              = this.mov_grow;
+		imp.mov_max_len           = this.mov_max_len;
 		imp.mov_show              = this.mov_show;
 		imp.mov_debug_level       = this.mov_debug_level;
 		imp.adjust_atr[0]         = this.adjust_atr[0];

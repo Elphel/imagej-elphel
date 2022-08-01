@@ -8617,7 +8617,7 @@ if (debugLevel > -100) return true; // temporarily !
 		class VideoSet {
 			String []    video_paths;
 			int []       stereo_widths;
-			int          earliest_scene, reference_scene;
+			int          earliest_scene, reference_scene; // , movement_size;
 			VideoSet(
 					String [] paths,
 					int [] stereo_widths,
@@ -8684,6 +8684,7 @@ if (debugLevel > -100) return true; // temporarily !
 						widths_list[0], // int [] stereo_widths,
 						start_ref_pointers[0], // int earliest_scene,
 						start_ref_pointers[1])); // int reference_scene);
+				
 				String series_action = (start_ref_pointers[0] < (min_num_scenes-1))?"is FINISHED ":("will continue down from scene "+(start_ref_pointers[0]));
 				System.out.println("PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+") "+series_action+" in "+
 						IJ.d2s(0.000000001*(System.nanoTime()-start_time_seq),3)+" sec ("+

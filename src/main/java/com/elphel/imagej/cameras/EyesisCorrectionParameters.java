@@ -1546,7 +1546,6 @@ public class EyesisCorrectionParameters {
     		}
     		Path base_path = seq_path.getParent();
     		// first - scan all file and set sourceDirectory, x3dDirectory, linkedModels,videoDirectory,resultsDirectory
-//    		String [] dir_paths = new String[KEY_DIRS.length];
     		HashMap<String,String> dir_map = new HashMap<String,String>();
             for (String line:lines){
                 String[] tokens = line.split("#")[0].trim().split("[\\s,;=]+");
