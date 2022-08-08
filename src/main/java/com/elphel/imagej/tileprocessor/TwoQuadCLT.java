@@ -8650,6 +8650,20 @@ if (debugLevel > -100) return true; // temporarily !
 						scene_dirs, // File [] scene_dirs,
 						pathFirstLast[nseq].first, // int scene_first, // first scene to process
 						pathFirstLast[nseq].last); // int scene_last);  // last scene to process (negative - add length
+				
+				if (pathFirstLast[nseq].movement_size < 0) {
+					clt_parameters.imp.mov_en = false;
+					if (debugLevel > -4) {
+						System.out.println("Disabling movement detection for this scene.");
+					}
+				} else {
+					clt_parameters.imp.mov_en = true;
+					clt_parameters.imp.mov_max_len = pathFirstLast[nseq].movement_size;
+					if (debugLevel > -4) {
+						System.out.println("Enabling movement detection for this scene with maximum cluster linear size of "+
+								clt_parameters.imp.mov_max_len+" tiles.");
+					}
+				}
 			}
 			
 			String [][] video_list = new String[1][];

@@ -4131,6 +4131,7 @@ public class OpticalFlow {
  		double sky_seed =            clt_parameters.imp.sky_seed;
  		double lma_seed =            clt_parameters.imp.lma_seed;
  		int    sky_shrink =          clt_parameters.imp.sky_shrink;
+ 		int    sky_bottleneck =      clt_parameters.imp.sky_bottleneck;
  		int    seed_rows =           clt_parameters.imp.seed_rows;
  		double sky_lim =             clt_parameters.imp.sky_lim;
  		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
@@ -4268,6 +4269,7 @@ public class OpticalFlow {
 							sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 							sky_shrink,         // int    sky_shrink, //  =       4;
 							sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
+							sky_bottleneck,     //int    sky_bottleneck, // 
 							cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 							cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -4321,6 +4323,7 @@ public class OpticalFlow {
 							sky_lim,                               // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 							sky_shrink,                            // int    sky_shrink, //  =       4;
 							sky_expand_extra,                      // int    sky_expand_extra, //  = 100; // 1?
+							sky_bottleneck,       //int    sky_bottleneck, // 
 							cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 							cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -4530,9 +4533,23 @@ public class OpticalFlow {
 							debugLevel-2);
 				}
 			}
+			for (int scene_index =  ref_index - 1; scene_index >= earliest_scene ; scene_index--) {
+				if (!quadCLTs[ref_index].tsExists(set_channels[scene_index].set_name)) {
+					earliest_scene = scene_index + 1;
+				}
+			}
+			if ((ref_index - earliest_scene + 1) < min_num_scenes) {
+				System.out.println("2.Total number of useful scenes = "+(ref_index - earliest_scene + 1)+
+						" < "+min_num_scenes+". Scrapping this series.");
+				if (start_ref_pointers != null) {
+					start_ref_pointers[0] = earliest_scene;
+				}
+				return null;
+			}
+
 		}
 		// just in case that orientations were calculated before:
-		earliest_scene = getEarliestScene(quadCLTs);
+//		earliest_scene = getEarliestScene(quadCLTs);
 		
 		double [][] combo_dsn_final = null;
 		while (!reuse_video && ((quadCLTs[ref_index].getNumOrient() < min_num_orient) || (quadCLTs[ref_index].getNumAccum() < min_num_interscene))) {
@@ -4852,18 +4869,18 @@ public class OpticalFlow {
 	        				if (views[ibase][2] != 0) {
 	        					scenes_suffix += "-Z"+String.format("%.0f",views[ibase][2]);
 	        				}
-	        				double [][] ds_vantage = new double[][] {selected_disparity,selected_strength};
-	        				if ((views[ibase][0] != 0) || (views[ibase][1] != 0) || (views[ibase][2] != 0)) {
-	        					ds_vantage = transformCameraVew(
-	        							null, // (debug_ds_fg_virt?"transformCameraVew":null),     // final String    title,
-	        							ds_vantage,                    // final double [][] dsrbg_camera_in,
-	        							xyz_offset, // _inverse[0], // final double [] scene_xyz, // camera center in world coordinates
-	        							ZERO3, // _inverse[1], // final double [] scene_atr, // camera orientation relative to world frame
-	        							quadCLTs[ref_index],      // final QuadCLT   scene_QuadClt,
-	        							quadCLTs[ref_index],      // final QuadCLT   reference_QuadClt,
-	        							8); // iscale);                  // final int       iscale);
-	        				}
 	        				if (generate_mapped) {
+		        				double [][] ds_vantage = new double[][] {selected_disparity,selected_strength};
+		        				if ((views[ibase][0] != 0) || (views[ibase][1] != 0) || (views[ibase][2] != 0)) {
+		        					ds_vantage = transformCameraVew(
+		        							null, // (debug_ds_fg_virt?"transformCameraVew":null),     // final String    title,
+		        							ds_vantage,                    // final double [][] dsrbg_camera_in,
+		        							xyz_offset, // _inverse[0], // final double [] scene_xyz, // camera center in world coordinates
+		        							ZERO3, // _inverse[1], // final double [] scene_atr, // camera orientation relative to world frame
+		        							quadCLTs[ref_index],      // final QuadCLT   scene_QuadClt,
+		        							quadCLTs[ref_index],      // final QuadCLT   reference_QuadClt,
+		        							8); // iscale);                  // final int       iscale);
+		        				}
 	        					imp_scenes_pair[nstereo]= renderSceneSequence(
 	        							clt_parameters,     // CLTParameters clt_parameters,
 	        							fov_tiles,          // Rectangle     fov_tiles,
@@ -10054,14 +10071,18 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		ErsCorrection ers_reference = scenes[ref_index].getErsCorrection();
 		for (int nscene = ref_index-1; nscene >= 00; nscene--) {
 			String ts = scenes[nscene].getImageName();
-			double []   scene_xyz = ers_reference.getSceneXYZ(ts);
-			double []   scene_atr = ers_reference.getSceneATR(ts);
-			if ((scene_xyz == null) || (scene_atr == null)){
+			if (!scenes[ref_index].tsExists(ts) ) {
 				return nscene + 1; // scene is not matched
 			}
+//			double []   scene_xyz = ers_reference.getSceneXYZ(ts);
+//			double []   scene_atr = ers_reference.getSceneATR(ts);
+//			if ((scene_xyz == null) || (scene_atr == null)){
+//				return nscene + 1; // scene is not matched
+//			}
 		}
 		return 0;
 	}
+	
 	
 // Cleaned up and optimized version to reduce memory usage (on-the-fly integration, not saving full correlation data)
 	public double[][] correlateInterscene(
@@ -12723,7 +12744,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 								}
 								double target_str=Math.exp(
 										eq_level*Math.log(avg_stile_str) +
-										(1.0-eq_level)*stile_weight[sTile]);
+										(1.0-eq_level)*Math.log(stile_weight[sTile]));
 								Arrays.fill(mod_weights,0);
 								double sum_weights = 0.0;
 								int num_tiles = 0; // for partial stiles

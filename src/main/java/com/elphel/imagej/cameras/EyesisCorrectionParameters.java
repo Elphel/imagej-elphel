@@ -1527,10 +1527,12 @@ public class EyesisCorrectionParameters {
     		public String path;
     		public int first = 0;
     		public int last = -1;
-    		PathFirstLast (String path, int first, int last){
+    		public int movement_size = -1;
+    		PathFirstLast (String path, int first, int last, int movement_size){
     			this.path = path;
     			this.first = first;
     			this.last =  last;
+    			this.movement_size = movement_size;
     		}
     	}
     	public PathFirstLast [] getSourceSets(
@@ -1623,7 +1625,8 @@ public class EyesisCorrectionParameters {
                 	path_list.add(new PathFirstLast(
                 			dir_path.toString(),
                 			((tokens.length > 1)? Integer.parseInt(tokens[1]):0),
-                			((tokens.length > 2)? Integer.parseInt(tokens[2]):-1)));
+                			((tokens.length > 2)? Integer.parseInt(tokens[2]):-1),
+                			((tokens.length > 3)? Integer.parseInt(tokens[3]):-1)));
                 }
             }
             return path_list.toArray(new PathFirstLast[0]);

@@ -26,6 +26,7 @@ package com.elphel.imagej.tileprocessor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Properties;
@@ -396,6 +397,10 @@ public class ErsCorrection extends GeometryCorrection {
 	//not used
 	public void addScene(String timestamp, double [] xyz, double [] atr, double [] ers_xyz_dt, double [] ers_atr_dt, double [] ers_xyz_d2t, double [] ers_atr_d2t) {
 		scenes_poses.put(timestamp, new XyzAtr(xyz, atr, ers_xyz_dt, ers_atr_dt, ers_xyz_d2t, ers_atr_d2t));
+	}
+	
+	public String getEarliestScene() {
+		return Collections.min(scenes_poses.keySet());
 	}
 	
 	public XyzAtr getScene(String timestamp) { // null if not found

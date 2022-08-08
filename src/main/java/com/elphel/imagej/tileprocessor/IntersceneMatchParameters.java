@@ -146,6 +146,7 @@ public class IntersceneMatchParameters {
 	public  int     seed_rows =                        5; // sky should appear in this top rows 
 	public  double  sky_lim =                         15.0; // then expand to product of strength by diff_second below this
 	public  int     sky_expand_extra =                 0; // 1?
+	public  int     sky_bottleneck =                   5;
 	public  double  min_strength =                     0.08;
 	public  int     lowest_sky_row =                  50; // appears that low - invalid, remove completely
 	public  double  sky_bottom_override =           -300; // maximal average sky value to override lowest_sky_row test
@@ -530,6 +531,8 @@ public class IntersceneMatchParameters {
 				"Expand while FOM is below this value (usually to a high-contrast skyline).");
 		gd.addNumericField("Expand extra",                           this.sky_expand_extra, 0,3,"",
 				"Additionally expand sky area after reaching threshold in the previous step.");
+		gd.addNumericField("Bottleneck width",                       this.sky_bottleneck, 0,3,"",
+				"Shrink/reexpand from the seed detected sky to prevent \"leaks\" through narrow gaps in the high-contrast sky limit.");
 		gd.addNumericField("Modify strength to be at least this",    this.min_strength, 5,7,"",
 				"Input strength has some with zero values resulting in zero FOM. Make them at least this.");
 		gd.addNumericField("Lowest sky row",                         this.lowest_sky_row, 0,3,"",
@@ -910,6 +913,7 @@ public class IntersceneMatchParameters {
 		this.seed_rows =          (int) gd.getNextNumber();       	
 		this.sky_lim =                  gd.getNextNumber();         	
 		this.sky_expand_extra =   (int) gd.getNextNumber();	
+		this.sky_bottleneck =     (int) gd.getNextNumber();	
 		this.min_strength =             gd.getNextNumber();    
 		this.lowest_sky_row =     (int) gd.getNextNumber();
 		this.sky_bottom_override =      gd.getNextNumber();    
@@ -1182,6 +1186,7 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"seed_rows",            this.seed_rows+"");           // int
 		properties.setProperty(prefix+"sky_lim",              this.sky_lim+"");             // double
 		properties.setProperty(prefix+"sky_expand_extra",     this.sky_expand_extra+"");    // int
+		properties.setProperty(prefix+"sky_bottleneck",       this.sky_bottleneck+"");      // int
 		properties.setProperty(prefix+"min_strength",         this.min_strength+"");        // double
 		properties.setProperty(prefix+"lowest_sky_row",       this.lowest_sky_row+"");      // int
 		properties.setProperty(prefix+"sky_bottom_override",  this.sky_bottom_override+""); // double
@@ -1405,6 +1410,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"seed_rows")!=null)            this.seed_rows=Integer.parseInt(properties.getProperty(prefix+"seed_rows"));
 		if (properties.getProperty(prefix+"sky_lim")!=null)              this.sky_lim=Double.parseDouble(properties.getProperty(prefix+"sky_lim"));
 		if (properties.getProperty(prefix+"sky_expand_extra")!=null)     this.sky_expand_extra=Integer.parseInt(properties.getProperty(prefix+"sky_expand_extra"));
+		if (properties.getProperty(prefix+"sky_bottleneck")!=null)       this.sky_bottleneck=Integer.parseInt(properties.getProperty(prefix+"sky_bottleneck"));
 		if (properties.getProperty(prefix+"min_strength")!=null)         this.min_strength=Double.parseDouble(properties.getProperty(prefix+"min_strength"));
 		if (properties.getProperty(prefix+"lowest_sky_row")!=null)       this.lowest_sky_row=Integer.parseInt(properties.getProperty(prefix+"lowest_sky_row"));
 		if (properties.getProperty(prefix+"sky_bottom_override")!=null)  this.sky_bottom_override=Double.parseDouble(properties.getProperty(prefix+"sky_bottom_override"));
@@ -1645,6 +1651,7 @@ public class IntersceneMatchParameters {
 		imp.seed_rows =             this.seed_rows;
 		imp.sky_lim =               this.sky_lim;
 		imp.sky_expand_extra =      this.sky_expand_extra;
+		imp.sky_bottleneck =        this.sky_bottleneck;
 		imp.min_strength =          this.min_strength;
 		imp.lowest_sky_row =        this.lowest_sky_row;
 		imp.sky_bottom_override =   this.sky_bottom_override;

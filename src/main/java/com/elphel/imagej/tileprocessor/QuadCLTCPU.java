@@ -432,6 +432,7 @@ public class QuadCLTCPU {
 	 *                        be expanded
 	 * @param sky_shrink shrink initial sky area to eliminate small non-sky areas. 
 	 * @param sky_expand_extra additionally expand
+	 * @param int sky_bottleneck - shrink/reexpand from the seed detected sky to prevent "leaks"
 	 * @param width number of tiles in a row 
 	 * @param strength 1d array of tile strengths in scanline order
 	 * @param spread 1d array of tile spreads (second maximal difference from
@@ -447,6 +448,7 @@ public class QuadCLTCPU {
 			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
+			int    sky_bottleneck, //            
 			double cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 			double cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 			double hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -465,6 +467,8 @@ public class QuadCLTCPU {
 		if ((strength == null) || (spread==null)) {
 			return null;
 		}
+//		int sky_bottleneck = 5; // shrink full selection, then re-expand from seed to disable
+		// small (narrow) leaks (or just disable leaks near margins)?
 //		int shrink_for_temp = 10;
 //		double sky_temp_override = -300;      // really cold average seed - ignore lowest_sky_row filter
 		double [] temp_scales = null;
@@ -485,7 +489,7 @@ public class QuadCLTCPU {
 					num_def++;
 				}
 			}
-			if (num_def > 00) {
+			if (num_def > 0) {
 				avg_temp/= num_def;
 				// build a histogram from min to max
 				double [] hist = new double [num_bins];
@@ -550,7 +554,7 @@ public class QuadCLTCPU {
 		
 		
 		String [] dbg_in_titles =    {"fom", "strength", "spread", "disparity", "avg_val", "tscale"};
-		String [] dbg_titles = {"sky", "seed", "max", "shrank","full_shrank"};
+		String [] dbg_titles = {"sky", "seed", "max", "shrank","full_shrank","neck_shrank","reexpand"};
 		
 		if (debugLevel>0) {
 			double [] fom = new double[strength.length];
@@ -595,15 +599,17 @@ public class QuadCLTCPU {
 		if (seed_rows > 0) {
 			Arrays.fill(sky_tiles, seed_rows * width, sky_tiles.length, false);
 		}
+		boolean [] seed_sky = sky_tiles.clone();
 		if (dbg_img != null) {
 			for (int i = 0; i < sky_tiles.length; i++) {
 				dbg_img[3][i] = sky_tiles[i]? 1 : 0;
 			}			
 		}
+		
 		// Calculate average seed "temperature"
 		
 		tn.growSelection(
-				2*width ,        // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				4*width ,        // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				sky_tiles,       // boolean [] tiles,
 				prohibit_tiles); // boolean [] prohibit)
 		if (sky_expand_extra > 0) {
@@ -612,6 +618,36 @@ public class QuadCLTCPU {
 					sky_tiles,         // boolean [] tiles,
 					null);             // boolean [] prohibit)
 		}
+		//shrink_neck
+		// Remove leaks through small holes
+		if (sky_bottleneck > 0) {
+			tn.shrinkSelection(
+					sky_bottleneck, // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					sky_tiles,   // boolean [] tiles,
+					null);       // boolean [] prohibit)
+			boolean [] prohibit_neck = new boolean[sky_tiles.length];
+			for (int i = 0; i < prohibit_neck.length; i++) {
+				prohibit_neck[i] = !seed_sky[i] && !sky_tiles[i];
+			}
+			sky_tiles = seed_sky.clone();
+			tn.growSelection(
+					4*width , // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					sky_tiles,         // boolean [] tiles,
+					prohibit_neck);             // boolean [] prohibit)
+			tn.growSelection(
+					sky_bottleneck , // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					sky_tiles,         // boolean [] tiles,
+					prohibit_tiles);             // boolean [] prohibit)
+			if (dbg_img != null) {
+				for (int i = 0; i < sky_tiles.length; i++) {
+					dbg_img[5][i] = prohibit_neck[i]? 0 : 1;
+					dbg_img[6][i] = sky_tiles[i]?     1 : 0;
+				}
+			}
+			
+			//prohibit_tiles
+		}
+		
 		double sky_max_temp = Double.NaN;
 		if (avg_val != null) {
 			boolean [] shrank_sky = sky_tiles.clone();
@@ -678,6 +714,7 @@ public class QuadCLTCPU {
 			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
+			int    sky_bottleneck,        // 
 			double cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 			double cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 			double hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -699,6 +736,7 @@ public class QuadCLTCPU {
 				sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 				sky_shrink, //  =       4;
 				sky_expand_extra, //  = 100; // 1?
+				sky_bottleneck,        // 
 				cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 				cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 				hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -2157,6 +2195,12 @@ public class QuadCLTCPU {
 			return new ErsCorrection (geometryCorrection, false); // just upgrade
 		}
 	}
+	
+	public boolean tsExists(String ts) {
+		ErsCorrection ers_reference = getErsCorrection();
+		return ((ers_reference.getSceneXYZ(ts) != null) && (ers_reference.getSceneATR(ts) != null));
+	}
+	
 	
 	
 	public double [][][][][][] getCLTKernels(){ // USED in lwir
