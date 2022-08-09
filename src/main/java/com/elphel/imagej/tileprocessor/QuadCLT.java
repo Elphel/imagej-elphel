@@ -2660,15 +2660,12 @@ public class QuadCLT extends QuadCLTCPU {
 	}
 	
 	
-	
 	public static ImagePlus renderGPUFromDSI(
 			final int         sensor_mask,
 			final boolean     merge_channels,
 			final Rectangle   full_woi_in,      // show larger than sensor WOI in tiles (or null)
 			CLTParameters     clt_parameters,
 			double []         disparity_ref,
-			// not used, just as null/not null now. All offsets are already in scene_xyz, scene_atr (including ref)
-//    		double []         stereo_offset, // offset reference camera {x,y,z} or null
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene,
@@ -2678,7 +2675,48 @@ public class QuadCLT extends QuadCLTCPU {
 			String            suffix,
 			int               threadsMax,
 			final int         debugLevel){
-//		boolean show_nan = toRGB? clt_parameters.imp.show_color_nan : clt_parameters.imp.show_mono_nan;
+		return renderGPUFromDSI(
+				sensor_mask,
+				merge_channels,
+				full_woi_in,      // show larger than sensor WOI in tiles (or null)
+				clt_parameters,
+				disparity_ref,
+				// motion blur compensation 
+				0.0, // double            mb_tau,      // 0.008; // time constant, sec
+				0.0, // mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+				null, // double [][]       mb_vectors,  //
+				
+				scene_xyz, // camera center in world coordinates
+				scene_atr, // camera orientation relative to world frame
+				scene,
+				ref_scene, // now - may be null - for testing if scene is rotated ref
+				toRGB,
+				show_nan,
+				suffix,
+				threadsMax,
+				debugLevel);
+	}	
+	
+	public static ImagePlus renderGPUFromDSI(
+			final int         sensor_mask,
+			final boolean     merge_channels,
+			final Rectangle   full_woi_in,      // show larger than sensor WOI in tiles (or null)
+			CLTParameters     clt_parameters,
+			double []         disparity_ref,
+			// motion blur compensation 
+			double            mb_tau,      // 0.008; // time constant, sec
+			double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+			double [][]       mb_vectors,  //
+			
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final QuadCLT     scene,
+			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+			final boolean     toRGB,
+			final boolean     show_nan,
+			String            suffix,
+			int               threadsMax,
+			final int         debugLevel){
 		double [][] pXpYD =OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
 				full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
@@ -2695,35 +2733,62 @@ public class QuadCLT extends QuadCLTCPU {
 		if (showPxPyD) {
 			int dbg_width = rendered_width/GPUTileProcessor.DTT_SIZE;
 			int dbg_height = pXpYD.length/dbg_width;
-			double [][] dbg_img = new double [3][pXpYD.length];
+			double [][] dbg_img = new double [3 + ((mb_vectors!=null)? 2:0)][pXpYD.length];
+			String [] dbg_titles = (mb_vectors!=null)?
+					(new String[] {"pX","pY","Disparity","mb_X","mb_Y"}):
+						(new String[] {"pX","pY","Disparity"});
 			for (int i = 0; i < dbg_img.length; i++) {
 				Arrays.fill(dbg_img[i], Double.NaN);
 			}
 			for (int nTile = 0; nTile < pXpYD.length; nTile++) if (pXpYD[nTile] != null){
-				for (int i = 0; i < dbg_img.length; i++) {
+				for (int i = 0; i < pXpYD[nTile].length; i++) {
 					dbg_img[i][nTile] = pXpYD[nTile][i];
-				}				
+				}
+				if (mb_vectors[nTile]!=null) {
+					for (int i = 0; i <2; i++) {
+						dbg_img[3 + i][nTile] =  mb_tau * mb_vectors[nTile][i];
+					}
+				}
 			}
 			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
 					dbg_img,
 					dbg_width,
 					dbg_height,
 					true,
-					"pXpYD",
-					new String[] {"pX","pY","Disparity"});
+					scene.getImageName()+"-pXpYD",
+					dbg_titles);
 		}
-		//scene_QuadClt.getTileProcessor().getTileSize();
-	    TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks( // "true" reference, with stereo actual reference will be offset
-	    		scene.getNumSensors(),
-	    		rendered_width,               // should match output size, pXpYD.length
-	            !scene.hasGPU(),              // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
-	            pXpYD,                        // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
-	            null,                         // final boolean []          selection, // may be null, if not null do not  process unselected tiles
-	            scene.getErsCorrection(),     // final GeometryCorrection  geometryCorrection,
-	            0.0,                          // final double              disparity_corr,
-	            -1, // 0, // margin,                 // final int                 margin,      // do not use tiles if their centers are closer to the edges
-	            null,                         // final boolean []          valid_tiles,            
-	            threadsMax);                  // final int                 threadsMax)  // maximal number of threads to launch
+		TpTask[][] tp_tasks;
+		if (mb_vectors!=null) {
+			tp_tasks = GpuQuad.setInterTasksMotionBlur( // "true" reference, with stereo actual reference will be offset
+					scene.getNumSensors(),
+					rendered_width,           // should match output size, pXpYD.length
+					!scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+					pXpYD,                    // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+					null,                     // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+					// motion blur compensation 
+					mb_tau,                   // final double              mb_tau,      // 0.008; // time constant, sec
+					mb_max_gain,              // final double              mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+					mb_vectors,               //final double [][]         mb_vectors,  //
+					scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+					0.0,                      // final double              disparity_corr,
+					-1, // 0, // margin,      // final int                 margin,      // do not use tiles if their centers are closer to the edges
+					null,                     // final boolean []          valid_tiles,            
+					threadsMax);              // final int                 threadsMax)  // maximal number of threads to launch
+		} else {
+			tp_tasks = new TpTask[1][];
+			tp_tasks[0] =  GpuQuad.setInterTasks( // "true" reference, with stereo actual reference will be offset
+					scene.getNumSensors(),
+					rendered_width,           // should match output size, pXpYD.length
+					!scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+					pXpYD,                    // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+					null,                     // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+					scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+					0.0,                      // final double              disparity_corr,
+					-1, // 0, // margin,      // final int                 margin,      // do not use tiles if their centers are closer to the edges
+					null,                     // final boolean []          valid_tiles,            
+					threadsMax);              // final int                 threadsMax)  // maximal number of threads to launch
+		}
 	    scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 	    ImageDtt image_dtt = new ImageDtt(
 	    		scene.getNumSensors(),
@@ -2738,20 +2803,35 @@ public class QuadCLT extends QuadCLTCPU {
 	    int [] wh = (full_woi_in == null)? null: new int[]{
 	    		full_woi_in.width * GPUTileProcessor.DTT_SIZE,
 	    		full_woi_in.height * GPUTileProcessor.DTT_SIZE};
-//	    boolean toRGB =         true; // does not work here, define in ColorProcParameters
 	    int                 erase_clt = show_nan ? 1:0;
-	    image_dtt.setReferenceTD( // change to main?
-	    		erase_clt, //final int                 erase_clt,
-	    		wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
-	            clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
-	            use_reference, // true, // final boolean             use_reference_buffer,
-	            tp_tasks_ref,               // final TpTask[]            tp_tasks,
-	            clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
-	            clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
-	            clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
-	            clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
-	            threadsMax,                 // final int                 threadsMax,       // maximal number of threads to launch
-	            debugLevel);                // final int                 globalDebugLevel);
+	    boolean test1 = true;
+	    if ((mb_vectors!=null) && test1) {
+	    	image_dtt.setReferenceTDMotionBlur( // change to main?
+	    			erase_clt, //final int                 erase_clt,
+	    			wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+	    			clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+	    			use_reference, // true, // final boolean             use_reference_buffer,
+	    			tp_tasks,               // final TpTask[]            tp_tasks,
+	    			clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+	    			clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+	    			clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+	    			clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+	    			threadsMax,                 // final int                 threadsMax,       // maximal number of threads to launch
+	    			debugLevel);                // final int                 globalDebugLevel);
+	    } else {
+	    	image_dtt.setReferenceTD( // change to main?
+	    			erase_clt, //final int                 erase_clt,
+	    			wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+	    			clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+	    			use_reference, // true, // final boolean             use_reference_buffer,
+	    			tp_tasks[0],               // final TpTask[]            tp_tasks,
+	    			clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+	    			clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+	    			clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+	    			clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+	    			threadsMax,                 // final int                 threadsMax,       // maximal number of threads to launch
+	    			debugLevel);                // final int                 globalDebugLevel);
+	    }
         ImagePlus imp_render = scene.renderFromTD (
         		sensor_mask,                  // final int         sensor_mask,
         		merge_channels,               // boolean             merge_channels,

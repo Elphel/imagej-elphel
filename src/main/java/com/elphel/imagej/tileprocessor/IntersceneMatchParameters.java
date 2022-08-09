@@ -236,7 +236,12 @@ public class IntersceneMatchParameters {
 	// Boost amount 
 	public  double  eq_weight_add =         0.03; // calculate from min-strengths
 	public  double  eq_weight_scale =      20.0;   // maximal boost ratio 
-	public  double  eq_level =              0.9; // equalization level (0.0 - leave as is, 1.0 - boost to have the same supertile strength as average)  
+	public  double  eq_level =              0.9; // equalization level (0.0 - leave as is, 1.0 - boost to have the same supertile strength as average)
+	
+	public  boolean mb_en =                 true;
+	public  double  mb_tau =                0.008; // time constant, sec
+	public  double  mb_max_gain =           5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+	
 	
 	public  boolean stereo_merge =       true;
 	public  int     stereo_gap =         32;    // pixels between right and left frames
@@ -710,8 +715,15 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Equalization level",                     this.eq_level, 5,7,"",
 				"Target supertile strength will be set to: 0 - original strength (no modification), 1.0 - average supertile strength.");
 		
-		gd.addTab("Stereo/Video","Parameters for stereo video generation");
+		gd.addTab("MB","Motion Blur");
+		gd.addCheckbox ("Compensate motion blur",                    this.mb_en,
+				"Ebable motion blur correction.");
+		gd.addNumericField("Sensor time constant",                   this.mb_tau, 5,7,"s",
+				"Sensor exponential decay in seconds.");
+		gd.addNumericField("Maximal gain",                           this.mb_max_gain, 5,7,"x",
+				"Maximal gain for motion blur correction (if needed more for 1 pixel, increase offset).");
 		
+		gd.addTab("Stereo/Video","Parameters for stereo video generation");
 		gd.addMessage  ("Stereo");
 		if (stereo_views.length > 0) {
 			String [] stereo_choices = new String [stereo_views.length + 1];
@@ -987,9 +999,11 @@ public class IntersceneMatchParameters {
 		this.eq_max_disparity =         gd.getNextNumber();    
 		this.eq_weight_add =            gd.getNextNumber();    
 		this.eq_weight_scale =          gd.getNextNumber();    
-		this.eq_level =                 gd.getNextNumber();    
+		this.eq_level =                 gd.getNextNumber();
 		
-		
+		this.mb_en =                    gd.getNextBoolean();
+		this.mb_tau =                   gd.getNextNumber();    
+		this.mb_max_gain =              gd.getNextNumber();    
 		
 		if (stereo_views.length > 0) {
 			int i =                           gd.getNextChoiceIndex();
@@ -1260,10 +1274,14 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"eq_weight_scale",      this.eq_weight_scale+"");     // double
 		properties.setProperty(prefix+"eq_level",             this.eq_level+"");            // double
 
-		properties.setProperty(prefix+"stereo_merge",                  this.stereo_merge+"");                  // boolean
-		properties.setProperty(prefix+"stereo_gap",                    this.stereo_gap+"");                    // int
-		properties.setProperty(prefix+"stereo_intereye",               this.stereo_intereye+"");               // double
-		properties.setProperty(prefix+"stereo_phone_width",            this.stereo_phone_width+"");            // double
+		properties.setProperty(prefix+"mb_en",                this.mb_en+"");               // boolean
+		properties.setProperty(prefix+"mb_tau",               this.mb_tau+"");              // double
+		properties.setProperty(prefix+"mb_max_gain",          this.mb_max_gain+"");         // double
+
+		properties.setProperty(prefix+"stereo_merge",         this.stereo_merge+"");        // boolean
+		properties.setProperty(prefix+"stereo_gap",           this.stereo_gap+"");          // int
+		properties.setProperty(prefix+"stereo_intereye",      this.stereo_intereye+"");     // double
+		properties.setProperty(prefix+"stereo_phone_width",   this.stereo_phone_width+"");  // double
 		properties.setProperty(prefix+"extra_hor_tile",       this.extra_hor_tile+"");      // int
 		properties.setProperty(prefix+"extra_vert_tile",      this.extra_vert_tile+"");     // int
 		properties.setProperty(prefix+"crop_3d",              this.crop_3d+"");             // boolean
@@ -1483,6 +1501,10 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"eq_weight_add")!=null)        this.eq_weight_add=Double.parseDouble(properties.getProperty(prefix+"eq_weight_add"));
 		if (properties.getProperty(prefix+"eq_weight_scale")!=null)      this.eq_weight_scale=Double.parseDouble(properties.getProperty(prefix+"eq_weight_scale"));
 		if (properties.getProperty(prefix+"eq_level")!=null)             this.eq_level=Double.parseDouble(properties.getProperty(prefix+"eq_level"));
+		
+		if (properties.getProperty(prefix+"mb_en")!=null)                this.mb_en=Boolean.parseBoolean(properties.getProperty(prefix+"mb_en"));
+		if (properties.getProperty(prefix+"mb_tau")!=null)               this.mb_tau=Double.parseDouble(properties.getProperty(prefix+"mb_tau"));
+		if (properties.getProperty(prefix+"mb_max_gain")!=null)          this.mb_max_gain=Double.parseDouble(properties.getProperty(prefix+"mb_max_gain"));
 		
 		if (properties.getProperty(prefix+"stereo_merge")!=null)         this.stereo_merge=Boolean.parseBoolean(properties.getProperty(prefix+"stereo_merge"));
 		if (properties.getProperty(prefix+"stereo_gap")!=null)           this.stereo_gap=Integer.parseInt(properties.getProperty(prefix+"stereo_gap"));
@@ -1724,10 +1746,14 @@ public class IntersceneMatchParameters {
 		imp.eq_weight_scale =       this.eq_weight_scale;
 		imp.eq_level =              this.eq_level;
 		
-		imp.stereo_merge                  = this.stereo_merge;
-		imp.stereo_gap                    = this.stereo_gap;
-		imp.stereo_intereye               = this. stereo_intereye;
-		imp.stereo_phone_width            = this. stereo_phone_width;
+		imp.mb_en =                 this.mb_en;
+		imp.mb_tau =                this.mb_tau;
+		imp.mb_max_gain =           this.mb_max_gain;
+
+		imp.stereo_merge          = this.stereo_merge;
+		imp.stereo_gap            = this.stereo_gap;
+		imp.stereo_intereye       = this. stereo_intereye;
+		imp.stereo_phone_width    = this. stereo_phone_width;
 		
 		imp.extra_hor_tile        = this.extra_hor_tile;
 		imp.extra_vert_tile       = this.extra_vert_tile;

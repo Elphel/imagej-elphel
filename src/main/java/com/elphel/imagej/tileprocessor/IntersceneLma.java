@@ -43,6 +43,12 @@ public class IntersceneLma {
 		this.thread_invariant = thread_invariant;
 		this.opticalFlow = opticalFlow;
 	}
+	
+	public double [][]       getLastJT(){
+		return last_jt;
+	}
+
+	
 	public double[] getLastRms() {
 		return last_rms;
 	}
@@ -171,19 +177,9 @@ public class IntersceneLma {
 			final int         debug_level)
 	{
 		scenesCLT = new QuadCLT [] {reference_QuadClt, scene_QuadClt};
-//		this.vector_XYS = vector_XYS;
 		par_mask = param_select;
 		macrotile_centers = centers;
 		num_samples = 2 * centers.length;
-		/*
-		for (int i = 0; i < vector_XYS.length; i++){
-			if (((vector_XYS[i] == null) && (centers[i]!=null)) ||
-				((vector_XYS[i] != null) && (centers[i]==null))) {
-				vector_XYS[i] = null;
-				centers[i]= null;
-			}
-		}
-		*/		
 		ErsCorrection ers_ref =   reference_QuadClt.getErsCorrection();
 		ErsCorrection ers_scene = scene_QuadClt.getErsCorrection();
 		final double []   scene_xyz = (scene_xyz0 != null) ? scene_xyz0 : ers_scene.camera_xyz;
@@ -201,19 +197,22 @@ public class IntersceneLma {
 				scene_atr[0],                    scene_atr[1],                    scene_atr[2],
 				scene_xyz[0],                    scene_xyz[1],                    scene_xyz[2]};
 		parameters_full = full_parameters_vector.clone();
-		if (first_run || (backup_parameters_full == null)) {
+		if ((vector_XYS != null) && (first_run || (backup_parameters_full == null))) {
 			backup_parameters_full = full_parameters_vector.clone();
 		}
 		int num_pars = 0;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) num_pars++;
 		par_indices = new int [num_pars];
-		num_pars = 00;
+		num_pars = 0;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) par_indices[num_pars++] = i;
 		parameters_vector = new double [par_indices.length];
 		for (int i = 0; i < par_indices.length; i++) parameters_vector[i] = full_parameters_vector[par_indices[i]];
-//		parameters_initial = parameters_vector.clone();
-		
-		setSamplesWeights(vector_XYS);  // not regularized yet !
+
+		if (vector_XYS != null) {// skip when used for the motion blur vectors, not LMA
+			setSamplesWeights(vector_XYS);  // not regularized yet !
+		} else {
+			weights = null; // new double[2 * centers.length];
+		}
 
 		last_jt = new double [parameters_vector.length][];
 		if (debug_level > 1) {
@@ -225,6 +224,10 @@ public class IntersceneLma {
 				scenesCLT[1],      // final QuadCLT     scene_QuadClt,
 				scenesCLT[0],      // final QuadCLT     reference_QuadClt,
 				debug_level);      // final int         debug_level)
+		if (vector_XYS == null) {
+			return; // for MB vectors (noLMA)
+		}
+		
 		double [][] wjtj = getWJtJlambda( // USED in lwir all NAN
 				0.0,               // final double      lambda,
 				last_jt);               // final double [][] jt) all 0???
@@ -727,10 +730,12 @@ public class IntersceneLma {
 		final double [] scene_atr  =    new double[3];
 		final double [] reference_xyz = new double[3]; // will stay 0
 		final double [] reference_atr = new double[3]; // will stay 0
-		final double [] fx =            new double [weights.length];
+		final boolean mb_mode = (weights == null);
+		final int weights_length = mb_mode ?  (2 * macrotile_centers.length) : weights.length; 
+		final double [] fx =         mb_mode ? null : (new double [weights_length]); // weights.length]; : weights.length :
 		if (jt != null) {
 			for (int i = 0; i < jt.length; i++) {
-				jt[i] = new double [weights.length];
+				jt[i] = new double [weights_length]; // weights.length];
 			}
 		}
 		
@@ -758,14 +763,13 @@ public class IntersceneLma {
 				scene_atr, // double [] atr);
 				false)[0]; // boolean invert));
 		
-//		double [][][] derivs = new double [macrotile_centers.length + parameters_vector.length][][];
 		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int iMTile = ai.getAndIncrement(); iMTile < macrotile_centers.length; iMTile = ai.getAndIncrement()) {
-						if ((macrotile_centers[iMTile]!=null) &&(weights[2*iMTile] > 0.0)){  // was: weights[iMTile]?
+						if ((macrotile_centers[iMTile]!=null) && (mb_mode || (weights[2*iMTile] > 0.0))){  // was: weights[iMTile]?
 							//infinity_disparity
 							boolean is_infinity = macrotile_centers[iMTile][2] < infinity_disparity;
 							double [][] deriv_params = ers_ref.getDPxSceneDParameters(
@@ -782,8 +786,10 @@ public class IntersceneLma {
 							if (deriv_params!= null) {
 								boolean bad_tile = false;
 								if (!bad_tile) {
-									fx[2 * iMTile + 0] = deriv_params[0][0]; // pX
-									fx[2 * iMTile + 1] = deriv_params[0][1]; // pY
+									if (!mb_mode) {
+										fx[2 * iMTile + 0] = deriv_params[0][0]; // pX
+										fx[2 * iMTile + 1] = deriv_params[0][1]; // pY
+									}
 									if (jt != null) {
 										for (int i = 0; i < par_indices.length; i++) {
 											int indx = par_indices[i] + 1;
@@ -792,6 +798,11 @@ public class IntersceneLma {
 										}
 									}
 								}
+							} else if (mb_mode) {
+								for (int i = 0; i < par_indices.length; i++) {
+									jt[i][2 * iMTile + 0] = Double.NaN; // pX
+									jt[i][2 * iMTile + 1] = Double.NaN; // ; // pY (disparity is not used)
+								}
 							}
 						}
 					}
@@ -799,6 +810,9 @@ public class IntersceneLma {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
+		if (mb_mode) {
+			return null;
+		}
 		// pull to the initial parameter values
 		for (int i = 0; i < par_indices.length; i++) {
 			fx [i + 2 * macrotile_centers.length] = vector[i]; // - parameters_initial[i]; // scale will be combined with weights

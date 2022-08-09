@@ -4557,15 +4557,12 @@ public class OpticalFlow {
 					((quadCLTs[ref_index].getNumAccum() <  quadCLTs[ref_index].getNumOrient())||
 							(quadCLTs[ref_index].getNumOrient() >= min_num_orient))) {
 				// should skip scenes w/o orientation 06/29/2022
-				
 				combo_dsn_final = intersceneExport( // result indexed by COMBO_DSN_TITLES, COMBO_DSN_INDX_***
 						clt_parameters,      // CLTParameters        clt_parameters,
 						ers_reference,       // ErsCorrection        ers_reference,
 						quadCLTs,            // QuadCLT []           scenes,
 						colorProcParameters, // ColorProcParameters  colorProcParameters,
 						debugLevel);         // int                  debug_level
-				
-				
 				
 				quadCLTs[ref_index].inc_accum();
 				// save with updated num_accum
@@ -4959,7 +4956,6 @@ public class OpticalFlow {
 	        					ImagePlus imp_video = imp_scenes_pair[nstereo];
 	        					boolean [] combine_modes = {!combine_left_right, stereo_merge && combine_left_right, anaglyth_en && !toRGB && combine_left_right };
 	        					for (int istereo_mode = 0; istereo_mode < combine_modes.length; istereo_mode++) if(combine_modes[istereo_mode]) {
-//	        						if (combine_left_right) { // combine pairs multi-threaded
 	        						if (istereo_mode == 1) { // combine pairs for "Google" VR 
 	        							final int left_width = imp_scenes_pair[0].getWidth();
 	        							final int right_width = imp_scenes_pair[1].getWidth();
@@ -5007,17 +5003,8 @@ public class OpticalFlow {
 	        							imp_video.setStack(stereo_stack);
 	        							String title = imp_scenes_pair[1].getTitle();
 	        							imp_video.setTitle(title.replace("-RIGHT","-STEREO"));
-
 	        							// convert stereo_stack to imp_scenes_pair[1], keeping calibration and fps?
-///	        							imp_scenes_pair[1].setStack(stereo_stack);
-///	        							String title = imp_scenes_pair[1].getTitle();
-///	        							imp_video = new ImagePlus(
-///	        									imp_scenes_pair[1].getTitle().replace("-RIGHT","-STEREO"),
-///	        									stereo_stack);
-///	        							imp_scenes_pair[1].setTitle(title.replace("-RIGHT","-STEREO"));
 	        						} else if (istereo_mode == 2) { // combine anaglyph
-//	        							final Color anaglyph_left =      clt_parameters.imp.anaglyph_left;
-//	        							final Color anaglyph_right =     clt_parameters.imp.anaglyph_right;
 	        							final double [] left_rgb= {
 	        									anaglyph_left.getRed()/255.0,
 	        									anaglyph_left.getGreen()/255.0,
@@ -5066,8 +5053,6 @@ public class OpticalFlow {
 	        							imp_video.setStack(stereo_stack);
 	        							String title = imp_scenes_pair[1].getTitle();
 	        							imp_video.setTitle(title.replace("-RIGHT","-ANAGLYPH"));
-///	        							String title = imp_scenes_pair[1].getTitle();
-///	        							imp_scenes_pair[1].setTitle(title.replace("-RIGHT","-ANAGLYPH"));
 	        						} // if (istereo_mode == 1) {if (combine_left_right) { // combine pairs multi-threaded
 	        						String avi_path=null;
 	        						video:
@@ -5090,7 +5075,6 @@ public class OpticalFlow {
 	        							if (avi_path == null) {
 	        								break video;
 	        							}
-//	        							int img_width=imp_scenes_pair[nstereo].getWidth();
 	        							int img_width=imp_video.getWidth();
 	        							int stereo_width = combine_left_right? img_width:0;
 	        							stereo_widths_list.add(stereo_width);
@@ -5202,6 +5186,7 @@ public class OpticalFlow {
 					null, // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					constant_disparity,  // double []         disparity_ref,
+					
 					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
 					ZERO3, // new double[] {.1,0.1,.1}, // ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
 					quadCLTs[ref_index], // final QuadCLT     scene,
@@ -13404,7 +13389,13 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			boolean []     reliable_ref, // null or bitmask of reliable reference tiles			
     		QuadCLT []     quadCLTs,
 			int            debugLevel)
-	{   
+	{  
+		boolean test_motion_blur = true;
+		
+		boolean mb_en =       clt_parameters.imp.mb_en;
+		double  mb_tau =      clt_parameters.imp.mb_tau;      // 0.008; // time constant, sec
+		double  mb_max_gain = clt_parameters.imp.mb_max_gain; // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+		
 		int earliest_scene = 0;
 	    boolean use_combo_dsi =        clt_parameters.imp.use_combo_dsi;
 	    boolean use_lma_dsi =          clt_parameters.imp.use_lma_dsi;
@@ -13440,13 +13431,33 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
         		}
         	}
         }
+        
+        double [][] ref_pXpYD = null;
+        double [][] dbg_mb_img = null;
+        double [] mb_ref_disparity =null;
+        if (test_motion_blur) {
+        	mb_ref_disparity = interscene_ref_disparity;
+    		if (mb_ref_disparity == null) {
+    			mb_ref_disparity = quadCLTs[ref_index].getDLS()[use_lma_dsi?1:0];
+    		}
+    		ref_pXpYD = transformToScenePxPyD( // full size - [tilesX*tilesY], some nulls
+    				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+    				mb_ref_disparity, // dls[0],  // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+    				ZERO3,         // final double []   scene_xyz, // camera center in world coordinates
+    				ZERO3,         // final double []   scene_atr, // camera orientation relative to world frame
+    				quadCLTs[ref_index],     // final QuadCLT     scene_QuadClt,
+    				quadCLTs[ref_index]);    // final QuadCLT     reference_QuadClt)
+    		dbg_mb_img = new double[quadCLTs.length][];
+        }
+        
+        
 		ErsCorrection ers_reference = quadCLTs[ref_index].getErsCorrection();
         double [][][] dxyzatr_dt = new double[quadCLTs.length][][];
 		double [][][] scenes_xyzatr = new double [quadCLTs.length][][]; // previous scene relative to the next one
 		scenes_xyzatr[ref_index] = new double[2][3]; // all zeros
 		// should have at least next or previous non-null
+		int debug_scene = -15;
 		double maximal_series_rms = 0.00;
-		
         for (int nscene = ref_index; nscene >= earliest_scene; nscene--) {
         	if ((quadCLTs[nscene] == null) ||
         			((nscene != ref_index) &&
@@ -13468,7 +13479,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
         		nscene1 = nscene;
         	}
         	if (nscene1 == nscene0) {
-        		System.out.println("**** Isoloated scene!!! skippiung... now may only happen for a ref_scene****");
+        		System.out.println("**** Isoloated scene!!! skipping... now may only happen for a ref_scene****");
         		earliest_scene = nscene + 1;
         		break;
         	}
@@ -13487,15 +13498,88 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
     		double [] scene_atr1 = (nscene1== ref_index)? ZERO3:ers_reference.getSceneATR(ts1);
     		dxyzatr_dt[nscene] = new double[2][3];
     		for (int i = 0; i < 3; i++) {
-    			dxyzatr_dt[nscene][0][i] = 0.0; // (scene_xyz1[i]-scene_xyz0[i])/dt;
+    			dxyzatr_dt[nscene][0][i] = (scene_xyz1[i]-scene_xyz0[i])/dt;
     			dxyzatr_dt[nscene][1][i] = (scene_atr1[i]-scene_atr0[i])/dt;
     		}
 			double []   scene_xyz_pre = ZERO3;
 			double []   scene_atr_pre = ZERO3;
 			quadCLTs[nscene].getErsCorrection().setErsDt( // set for ref also (should be set before non-ref!)
-					dxyzatr_dt[nscene][0], // double []    ers_xyz_dt,
+					ZERO3, //, // dxyzatr_dt[nscene][0], // double []    ers_xyz_dt,
 					dxyzatr_dt[nscene][1]); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
-			int debug_scene = -15;
+			if (dbg_mb_img != null) {
+				dbg_mb_img[nscene] = new double [tilesX*tilesY*2];
+				Arrays.fill(dbg_mb_img[nscene],Double.NaN);
+				double [] mb_scene_xyz = (nscene != ref_index)? ers_reference.getSceneXYZ(ts):ZERO3;
+				double [] mb_scene_atr = (nscene != ref_index)? ers_reference.getSceneATR(ts):ZERO3;
+
+				double [][] motion_blur = getMotionBlur(
+						quadCLTs[ref_index],   // QuadCLT        ref_scene,
+						quadCLTs[nscene],      // QuadCLT        scene,         // can be the same as ref_scene
+						ref_pXpYD,             // double [][]    ref_pXpYD,     // here it is scene, not reference!
+						mb_scene_xyz,          // double []      camera_xyz,
+						mb_scene_atr,          // double []      camera_atr,
+						dxyzatr_dt[nscene][0], // double []      camera_xyz_dt,
+						dxyzatr_dt[nscene][1], // double []      camera_atr_dt,
+						debugLevel); // int            debug_level)
+				for (int nTile = 0; nTile < motion_blur.length; nTile++) if (motion_blur[nTile] != null) {
+					int tx = nTile % tilesX;
+					int ty = nTile / tilesX;
+					dbg_mb_img[nscene][tx + tilesX * (ty*2 +0)] = motion_blur[nTile][0];
+					dbg_mb_img[nscene][tx + tilesX * (ty*2 +1)] = motion_blur[nTile][1];
+				}
+				boolean show_corrected = false;
+				if (nscene == debug_scene) {
+					System.out.println("nscene = "+nscene);
+					System.out.println("nscene = "+nscene);
+				}
+				while (show_corrected) {
+					ImagePlus imp_mbc = QuadCLT.renderGPUFromDSI(
+							-1,                  // final int         sensor_mask,
+							false,               // final boolean     merge_channels,
+							null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+							clt_parameters,      // CLTParameters     clt_parameters,
+							mb_ref_disparity,    // double []         disparity_ref,
+							// motion blur compensation 
+							mb_tau,              // double            mb_tau,      // 0.008; // time constant, sec
+							mb_max_gain,         // double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+							motion_blur,         // double [][]       mb_vectors,  //
+							
+							mb_scene_xyz,        // ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
+							mb_scene_atr,        // final double []   scene_atr, // camera orientation relative to world frame
+							quadCLTs[nscene],    // final QuadCLT     scene,
+							quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+							false, // toRGB,               // final boolean     toRGB,
+							clt_parameters.imp.show_color_nan,
+							quadCLTs[nscene].getImageName()+"-MOTION_BLUR_CORRECTED", // String            suffix,
+							threadsMax,          // int               threadsMax,
+							debugLevel);         // int         debugLevel)
+					imp_mbc.show();
+					ImagePlus imp_mbc_merged = QuadCLT.renderGPUFromDSI(
+							-1,                  // final int         sensor_mask,
+							true,               // final boolean     merge_channels,
+							null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+							clt_parameters,      // CLTParameters     clt_parameters,
+							mb_ref_disparity,    // double []         disparity_ref,
+							// motion blur compensation 
+							mb_tau,              // double            mb_tau,      // 0.008; // time constant, sec
+							mb_max_gain,         // double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+							motion_blur,         // double [][]       mb_vectors,  //
+							
+							mb_scene_xyz,        // ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
+							mb_scene_atr,        // final double []   scene_atr, // camera orientation relative to world frame
+							quadCLTs[nscene],    // final QuadCLT     scene,
+							quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+							false, // toRGB,               // final boolean     toRGB,
+							clt_parameters.imp.show_color_nan,
+							quadCLTs[nscene].getImageName()+"-MOTION_BLUR_CORRECTED", // String            suffix,
+							threadsMax,          // int               threadsMax,
+							debugLevel);         // int         debugLevel)
+					imp_mbc_merged.show();
+				}
+			}
+			
+			
+//			int debug_scene = -15;
 			if (nscene != ref_index) {
 				if (nscene == debug_scene) {
 					System.out.println("nscene = "+nscene);
@@ -13550,7 +13634,20 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				}
 			}
         } // for (int nscene = ref_index; nscene > earliest_scene; nscene--) {
-		
+		if (dbg_mb_img != null) {
+			String [] dbg_mb_titles = new String[quadCLTs.length];
+			for (int i = 0; i < quadCLTs.length; i++) if (quadCLTs[i] != null) {
+				dbg_mb_titles[i] = quadCLTs[i].getImageName();
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_mb_img,
+					tilesX * 2,
+					tilesY,
+					true,
+					quadCLTs[ref_index].getImageName()+"-MOTION_BLUR",
+					dbg_mb_titles);
+		}
+        
 		if (debugLevel > -4) {
 			System.out.println("All multi scene passes are Done. Maximal RMSE was "+maximal_series_rms);
 		}
@@ -13560,6 +13657,84 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				debugLevel+1);
 		return earliest_scene;
 	}
+	
+	/**
+	 * Get per-tile motion blur vector
+	 * @param ref_scene reference scene
+	 * @param scene current scene (may be the same as reference)
+	 * @param ref_pXpYD per-tile pX, pY, disparity for reference scene (some may be nulls) 
+	 * @param camera_xyz camera x,y,z relative to the reference
+	 * @param camera_atr camera azimuth, tilt, roll relative to the reference
+	 * @param camera_xyz_dt camera linear velocities: x', y', z'
+	 * @param camera_atr_dt camera angular velocities: azimuth', tilt', roll'
+	 * @param debug_level debug level
+	 * @return per-tile array of {dx/dt, dy/dt} vectors, some may be null
+	 */
+	public double [][] getMotionBlur(
+			QuadCLT        ref_scene,
+			QuadCLT        scene,         // can be the same as ref_scene
+			double [][]    ref_pXpYD,
+			double []      camera_xyz,
+			double []      camera_atr,
+			double []      camera_xyz_dt,
+			double []      camera_atr_dt,
+//			boolean        fill_gaps,
+			int            debug_level)
+
+	{
+		boolean[] param_select = new boolean[ErsCorrection.DP_NUM_PARS];
+		final int [] par_indices = new int[] {
+				ErsCorrection.DP_DSAZ,
+				ErsCorrection.DP_DSTL,
+				ErsCorrection.DP_DSRL,
+				ErsCorrection.DP_DSX,
+				ErsCorrection.DP_DSY,
+				ErsCorrection.DP_DSZ};
+		for (int i: par_indices) {
+			param_select[i]=true;
+		}
+		final double [] camera_dt = new double[] {
+				camera_atr_dt[0], camera_atr_dt[1], camera_atr_dt[2],
+				camera_xyz_dt[0], camera_xyz_dt[1], camera_xyz_dt[2]};
+		final double [][] mb_vectors = new double [ref_pXpYD.length][];
+		
+		IntersceneLma intersceneLma = new IntersceneLma(
+				this,          // OpticalFlow opticalFlow
+				false);        // clt_parameters.ilp.ilma_thread_invariant);
+		intersceneLma.prepareLMA(
+				camera_xyz,    // final double []   scene_xyz0,     // camera center in world coordinates (or null to use instance)
+				camera_atr,    // final double []   scene_atr0,     // camera orientation relative to world frame (or null to use instance)
+				scene,         // final QuadCLT     scene_QuadClt,
+				ref_scene,     // final QuadCLT     reference_QuadClt,
+				param_select,  // final boolean[]   param_select,
+				null,          // final double []   param_regweights,
+				null,          // final double [][] vector_XYS, // optical flow X,Y, confidence obtained from the correlate2DIterate()
+				ref_pXpYD,     // final double [][] centers,    // macrotile centers (in pixels and average disparities
+				false,         // boolean           first_run,
+				debug_level);  // final int         debug_level)
+		final double [][] last_jt = intersceneLma. getLastJT(); // alternating x,y for each selected parameters
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < ref_pXpYD.length; nTile = ai.getAndIncrement()) if (ref_pXpYD[nTile] != null){
+						mb_vectors[nTile]= new double[2];
+						for (int i = 0; i < par_indices.length; i++) {
+							mb_vectors[nTile][0] += camera_dt[i] * last_jt[i][2*nTile + 0];
+							mb_vectors[nTile][1] += camera_dt[i] * last_jt[i][2*nTile + 1];
+						}
+						if (Double.isNaN(mb_vectors[nTile][0]) || Double.isNaN(mb_vectors[nTile][1])) {
+							mb_vectors[nTile] = null;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return mb_vectors;
+	}
+	
 	
 	public double[][]  adjustPairsLMAInterscene(
 			CLTParameters  clt_parameters,			
@@ -13614,84 +13789,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	        	System.out.println("adjustPairsLMAInterscene() returned null");
 	        	return null;
 	        }
-	        /*
-			int           eq_stride_hor =         8;
-			int           eq_stride_vert =        8;
-			double        eq_min_stile_weight =   0.2; // 1.0;
-			int           eq_min_stile_number =   10;
-			double        eq_min_stile_fraction = 0.02; // 0.05;
-			double        eq_min_disparity =      5;
-			double        eq_max_disparity =    100;
-			double        eq_weight_add =         0.1;
-			double        eq_weight_scale =      10;
-			double        eq_level =              0.8; // equalize to (log) fraction of average/this strength      
-			
-			if (run_equalize && near_important) {
-				TileProcessor tp = reference_QuadClt.getTileProcessor();
-				int tilesX = tp.getTilesX();
-				int tilesY = tp.getTilesY();
-				// backup coord_motion[1][][2] // strength
-				double [] strength_backup = null;
-				if (debug_equalize) {
-					strength_backup = new double [coord_motion[1].length];
-					for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
-						strength_backup[i] = coord_motion[1][i][2];
-					}
-				}
-				while (run_equalize) {
-					// restore
-					if (strength_backup != null) {
-						for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
-							coord_motion[1][i][2] = strength_backup[i];
-						}
-					}
-					equalizeMotionVectorsWeights(
-							coord_motion,          // final double [][][] coord_motion,
-							tilesX,                // final int           tilesX,
-							eq_stride_hor,         // final int           stride_hor,
-							eq_stride_vert,        // final int           stride_vert,
-							eq_min_stile_weight,   // final double        min_stile_weight,
-							eq_min_stile_number,   // final int           min_stile_number,
-							eq_min_stile_fraction, // final double        min_stile_fraction,
-							eq_min_disparity,      // final double        min_disparity,
-							eq_max_disparity,      // final double        max_disparity,
-							eq_weight_add,         // final double        weight_add,
-							eq_weight_scale,       // final double        weight_scale)
-							eq_level);             // equalize to (log) fraction of average/this strength      
-
-					if (!debug_equalize) {
-						break;
-					}
-					String [] mvTitles = {"dx", "dy","conf", "conf0", "pX", "pY","Disp","defined"}; // ,"blurX","blurY", "blur"};
-					double [][] dbg_img = new double [mvTitles.length][tilesX*tilesY];
-					for (int l = 0; l < dbg_img.length; l++) {
-						Arrays.fill(dbg_img[l], Double.NaN);
-					}
-					for (int nTile = 0; nTile <  coord_motion[0].length; nTile++) {
-						if (coord_motion[0][nTile] != null) {
-							for (int i = 0; i <3; i++) {
-								dbg_img[4+i][nTile] = coord_motion[0][nTile][i];
-							}
-						}
-						dbg_img[3] = strength_backup;
-						if (coord_motion[1][nTile] != null) {
-							for (int i = 0; i <3; i++) {
-								dbg_img[0+i][nTile] = coord_motion[1][nTile][i];
-							}
-						}
-						dbg_img[7][nTile] = ((coord_motion[0][nTile] != null)?1:0)+((coord_motion[0][nTile] != null)?2:0);
-					}
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
-							dbg_img,
-							tilesX,
-							tilesY,
-							true,
-							scene_QuadClt.getImageName()+"-"+reference_QuadClt.getImageName()+"-coord_motion-eq",
-							mvTitles);
-				}
-
-			}
-	        */
 	        
 			intersceneLma.prepareLMA(
 					camera_xyz0,         // final double []   scene_xyz0,     // camera center in world coordinates (or null to use instance)

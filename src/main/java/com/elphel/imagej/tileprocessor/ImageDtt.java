@@ -1199,12 +1199,56 @@ public class ImageDtt extends ImageDttCPU {
 		gpuQuad.updateTasks(
 				tp_tasks,
 				false); // boolean use_aux    // while is it in class member? - just to be able to free
-		// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
-//		int [] wh = null;
-//		int  erase_clt = 1; // NaN;
 		gpuQuad.execConvertDirect(use_reference_buffer, wh, erase_clt); // put results into a "reference" buffer
 	}
 
+	public void setReferenceTDMotionBlur(
+			final int                 erase_clt,
+			final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+			final boolean             use_reference_buffer,
+			final TpTask[][]          tp_tasks,
+			final double              gpu_sigma_r,     // 0.9, 1.1
+			final double              gpu_sigma_b,     // 0.9, 1.1
+			final double              gpu_sigma_g,     // 0.6, 0.7
+			final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+			final int                 threadsMax,       // maximal number of threads to launch
+			final int                 globalDebugLevel)
+	{
+		final float [][] lpf_rgb = new float[][] {
+			floatGetCltLpfFd(gpu_sigma_r),
+			floatGetCltLpfFd(gpu_sigma_b),
+			floatGetCltLpfFd(gpu_sigma_g),
+			floatGetCltLpfFd(gpu_sigma_m)
+		};
+		gpuQuad.setLpfRbg( // constants memory - same for all cameras
+				lpf_rgb,
+				globalDebugLevel > 2);
+		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
+				tp_tasks[0],               // TpTask [] tile_tasks,
+				false,                     // use_aux); // boolean use_aux)
+				imgdtt_params.gpu_verify); // boolean verify
+		// Why always NON-UNIFORM grid? Already set in tp_tasks
+		gpuQuad.execSetTilesOffsets(false); // false); // prepare tiles offsets in GPU memory, using NON-UNIFORM grid (pre-calculated)
+		// update tp_tasks
+		gpuQuad.updateTasks(
+				tp_tasks[0],
+				false); // boolean use_aux    // while is it in class member? - just to be able to free
+		gpuQuad.execConvertDirect(use_reference_buffer, wh, erase_clt); // put results into a "reference" buffer
+		
+		// second tasks (subtracting MB)
+		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
+				tp_tasks[1],               // TpTask [] tile_tasks,
+				false,                     // use_aux); // boolean use_aux)
+				imgdtt_params.gpu_verify); // boolean verify
+		// Why always NON-UNIFORM grid? Already set in tp_tasks
+		gpuQuad.execSetTilesOffsets(false); // false); // prepare tiles offsets in GPU memory, using NON-UNIFORM grid (pre-calculated)
+		// update tp_tasks
+		gpuQuad.updateTasks(
+				tp_tasks[1],
+				false); // boolean use_aux    // while is it in class member? - just to be able to free
+		gpuQuad.execConvertDirect(use_reference_buffer, wh, -1); // erase_clt); // put results into a "reference" buffer
+	}
 
 
 	

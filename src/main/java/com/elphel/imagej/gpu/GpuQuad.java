@@ -3719,7 +3719,6 @@ public class GpuQuad{ // quad camera description
 		//change to fixed 511?
 		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
 		final double min_px = margin; 
-//		final double max_px = img_width - 1 - margin;
 		final double max_px = geometryCorrection.getSensorWH()[0] - 1 - margin; // sensor width here, not window width
 		final double [] min_py = new double[num_cams] ;
 		final double [] max_py = new double[num_cams] ;
@@ -3727,7 +3726,6 @@ public class GpuQuad{ // quad camera description
 			min_py [i] = margin + (calcPortsCoordinatesAndDerivatives? geometryCorrection.getWOITops()[i] : 0);
 			// camera_heights array is only set during conditionImageSet(), not called by the intersceneAccumulate()
 			// That was correct, as all scenes should be conditioned
-//			max_py [i] = geometryCorrection.getWOITops()[i] + geometryCorrection.getCameraHeights()[i] - 1 - margin;
 			max_py [i] = geometryCorrection.getSensorWH()[1] - 1 - margin; // same for all channels?
 			//.getSensorWH()[0]
 		}
@@ -3807,11 +3805,167 @@ public class GpuQuad{ // quad camera description
 
 
 	
-	
-	
-	
+	public static TpTask[][]  setInterTasksMotionBlur(
+			final int                 num_cams,
+			final int                 img_width, // should match pXpYD
+			final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+			final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+			final boolean []          selection, // may be null, if not null do not  process unselected tiles
+			// motion blur compensation 
+			final double              mb_tau,      // 0.008; // time constant, sec
+			final double              mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+			final double [][]         mb_vectors,  //
+			
+			final GeometryCorrection  geometryCorrection,
+			final double              disparity_corr,
+			final int                 margin,      // do not use tiles if their centers are closer to the edges
+			final boolean []          valid_tiles,            
+			final int                 threadsMax)  // maximal number of threads to launch
+	{
+		int num_pairs = Correlation2d.getNumPairs(num_cams);
+		//change to fixed 511?
+		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
+		final double min_px = margin; 
+		final double max_px = geometryCorrection.getSensorWH()[0] - 1 - margin; // sensor width here, not window width
+		final double [] min_py = new double[num_cams] ;
+		final double [] max_py = new double[num_cams] ;
+		for (int i = 0; i < num_cams; i++) {
+			min_py [i] = margin + (calcPortsCoordinatesAndDerivatives? geometryCorrection.getWOITops()[i] : 0);
+			// camera_heights array is only set during conditionImageSet(), not called by the intersceneAccumulate()
+			// That was correct, as all scenes should be conditioned
+			max_py [i] = geometryCorrection.getSensorWH()[1] - 1 - margin; // same for all channels?
+			//.getSensorWH()[0]
+		}
+		if (valid_tiles!=null) {
+			Arrays.fill(valid_tiles, false);
+		}
+		final int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
+		final int tiles = pXpYD.length;
+		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+		final int quad_main = (geometryCorrection != null)? num_cams:0;
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(00);
+		final AtomicInteger aTiles = new AtomicInteger(0);
+		final TpTask[][] tp_tasks = new TpTask[2][tiles]; // aTiles.get()]; // [0] - main, [1] - shifted
+		final double mb_len_scale = -Math.log(1.0 - 1.0/mb_max_gain);
 
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement())
+						if ((pXpYD[nTile] != null) && (mb_vectors[nTile] != null) && ((selection == null) || selection[nTile])) {
+						int tileY = nTile / tilesX;
+						int tileX = nTile % tilesX;
+						TpTask tp_task =    new TpTask(num_cams, tileX, tileY);
+						TpTask tp_task_sub = new TpTask(num_cams, tileX, tileY);
+						tp_task.task = task_code;
+						tp_task_sub.task = task_code;
+						double disparity = pXpYD[nTile][2] + disparity_corr;
+						tp_task.target_disparity = (float) disparity; // will it be used?
+						tp_task_sub.target_disparity = tp_task.target_disparity; // will it be used?
+						double [] centerXY = pXpYD[nTile];
+						tp_task.setCenterXY(centerXY); // this pair of coordinates will be used by GPU to set tp_task.xy and task.disp_dist!
+						// calculate offset for the secondary tile and weigh
+						double dx = mb_vectors[nTile][0];
+						double dy = mb_vectors[nTile][1];
+						double mb_len = Math.sqrt(dx*dx+dy*dy); // in pixels/s
+						dx /= mb_len; // unit vector
+						dy /= mb_len;
+						mb_len *= mb_tau; // now in pixels
+						double mb_offs = 1.0; // try 1 pixel. Maybe adjust for non-ortho, e.g. sqrt(2) for diagonal?
+						double min_offs = mb_len_scale * mb_len;
+						if (mb_offs < min_offs) {
+							mb_offs = min_offs;
+						}
+						dx *= mb_offs;
+						dy *= mb_offs;
+						double [] centerXY_sub = {centerXY[0]+dx,centerXY[1]+dy};
+						tp_task_sub.setCenterXY(centerXY_sub);
+						double exp_offs = Math.exp(-mb_offs/mb_len);
+						double gain =    1.0/(1.0 - exp_offs);
+						double gain_sub = -gain * exp_offs;
+						tp_task.setScale(gain);
+						tp_task_sub.setScale(gain_sub);
+					
+						boolean bad_margins = false;
+						if (calcPortsCoordinatesAndDerivatives) { // for non-GPU?
+							double [][] disp_dist = new double[quad_main][]; // used to correct 3D correlations (not yet used here)
+							double [][] centersXY_main = geometryCorrection.getPortsCoordinatesAndDerivatives(
+									geometryCorrection, //			GeometryCorrection gc_main,
+									false,          // boolean use_rig_offsets,
+									corr_rots, // Matrix []   rots,
+									null,           //  Matrix [][] deriv_rots,
+									null,           // double [][] pXYderiv, // if not null, should be double[8][]
+									disp_dist,       // used to correct 3D correlations
+									centerXY[0],
+									centerXY[1],
+									disparity); //  + disparity_corr);
+							tp_task.setDispDist(disp_dist);
+							tp_task.xy = new float [centersXY_main.length][2];
+							
+							for (int i = 0; i < centersXY_main.length; i++) {
+								if (    (centersXY_main[i][0] < min_px) ||    (centersXY_main[i][0] > max_px) ||
+										(centersXY_main[i][1] < min_py[i]) || (centersXY_main[i][1] > max_py[i])) {
+									bad_margins = true;
+									break;
+								}
+								tp_task.xy[i][0] = (float) centersXY_main[i][0];
+								tp_task.xy[i][1] = (float) centersXY_main[i][1];
+							}
+							// same for the second entry
+							double [][] disp_dist_sub = new double[quad_main][]; // used to correct 3D correlations (not yet used here)
+							double [][] centersXY_main_sub = geometryCorrection.getPortsCoordinatesAndDerivatives(
+									geometryCorrection, //			GeometryCorrection gc_main,
+									false,          // boolean use_rig_offsets,
+									corr_rots, // Matrix []   rots,
+									null,           //  Matrix [][] deriv_rots,
+									null,           // double [][] pXYderiv, // if not null, should be double[8][]
+									disp_dist_sub,       // used to correct 3D correlations
+									centerXY_sub[0],
+									centerXY_sub[1],
+									disparity); //  + disparity_corr);
+							tp_task_sub.setDispDist(disp_dist);
+							tp_task_sub.xy = new float [centersXY_main.length][2];
+							for (int i = 0; i < centersXY_main.length; i++) {
+								if (    (centersXY_main[i][0] < min_px) ||    (centersXY_main[i][0] > max_px) ||
+										(centersXY_main[i][1] < min_py[i]) || (centersXY_main[i][1] > max_py[i])) {
+									bad_margins = true;
+									break;
+								}
+								tp_task_sub.xy[i][0] = (float) centersXY_main_sub[i][0];
+								tp_task_sub.xy[i][1] = (float) centersXY_main_sub[i][1];
+							}
+							
+						} else { // only check center for margins
+							if (    (centerXY[0]     < min_px)    || (centerXY[0]     > max_px) ||
+									(centerXY[1]     < min_py[0]) || (centerXY[1]     > max_py[0]) ||
+									(centerXY_sub[0] < min_px)    || (centerXY_sub[0] > max_px) ||
+									(centerXY_sub[1] < min_py[0]) || (centerXY_sub[1] > max_py[0])) {
+								bad_margins = true;
+//								break;
+							}
 
+						}
+						if (bad_margins) {
+							continue;
+						}
+						int tp_task_index = aTiles.getAndIncrement();
+						tp_tasks[0][tp_task_index] = tp_task;
+						tp_tasks[1][tp_task_index] = tp_task_sub;
+						if (valid_tiles!=null) {
+							valid_tiles[nTile] = true;
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		final TpTask[][] tp_tasks_out = new TpTask[2][aTiles.get()];
+		System.arraycopy(tp_tasks[0], 0, tp_tasks_out[0], 0, tp_tasks_out[0].length);
+		System.arraycopy(tp_tasks[1], 0, tp_tasks_out[1], 0, tp_tasks_out[1].length);
+		return tp_tasks_out;
+	}
 
 	public void setLpfRbg(
 			float [][] lpf_rbg, // 4 64-el. arrays: r,b,g,m

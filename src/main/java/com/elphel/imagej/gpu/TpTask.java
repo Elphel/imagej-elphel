@@ -11,13 +11,28 @@ public class TpTask {
 	public float[][]  xy_aux = null;
 	public float [][] disp_dist = null;
 //	public float      weight;
+	public float      scale = 0.0f; // for motion blur correction
+	// 0.0 - set (as it was). >0 multiply and set. <0 multiply and accumulate
 	public static int getSize(int num_sensors) {
-		return 5 + 2* num_sensors + 4 * num_sensors;
+//		return 5 + 2* num_sensors + 4 * num_sensors;
+		return 6 + 2* num_sensors + 4 * num_sensors; // added scale
 	}
 	public int getSize() {
-		return 5 + 2* num_sensors + 4 * num_sensors;
+//		return 5 + 2* num_sensors + 4 * num_sensors;
+		return getSize(num_sensors);
 	}
 	
+	public void setScale(float scale) {
+		this.scale = scale;
+	}
+	
+	public void setScale(double scale) {
+		this.scale = (float) scale;
+	}
+	
+	public float getScale() {
+		return scale;
+	}
 	
 	public TpTask(
 			int num_sensors,
@@ -54,6 +69,7 @@ public class TpTask {
 		target_disparity = flt[indx++];              // 2
 		centerXY[0] = flt[indx++];                   // 3
 		centerXY[1] = flt[indx++];                   // 4
+		scale = flt[indx++];                         // 5
 		if (use_aux) {
 			xy_aux = new float[num_sensors][2];
     		for (int i = 0; i < num_sensors; i++) {
@@ -165,7 +181,7 @@ public class TpTask {
 		flt[indx++] = this.target_disparity;                 // 2
 		flt[indx++] = centerXY[0];                           // 3
 		flt[indx++] = centerXY[1];                           // 4
-		
+		flt[indx++] = scale;                                 // 5
 		float [][] offsets = use_aux? this.xy_aux: this.xy;
 		for (int i = 0; i < num_sensors; i++) {
 			if (offsets != null) {
