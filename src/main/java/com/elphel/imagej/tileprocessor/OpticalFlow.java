@@ -5801,6 +5801,53 @@ public class OpticalFlow {
 		return min_max_xyzatr;
     }
     
+    /**
+     * Calculate linear and angular velocities for the scene if positions and orientations
+     * are already known relative to the reference scene
+     * @param quadCLTs array of scenes, last one is the reference
+     * @param nscene index of the current scene
+     * @return [2][3] array of {{dx/dt, dy/dt, dz/dt}, {dazimuth/dt, dtilt/dt, droll/dt}}
+     */
+    public static double [][] getVelocities(
+    		QuadCLT []     quadCLTs,
+    		int            nscene){
+        int ref_index = quadCLTs.length -1;
+		ErsCorrection ers_reference = quadCLTs[ref_index].getErsCorrection();
+		int nscene0 = nscene - 1;
+		if ((nscene0 < 0) ||
+				(quadCLTs[nscene0]== null)||
+				(ers_reference.getSceneXYZ(quadCLTs[nscene0].getImageName())== null) ||
+				(ers_reference.getSceneATR(quadCLTs[nscene0].getImageName())== null)) {
+			nscene0 = nscene;
+		}
+		int nscene1 = nscene + 1;
+		if ((nscene1 > ref_index) || (quadCLTs[nscene1]== null)) {
+			nscene1 = nscene;
+		}
+		if (nscene1 == nscene0) {
+			System.out.println("**** Isoloated scene!!! skipping... now may only happen for a ref_scene****");
+			return null;
+		}
+		double dt = quadCLTs[nscene1].getTimeStamp() - quadCLTs[nscene0].getTimeStamp();
+		String ts0 = quadCLTs[nscene0].getImageName();
+		String ts1 = quadCLTs[nscene1].getImageName();
+		double [] scene_xyz0 = ers_reference.getSceneXYZ(ts0);
+		double [] scene_atr0 = ers_reference.getSceneATR(ts0);
+		if (scene_xyz0 == null) {
+			System.out.println ("BUG: No egomotion data for timestamp "+ts0);
+			return null;
+		}
+		double [] scene_xyz1 = (nscene1== ref_index)? ZERO3:ers_reference.getSceneXYZ(ts1);
+		double [] scene_atr1 = (nscene1== ref_index)? ZERO3:ers_reference.getSceneATR(ts1);
+		double [][] dxyzatr_dt = new double[2][3];
+		for (int i = 0; i < 3; i++) {
+			dxyzatr_dt[0][i] = (scene_xyz1[i]-scene_xyz0[i])/dt;
+			dxyzatr_dt[1][i] = (scene_atr1[i]-scene_atr0[i])/dt;
+		}
+    	return dxyzatr_dt;
+    	
+    }
+    
     
     public static ImagePlus renderSceneSequence(
     		CLTParameters  clt_parameters,
@@ -5888,6 +5935,7 @@ public class OpticalFlow {
 			ImagePlus imp_scene = null;
 			double [][] dxyzatr_dt = null;
 			if (mb_en) {
+				/*
 				get_velocities:
 				{
 					int nscene0 = nscene - 1;
@@ -5922,6 +5970,10 @@ public class OpticalFlow {
 						dxyzatr_dt[1][i] = (scene_atr1[i]-scene_atr0[i])/dt;
 					}
 				}
+				*/
+				dxyzatr_dt = getVelocities(
+						quadCLTs, // QuadCLT []     quadCLTs,
+						nscene);  // int            nscene)
 			}
 			
 			
@@ -12253,9 +12305,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		double  eq_weight_scale =      clt_parameters.imp.eq_weight_scale; // 10;
 		double  eq_level =             clt_parameters.imp.eq_level; //  0.8; // equalize to (log) fraction of average/this strength      
 	    
-	    
-	    
-	    
 		if (scene_is_ref_test) {
 			scene_xyz = ZERO3.clone();
 			scene_atr = ZERO3.clone();
@@ -12264,14 +12313,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		}
 		int tilesX =         tp.getTilesX();
 		int tilesY =         tp.getTilesY();
-		/*
-		if (dbg_corr_fpn != null) { // 2*16 or 2*17 (average, individual)
-			for (int i = 0; i < dbg_corr_fpn.length; i++) {
-				dbg_corr_fpn[i] = new float [tilesY * tilesX];
-				Arrays.fill(dbg_corr_fpn[i], Float.NaN);
-			}
-		}
-		*/
 		double [][][] coord_motion = null; // new double [2][tilesX*tilesY][];
 		final double [][][] motion_vectors = show_motion_vectors?new double [tilesY *tilesX][][]:null;
 		final float  [][][] fclt_corr = ((accum_2d_corr != null) || show_2d_correlations) ?

@@ -1151,6 +1151,135 @@ public class ImageDtt extends ImageDttCPU {
 		return;
 	}
 	
+    /**
+     * Correlate two scenes - reference (should be set with setReferenceTDMotionBlur() ) and this one, keep results in TD
+     * results include selected sensors and the sum of them
+     * @param imgdtt_params
+     * @param tp_tasks (tasks should not include the tiles that are missing from the reference scene)
+     *                 Differently from nonMB interCorrTD(), tasks contain a pair of primary (to set) and secondary (to subtract)
+     * @param fcorr_td null or float [tilesY][tilesX][][] - will return [number_of_selected_sensors + 1][256] for non-empty
+     * @param gpu_sigma_r
+     * @param gpu_sigma_b
+     * @param gpu_sigma_g
+     * @param gpu_sigma_m
+     * @param gpu_sigma_rb_corr
+     * @param gpu_sigma_corr
+     * @param gpu_sigma_log_corr
+     * @param corr_red
+     * @param corr_blue
+     * @param sensor_mask_inter The bitmask - which sensors to correlate, -1 - all.
+     * @param threadsMax
+     * @param globalDebugLevel
+     */
+	
+	public void interCorrTDMotionBlur(
+			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+			final TpTask[][]          tp_tasks,
+			final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+			final double              gpu_sigma_r,     // 0.9, 1.1
+			final double              gpu_sigma_b,     // 0.9, 1.1
+			final double              gpu_sigma_g,     // 0.6, 0.7
+			final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+			final double              gpu_sigma_rb_corr,    //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 :
+			final double              gpu_sigma_corr,       //  =    0.9;gpu_sigma_corr_m
+			final double              gpu_sigma_log_corr,   // hpf to reduce dynamic range for correlations
+			final double              corr_red, // +used
+			final double              corr_blue,// +used
+			final int                 sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
+			final int                 threadsMax,        // maximal number of threads to launch
+			final int                 globalDebugLevel)
+	{
+		final int numcol = isMonochrome()?1:3;
+		final double [] col_weights= new double [numcol]; // colors are RBG
+		if (isMonochrome()) {
+			col_weights[0] = 1.00; // Was 0 ! 0;
+		} else {
+			col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+			col_weights[0] = corr_red *  col_weights[2];
+			col_weights[1] = corr_blue * col_weights[2];
+		}
+
+		final float [][] lpf_rgb = new float[][] {
+			floatGetCltLpfFd(gpu_sigma_r),
+			floatGetCltLpfFd(gpu_sigma_b),
+			floatGetCltLpfFd(gpu_sigma_g),
+			floatGetCltLpfFd(gpu_sigma_m)
+		};
+		gpuQuad.setLpfRbg( // constants memory - same for all cameras
+				lpf_rgb,
+				globalDebugLevel > 2);
+
+		final float [] lpf_flat = floatGetCltLpfFd(gpu_sigma_corr);
+
+		gpuQuad.setLpfCorr(// constants memory - same for all cameras
+				"lpf_corr", // String const_name, // "lpf_corr"
+				lpf_flat,
+				globalDebugLevel > 2);
+
+		final float [] lpf_rb_flat = floatGetCltLpfFd(gpu_sigma_rb_corr);
+		gpuQuad.setLpfCorr(// constants memory - same for all cameras
+				"lpf_rb_corr", // String const_name, // "lpf_corr"
+				lpf_rb_flat,
+				globalDebugLevel > 2);
+		
+		final float [] log_flat = floatGetCltHpfFd(gpu_sigma_log_corr);
+		gpuQuad.setLpfCorr(// constants memory - same for all cameras
+				"LoG_corr", // String const_name, // "lpf_corr"
+				log_flat,
+				globalDebugLevel > 2);
+		// set primary tasks and perform direct conversion to TD
+		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
+				tp_tasks[0],               // TpTask [] tile_tasks,
+				false,                     // use_aux); // boolean use_aux)
+				imgdtt_params.gpu_verify); // boolean verify
+		// used alternative method to prepare tasks, not centered in the tile centers
+		// FIXME: change back to false !!!!
+		// Testing, remove when done
+		// gpuQuad.resetGeometryCorrection();
+		// gpuQuad.setConvolutionKernels(true); // set kernels if they are not set already
+		// gpuQuad.setBayerImages(true);     // set Bayer images if this.quadCLT instance has new ones
+		
+		// Why always NON-UNIFORM grid? Already set in tp_tasks
+		gpuQuad.execSetTilesOffsets(false); // false); // prepare tiles offsets in GPU memory, using NON-UNIFORM grid (pre-calculated)
+		// update tp_tasks
+		gpuQuad.updateTasks(
+				tp_tasks[0],
+				false); // boolean use_aux    // while is it in class member? - just to be able to free
+		
+       	// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
+		gpuQuad.execConvertDirect(-1); // Convert primary image, no erase (each tile will be SET as scales > 0
+		
+		// set secondary tasks and perform direct conversion to TD, subtracting from the converted primary
+		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
+				tp_tasks[1],               // TpTask [] tile_tasks,
+				false,                     // use_aux); // boolean use_aux)
+				imgdtt_params.gpu_verify); // boolean verify
+		// Why always NON-UNIFORM grid? Already set in tp_tasks
+		gpuQuad.execSetTilesOffsets(false); // false); // prepare tiles offsets in GPU memory, using NON-UNIFORM grid (pre-calculated)
+		// update tp_tasks
+		gpuQuad.updateTasks(
+				tp_tasks[1],
+				false); // boolean use_aux    // while is it in class member? - just to be able to free
+		gpuQuad.execConvertDirect(-1); // Convert secondary image, no erase (each tile will be SUBTRACTED as scales < 0)
+		// continue as w/o Motion Blur in ( interCorrTD() )
+		
+		if (sensor_mask_inter == 0) { // no correlation at all
+			return;
+		}
+		gpuQuad.setSensorMaskInter(sensor_mask_inter);
+		//Generate 2D phase correlations from the CLT representation
+		gpuQuad.execCorr2D_inter_TD(
+				col_weights); // double [] scales,
+		if (fcorr_td != null) {
+			gpuQuad.getCorrTilesTd(
+					true, //boolean        inter,
+					fcorr_td); // generate transform domain correlation pairs
+		}
+		return;
+	}
+	
+	
+	
 	/**
 	 * Convert reference scene to FD and save result in extra GPU array for the future interscene correlation
 	 * Geometry correction and images will come from gpuQuad instance - 
