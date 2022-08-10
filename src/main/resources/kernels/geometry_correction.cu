@@ -460,11 +460,11 @@ extern "C" __global__ void get_tiles_offsets(
 	// common code, calculated in parallel
 ///	int cxy = gpu_tasks[task_num].txy;
 ///	float disparity = gpu_tasks[task_num].target_disparity;
-	float disparity = * (gpu_ftasks +  task_size * task_num + 2);
-	float *centerXY =    gpu_ftasks +  task_size * task_num + tp_task_centerXY_offset;
+	float disparity = * (gpu_ftasks +  task_size * task_num + TP_TASK_DISPARITY_OFFSET);
+	float *centerXY =    gpu_ftasks +  task_size * task_num + TP_TASK_CENTERXY_OFFSET;
 	float px =  *(centerXY);
 	float py =  *(centerXY + 1);
-	int cxy =  *(int *) (gpu_ftasks +  task_size * task_num + 1);
+	int cxy =  *(int *) (gpu_ftasks +  task_size * task_num + TP_TASK_TXY_OFFSET);
 	int tileX = (cxy & 0xffff);
 	int tileY = (cxy >> 16);
 
@@ -705,7 +705,7 @@ extern "C" __global__ void get_tiles_offsets(
 ///	gpu_tasks[task_num].disp_dist[ncam][1] = disp_dist[1];
 ///	gpu_tasks[task_num].disp_dist[ncam][2] = disp_dist[2];
 ///	gpu_tasks[task_num].disp_dist[ncam][3] = disp_dist[3];
-	float * disp_dist_p = gpu_ftasks +  task_size * task_num + tp_task_xy_offset + num_cams* 2 + ncam * 4; //  ncam = threadIdx.x, so each thread will have different offset
+	float * disp_dist_p = gpu_ftasks +  task_size * task_num + TP_TASK_XY_OFFSET + num_cams* 2 + ncam * 4; //  ncam = threadIdx.x, so each thread will have different offset
 	*(disp_dist_p++) = disp_dist[0]; // global memory
 	*(disp_dist_p++) = disp_dist[1];
 	*(disp_dist_p++) = disp_dist[2];
@@ -768,7 +768,7 @@ extern "C" __global__ void get_tiles_offsets(
 //	gpu_tasks[task_num].xy[ncam][1] = pXY[1];
 //	float * tile_xy_p = gpu_ftasks +  task_size * task_num + 3 + num_cams * 4 + ncam * 2; //  ncam = threadIdx.x, so each thread will have different offset
 	// .xy goes right after 3 commonn (tak, txy and target_disparity
-	float * tile_xy_p = gpu_ftasks +  task_size * task_num + tp_task_xy_offset + ncam * 2; //  ncam = threadIdx.x, so each thread will have different offset
+	float * tile_xy_p = gpu_ftasks +  task_size * task_num + TP_TASK_XY_OFFSET + ncam * 2; //  ncam = threadIdx.x, so each thread will have different offset
 	*(tile_xy_p++) = pXY[0]; // global memory
 	*(tile_xy_p++) = pXY[1]; // global memory
 }

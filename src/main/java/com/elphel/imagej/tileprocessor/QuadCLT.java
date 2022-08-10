@@ -2706,7 +2706,7 @@ public class QuadCLT extends QuadCLTCPU {
 			// motion blur compensation 
 			double            mb_tau,      // 0.008; // time constant, sec
 			double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
-			double [][]       mb_vectors,  //
+			double [][]       mb_vectors,  // now [2][ntiles];
 			
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
@@ -2740,14 +2740,14 @@ public class QuadCLT extends QuadCLTCPU {
 			for (int i = 0; i < dbg_img.length; i++) {
 				Arrays.fill(dbg_img[i], Double.NaN);
 			}
-			for (int nTile = 0; nTile < pXpYD.length; nTile++) if (pXpYD[nTile] != null){
-				for (int i = 0; i < pXpYD[nTile].length; i++) {
-					dbg_img[i][nTile] = pXpYD[nTile][i];
-				}
-				if (mb_vectors[nTile]!=null) {
-					for (int i = 0; i <2; i++) {
-						dbg_img[3 + i][nTile] =  mb_tau * mb_vectors[nTile][i];
+			for (int nTile = 0; nTile < pXpYD.length; nTile++){
+				if (pXpYD[nTile] != null) {
+					for (int i = 0; i < pXpYD[nTile].length; i++) {
+						dbg_img[i][nTile] = pXpYD[nTile][i];
 					}
+				}
+				for (int i = 0; i <2; i++) {
+					dbg_img[3 + i][nTile] =  mb_tau * mb_vectors[i][nTile];
 				}
 			}
 			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
@@ -2804,8 +2804,8 @@ public class QuadCLT extends QuadCLTCPU {
 	    		full_woi_in.width * GPUTileProcessor.DTT_SIZE,
 	    		full_woi_in.height * GPUTileProcessor.DTT_SIZE};
 	    int                 erase_clt = show_nan ? 1:0;
-	    boolean test1 = true;
-	    if ((mb_vectors!=null) && test1) {
+//	    boolean test1 = true;
+	    if (mb_vectors!=null) {// && test1) {
 	    	image_dtt.setReferenceTDMotionBlur( // change to main?
 	    			erase_clt, //final int                 erase_clt,
 	    			wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels

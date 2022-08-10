@@ -15,7 +15,7 @@ import javax.xml.bind.DatatypeConverter;
 import Jama.Matrix;
 
 public class IntersceneLma {
-	OpticalFlow opticalFlow = null;
+//	OpticalFlow opticalFlow = null;
 	QuadCLT [] scenesCLT =    null; // now will use just 2 - 0 -reference scene, 1 - scene.  
 	private double []         last_rms =        null; // {rms, rms_pure}, matching this.vector
 	private double []         good_or_bad_rms = null; // just for diagnostics, to read last (failed) rms
@@ -37,11 +37,11 @@ public class IntersceneLma {
 	private int               num_samples = 0;
 	private boolean           thread_invariant = true; // Do not use DoubleAdder, provide results not dependent on threads
 	public IntersceneLma(
-			OpticalFlow opticalFlow,
+//			OpticalFlow opticalFlow,
 			boolean thread_invariant
 			) {
 		this.thread_invariant = thread_invariant;
-		this.opticalFlow = opticalFlow;
+//		this.opticalFlow = opticalFlow;
 	}
 	
 	public double [][]       getLastJT(){
@@ -549,7 +549,7 @@ public class IntersceneLma {
 	{
 		this.weights = new double [num_samples + parameters_vector.length];
 		
-		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		double sum_weights;
 		if (thread_invariant) {
@@ -652,7 +652,7 @@ public class IntersceneLma {
 
 	private void normalizeWeights()
 	{
-		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		double full_weight, sum_weight_pure;
 		if (thread_invariant) {
@@ -763,7 +763,7 @@ public class IntersceneLma {
 				scene_atr, // double [] atr);
 				false)[0]; // boolean invert));
 		
-		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -840,7 +840,7 @@ public class IntersceneLma {
 		final int num_pars2 = num_pars * num_pars;
 		final int nup_points = jt[0].length;
 		final double [][] wjtjl = new double [num_pars][num_pars];
-		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -876,7 +876,7 @@ public class IntersceneLma {
 			final double []   fx,
 			final double []   rms_fp // null or [2]
 			) {
-		final Thread[]      threads =     ImageDtt.newThreadArray(opticalFlow.threadsMax);
+		final Thread[]      threads =     ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
 		final AtomicInteger ai =          new AtomicInteger(0);
 		final double []     wymfw =       new double [fx.length];
 		double s_rms; 

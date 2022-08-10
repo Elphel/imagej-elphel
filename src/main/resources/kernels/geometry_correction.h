@@ -64,13 +64,19 @@ struct tp_task {
 	float target_disparity;
 	float centerXY[2];          // "ideal" centerX, centerY to use instead of the uniform tile centers (txy) for interscene accumulation
 	                            // if isnan(centerXY[0]), then txy is used to calculate centerXY and all xy
-	float xy[NUM_CAMS][2];
+	// scale == 0 - old way, just set. Scale !=0 - accumulate. Or make > 0 - set too? only negative - subtract?
+	float scale;                // multiply during direct conversion before accumulating in TD - used for motion blur correction
+	float xy       [NUM_CAMS][2];
 	float disp_dist[NUM_CAMS][4]; // calculated with getPortsCoordinates()
 };
 
 #define get_task_size(x) (sizeof(struct tp_task)/sizeof(float) - 6 * (NUM_CAMS - x))
-#define tp_task_xy_offset 5
-#define tp_task_centerXY_offset 3
+#define TP_TASK_TASK_OFFSET      0
+#define TP_TASK_TXY_OFFSET       1
+#define TP_TASK_DISPARITY_OFFSET 2
+#define TP_TASK_CENTERXY_OFFSET  3
+#define TP_TASK_SCALE_OFFSET     5
+#define TP_TASK_XY_OFFSET        6
 
 struct corr_vector{
 	float tilt    [NUM_CAMS-1]; // 0..2

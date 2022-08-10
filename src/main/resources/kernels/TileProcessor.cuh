@@ -862,6 +862,7 @@ __device__ void convertCorrectTile(
 		const float           centerX,
 		const float           centerY,
 		const int             txy,
+		const float           tscale,
 		const size_t          dstride, // in floats (pixels)
 		float               * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float               * clt_kernels, //      [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
@@ -3118,7 +3119,7 @@ __global__ void convert_correct_tiles(
 	int thread0 =  threadIdx.x & 1; // 0,1
 	int thread12 = threadIdx.x >>1; // now 0..3 (total number ==  (DTT_SIZE), will not change
 
-	float * tp = tp0 + tp_task_xy_offset + threadIdx.x;
+	float * tp = tp0 + TP_TASK_XY_OFFSET + threadIdx.x;
 	if (thread12 < num_cams) {
 		tt[tile_in_block].xy[thread12][thread0] = *(tp);        // gpu_task -> xy[thread12][thread0];
 	}
@@ -3135,7 +3136,9 @@ __global__ void convert_correct_tiles(
 	if (threadIdx.x == 0){ // only one thread calculates, others - wait
 		tt[tile_in_block].task = *(int *)     (tp0++);    // get first integer value
 		tt[tile_in_block].txy =  *(int *)     (tp0++);    // get second integer value
-		tt[tile_in_block].target_disparity = *(tp0++);    //
+		tt[tile_in_block].target_disparity = *(tp0);      //
+		tp0 +=3; // skip centerXY and previous increment (was tt[tile_in_block].target_disparity = *(tp0++);
+		tt[tile_in_block].scale =            *(tp0++);    // get scale to multiply before accumulating/saving
 	}
 	// float centerXY[2] is not used/copied here
 
@@ -3167,7 +3170,8 @@ __global__ void convert_correct_tiles(
 					lpf_mask,                        // const int         lpf_mask,
 					tt[tile_in_block].xy[ncam][0],   // const float       centerX,
 					tt[tile_in_block].xy[ncam][1],   // const float       centerY,
-					tt[tile_in_block].txy,           //  const int txy,
+					tt[tile_in_block].txy,           // const int txy,
+					tt[tile_in_block].scale,         // const float           tscale,
 					dstride,                         // size_t            dstride, // in floats (pixels)
 					(float * )(clt_tile [tile_in_block]),        // float clt_tile [TILES_PER_BLOCK][NUM_CAMS][num_colors][4][DTT_SIZE][DTT_SIZE])
 					(float * )(clt_kernels[tile_in_block]),      // float clt_tile    [num_colors][4][DTT_SIZE][DTT_SIZE],
@@ -4457,6 +4461,7 @@ __device__ void normalizeTileAmplitude(
  * @param centerX              full X-offset of the tile center, calculated from the geometry, distortions and disparity
  * @param centerY              full Y-offset of the tile center
  * @param txy                  integer value combining tile X (low 16 bits) and tile Y (high 16 bits)
+ * @param tscale               float value to scale result. 0 - set. >0 scale and set, <0 subtract
  * @param dstride              stride (in floats) for the input Bayer images
  * @param clt_tile             image tile in shared memory [4][DTT_SIZE][DTT_SIZE1] (just allocated)
  * @param clt_kernels          kernel tile in shared memory [4][DTT_SIZE][DTT_SIZE1] (just allocated)
@@ -4482,6 +4487,7 @@ __device__ void convertCorrectTile(
 		const float           centerX,
 		const float           centerY,
 		const int             txy,
+		const float           tscale,
 		const size_t          dstride, // in floats (pixels)
 		float               * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float               * clt_kernels, //      [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
@@ -5078,18 +5084,32 @@ __device__ void convertCorrectTile(
 #endif
 
 
-
+    if (tscale == 0) { // just set w/o scaling
 #pragma unroll
-    for (int j = 0; j < DTT_SIZE * 4; j++){ // all 4 components, 8 rows
-    	// shared memory tiles use DTT_SIZE1
-    	*clt_dst =  *clt_src;
-    	clt_src   += DTT_SIZE1;
-    	clt_dst   += DTT_SIZE;
+    	for (int j = 0; j < DTT_SIZE * 4; j++){ // all 4 components, 8 rows
+    		// shared memory tiles use DTT_SIZE1
+    		*clt_dst =  *clt_src;
+    		clt_src   += DTT_SIZE1;
+    		clt_dst   += DTT_SIZE;
+    	}
+    } else if (tscale > 0) { // positive - scale and set. For motion blur positive should be first
+#pragma unroll
+    	for (int j = 0; j < DTT_SIZE * 4; j++){ // all 4 components, 8 rows
+    		// shared memory tiles use DTT_SIZE1
+    		*clt_dst =  *clt_src * tscale;
+    		clt_src   += DTT_SIZE1;
+    		clt_dst   += DTT_SIZE;
+    	}
+    } else { // negative - scale and subtract from existing. For motion blur positive should be first
+#pragma unroll
+    	for (int j = 0; j < DTT_SIZE * 4; j++){ // all 4 components, 8 rows
+    		// shared memory tiles use DTT_SIZE1
+    		*clt_dst +=  *clt_src * tscale;
+    		clt_src   += DTT_SIZE1;
+    		clt_dst   += DTT_SIZE;
+    	}
     }
     __syncthreads();// __syncwarp();
-    // just for testing perform imclt, save result to clt_kernels
-
-//#endif
 }
 
 

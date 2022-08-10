@@ -3842,19 +3842,21 @@ public class GpuQuad{ // quad camera description
 		final int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
 		final int tiles = pXpYD.length;
 		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
-		final int quad_main = (geometryCorrection != null)? num_cams:0;
+		final int quad_main = num_cams; // (geometryCorrection != null)? num_cams:0;
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(00);
 		final AtomicInteger aTiles = new AtomicInteger(0);
 		final TpTask[][] tp_tasks = new TpTask[2][tiles]; // aTiles.get()]; // [0] - main, [1] - shifted
 		final double mb_len_scale = -Math.log(1.0 - 1.0/mb_max_gain);
-
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
 					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement())
-						if ((pXpYD[nTile] != null) && (mb_vectors[nTile] != null) && ((selection == null) || selection[nTile])) {
+						if ((pXpYD[nTile] != null) &&
+								!Double.isNaN(mb_vectors[0][nTile]) &&
+								!Double.isNaN(mb_vectors[1][nTile]) &&
+								((selection == null) || selection[nTile])) {
 						int tileY = nTile / tilesX;
 						int tileX = nTile % tilesX;
 						TpTask tp_task =    new TpTask(num_cams, tileX, tileY);
@@ -3867,8 +3869,8 @@ public class GpuQuad{ // quad camera description
 						double [] centerXY = pXpYD[nTile];
 						tp_task.setCenterXY(centerXY); // this pair of coordinates will be used by GPU to set tp_task.xy and task.disp_dist!
 						// calculate offset for the secondary tile and weigh
-						double dx = mb_vectors[nTile][0];
-						double dy = mb_vectors[nTile][1];
+						double dx = mb_vectors[0][nTile];
+						double dy = mb_vectors[1][nTile];
 						double mb_len = Math.sqrt(dx*dx+dy*dy); // in pixels/s
 						dx /= mb_len; // unit vector
 						dy /= mb_len;
@@ -3887,7 +3889,6 @@ public class GpuQuad{ // quad camera description
 						double gain_sub = -gain * exp_offs;
 						tp_task.setScale(gain);
 						tp_task_sub.setScale(gain_sub);
-					
 						boolean bad_margins = false;
 						if (calcPortsCoordinatesAndDerivatives) { // for non-GPU?
 							double [][] disp_dist = new double[quad_main][]; // used to correct 3D correlations (not yet used here)
