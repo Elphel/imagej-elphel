@@ -2802,7 +2802,7 @@ public class OpticalFlow {
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
-					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (!Double.isNaN(disparity_ref[nTile])) {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (!Double.isNaN(disparity_ref[nTile])) {// null !!!
 						double disparity = disparity_ref[nTile];
 						int tileY = nTile / tilesX;  
 						int tileX = nTile % tilesX;
@@ -4139,6 +4139,11 @@ public class OpticalFlow {
  		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
  		double sky_bottom_override = clt_parameters.imp.sky_bottom_override;
  		int    sky_override_shrink = clt_parameters.imp.sky_override_shrink;
+		double disp_boost_min =      clt_parameters.imp.disp_boost_min; //  0.5;
+		double disp_boost_diff  =    clt_parameters.imp.disp_boost_diff; // 0.35;
+		int    disp_boost_neibs  =   clt_parameters.imp.disp_boost_neibs; // 2;
+		double disp_boost_amount  =  clt_parameters.imp.disp_boost_amount; // 2.0;
+
 		
 		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
 		
@@ -4278,7 +4283,11 @@ public class OpticalFlow {
 							lowest_sky_row,        //  =   50;// appears that low - invalid, remove completely
 							sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
 							sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
-							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
+							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric)
+							disp_boost_min,        // double disp_boost_min,    //  = 0.5;
+							disp_boost_diff,       //double disp_boost_diff,   //  = 0.35;
+							disp_boost_neibs,   //int    disp_boost_neibs,  //  = 2;
+							disp_boost_amount,  //double disp_boost_amount, //  = 2.0;
 							dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
 							dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
 							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], // double [] spread,
@@ -4332,7 +4341,11 @@ public class OpticalFlow {
 							lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
 							sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
 							sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
-							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
+							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric)
+							disp_boost_min,        // double disp_boost_min,    //  = 0.5;
+							disp_boost_diff,       //double disp_boost_diff,   //  = 0.35;
+							disp_boost_neibs,      //int    disp_boost_neibs,  //  = 2;
+							disp_boost_amount,     //double disp_boost_amount, //  = 2.0;
 							dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
 							dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
 							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], //double [] disp_lma,
@@ -4456,6 +4469,7 @@ public class OpticalFlow {
 							last_diff);
 				}
 				// Refine with LMA
+				
 				scenes_xyzatr[scene_index] = adjustPairsLMAInterscene(
 						clt_parameters,      // CLTParameters  clt_parameters,
 						quadCLTs[ref_index], // QuadCLT reference_QuadCLT,
@@ -4595,6 +4609,7 @@ public class OpticalFlow {
 						clt_parameters,     // CLTParameters  clt_parameters,
 						reliable_ref,       // boolean []     reliable_ref, // null or bitmask of reliable reference tiles
 						quadCLTs,           // QuadCLT []     quadCLTs,
+						!batch_mode, // boolean        test_motion_blur,
 						debugLevel) ;       // int            debugLevel)
 				// should update earliest_scene
 				if ((ref_index - earliest_scene + 1) < min_num_scenes) {
@@ -14066,9 +14081,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			CLTParameters  clt_parameters,
 			boolean []     reliable_ref, // null or bitmask of reliable reference tiles			
     		QuadCLT []     quadCLTs,
+    		boolean        test_motion_blur,
 			int            debugLevel)
 	{  
-		boolean test_motion_blur = true;
+//		boolean test_motion_blur = true;//false
 		
 		boolean mb_en =       clt_parameters.imp.mb_en;
 		double  mb_tau =      clt_parameters.imp.mb_tau;      // 0.008; // time constant, sec
@@ -14831,6 +14847,11 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			double         max_rms,
 			int            debug_level)
 	{
+	    boolean use_lma_dsi =          clt_parameters.imp.use_lma_dsi;
+		if (ref_disparity == null) { 
+			ref_disparity = reference_QuadClt.getDLS()[use_lma_dsi?1:0];
+		}
+
 		// TODO: set reference as new version of adjustPairsLMAInterscene() assumes it set
 		int        margin = clt_parameters.imp.margin;
 		double [][] pXpYD_ref = transformToScenePxPyD( // full size - [tilesX*tilesY], some nulls

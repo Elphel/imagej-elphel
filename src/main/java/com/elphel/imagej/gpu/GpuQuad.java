@@ -3822,6 +3822,8 @@ public class GpuQuad{ // quad camera description
 			final boolean []          valid_tiles,            
 			final int                 threadsMax)  // maximal number of threads to launch
 	{
+		final double min_sub = 1e-12;
+		final double min_len = 0.1; // pix
 		int num_pairs = Correlation2d.getNumPairs(num_cams);
 		//change to fixed 511?
 		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
@@ -3875,20 +3877,32 @@ public class GpuQuad{ // quad camera description
 						dx /= mb_len; // unit vector
 						dy /= mb_len;
 						mb_len *= mb_tau; // now in pixels
-						double mb_offs = 1.0; // try 1 pixel. Maybe adjust for non-ortho, e.g. sqrt(2) for diagonal?
-						double min_offs = mb_len_scale * mb_len;
-						if (mb_offs < min_offs) {
-							mb_offs = min_offs;
-						}
-						dx *= mb_offs;
-						dy *= mb_offs;
-						double [] centerXY_sub = {centerXY[0]+dx,centerXY[1]+dy};
-						tp_task_sub.setCenterXY(centerXY_sub);
-						double exp_offs = Math.exp(-mb_offs/mb_len);
-						double gain =    1.0/(1.0 - exp_offs);
-						double gain_sub = -gain * exp_offs;
-						tp_task.setScale(gain);
-						tp_task_sub.setScale(gain_sub);
+						/*
+						double [] centerXY_sub = centerXY;
+						if (mb_len < min_len) {
+							tp_task.setScale(1.0);
+							tp_task_sub.task = 0; // disable
+							tp_task.setScale(-min_sub);
+						} else {
+						*/
+							double mb_offs = 1.0; // try 1 pixel. Maybe adjust for non-ortho, e.g. sqrt(2) for diagonal?
+							double min_offs = mb_len_scale * mb_len;
+							if (mb_offs < min_offs) {
+								mb_offs = min_offs;
+							}
+							dx *= mb_offs;
+							dy *= mb_offs;
+							double [] centerXY_sub = new double[] {centerXY[0]+dx,centerXY[1]+dy};
+							tp_task_sub.setCenterXY(centerXY_sub);
+							double exp_offs = Math.exp(-mb_offs/mb_len);
+							double gain =    1.0/(1.0 - exp_offs);
+							double gain_sub = -gain * exp_offs;
+							if (gain_sub > -min_sub) {
+								gain_sub = -min_sub;
+							}
+							tp_task.setScale(gain);
+							tp_task_sub.setScale(gain_sub);
+//						}
 						boolean bad_margins = false;
 						if (calcPortsCoordinatesAndDerivatives) { // for non-GPU?
 							double [][] disp_dist = new double[quad_main][]; // used to correct 3D correlations (not yet used here)

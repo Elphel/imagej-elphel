@@ -152,6 +152,12 @@ public class IntersceneMatchParameters {
 	public  double  sky_bottom_override =           -300; // maximal average sky value to override lowest_sky_row test
 	public  int     sky_override_shrink =             10; // shrink detected sky before finding hottest tile there
 	
+	// Increase fom if there are enough LMA-defined similar tiles around
+	public  double  disp_boost_min  =                  0.5;
+	public  double  disp_boost_diff  =                 0.35;
+	public  int     disp_boost_neibs  =                2;
+	public  double  disp_boost_amount  =               2.0;
+	
 	
 	// Some "AGC" to adjust how much to discard
 	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
@@ -545,15 +551,18 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Hottest sky tile to override lowest row",this.sky_bottom_override, 5,7,"",
 				"If the detected sky is all cold enough, bypass lowest row test, allow to raise camera.");
 		gd.addNumericField("Shrink before finding hottest sky",      this.sky_override_shrink, 0,3,"",
-				"Shrink detected sky before looking for the hottest skyt tile (blurred skyline in wet atmosphere).");
+				"Shrink detected sky before looking for the hottest sky tile (blurred skyline in wet atmosphere).");
 		
+		gd.addMessage  ("Boost FOM if there are enough LMA-defined good neighbors around (Thin wires over the sky)");
+		gd.addNumericField("Minimal disparity",                      this.disp_boost_min, 5,7,"pix",
+				"Minimal LMA-defined disparity to boost FOM.");
+		gd.addNumericField("Disparity difference",                   this.disp_boost_diff, 5,7,"pix",
+				"Maximal disparity difference to neighbor to count.");
+		gd.addNumericField("Number of good neighbors",               this.disp_boost_neibs, 0,3,"",
+				"Number of neighbors (of 8) to have small disparity difference to boost FOM.");
+		gd.addNumericField("Boost amount",                           this.disp_boost_amount, 5,7,"x",
+				"Multiply FOM by this value if number of neighbors is exactly minimal. Sacale proportional to the total number of neighbors.");
 		gd.addTab         ("Inter-Match", "Parameters for full-resolution scene matching");
-//		gd.addTab("Interscene Equalization","Equalization of the interscene correlation confidence to improve camera X,Y,Z matching");
-
-
-		
-		
-		
 		
 		
 		gd.addMessage  ("Interscene match parameters");
@@ -931,6 +940,11 @@ public class IntersceneMatchParameters {
 		this.sky_bottom_override =      gd.getNextNumber();    
 		this.sky_override_shrink =(int) gd.getNextNumber();
 		
+		this.disp_boost_min =           gd.getNextNumber();    
+		this.disp_boost_diff =          gd.getNextNumber();    
+		this.disp_boost_neibs =   (int) gd.getNextNumber();
+		this.disp_boost_amount =        gd.getNextNumber();    
+		
 		this.margin =             (int) gd.getNextNumber();
 		this.sensor_mask_inter=   (int) gd.getNextNumber();
 		this.use_partial =              gd.getNextBoolean();
@@ -1206,6 +1220,11 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"sky_bottom_override",  this.sky_bottom_override+""); // double
 		properties.setProperty(prefix+"sky_override_shrink",  this.sky_override_shrink+""); // int
 		
+		properties.setProperty(prefix+"disp_boost_min",       this.disp_boost_min+"");      // double
+		properties.setProperty(prefix+"disp_boost_diff",      this.disp_boost_diff+"");     // int
+		properties.setProperty(prefix+"disp_boost_neibs",     this.disp_boost_neibs+"");    // double
+		properties.setProperty(prefix+"disp_boost_amount",    this.disp_boost_amount+"");   // double
+		
 		properties.setProperty(prefix+"margin",               this.margin+"");              // int
 		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
 		properties.setProperty(prefix+"use_partial",          this.use_partial+"");         // boolean
@@ -1433,6 +1452,11 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"lowest_sky_row")!=null)       this.lowest_sky_row=Integer.parseInt(properties.getProperty(prefix+"lowest_sky_row"));
 		if (properties.getProperty(prefix+"sky_bottom_override")!=null)  this.sky_bottom_override=Double.parseDouble(properties.getProperty(prefix+"sky_bottom_override"));
 		if (properties.getProperty(prefix+"sky_override_shrink")!=null)  this.sky_override_shrink=Integer.parseInt(properties.getProperty(prefix+"sky_override_shrink"));
+
+		if (properties.getProperty(prefix+"disp_boost_min")!=null)       this.disp_boost_min=Double.parseDouble(properties.getProperty(prefix+"disp_boost_min"));
+		if (properties.getProperty(prefix+"disp_boost_diff")!=null)      this.disp_boost_diff=Double.parseDouble(properties.getProperty(prefix+"disp_boost_diff"));
+		if (properties.getProperty(prefix+"disp_boost_neibs")!=null)     this.disp_boost_neibs=Integer.parseInt(properties.getProperty(prefix+"disp_boost_neibs"));
+		if (properties.getProperty(prefix+"disp_boost_amount")!=null)    this.disp_boost_amount=Double.parseDouble(properties.getProperty(prefix+"disp_boost_amount"));
 		
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
@@ -1678,6 +1702,11 @@ public class IntersceneMatchParameters {
 		imp.lowest_sky_row =        this.lowest_sky_row;
 		imp.sky_bottom_override =   this.sky_bottom_override;
 		imp.sky_override_shrink =   this.sky_override_shrink;
+
+		imp.disp_boost_min =        this.disp_boost_min;
+		imp.disp_boost_diff =       this.disp_boost_diff;
+		imp.disp_boost_neibs =      this.disp_boost_neibs;
+		imp.disp_boost_amount =     this.disp_boost_amount;
 		
 		imp.margin                = this.margin;
 		imp.sensor_mask_inter     = this.sensor_mask_inter;
