@@ -561,7 +561,7 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Number of good neighbors",               this.disp_boost_neibs, 0,3,"",
 				"Number of neighbors (of 8) to have small disparity difference to boost FOM.");
 		gd.addNumericField("Boost amount",                           this.disp_boost_amount, 5,7,"x",
-				"Multiply FOM by this value if number of neighbors is exactly minimal. Sacale proportional to the total number of neighbors.");
+				"Multiply FOM by this value if number of neighbors is exactly minimal. Scale proportional to the total number of neighbors.");
 		gd.addTab         ("Inter-Match", "Parameters for full-resolution scene matching");
 		
 		
