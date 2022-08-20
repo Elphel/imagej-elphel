@@ -84,6 +84,7 @@ public class TwoQuadCLT {
 	public static  int DSI_SPREAD_AUX =        10;
 	public static  int DSI_AVGVAL_MAIN =       11;
 	public static  int DSI_AVGVAL_AUX =        12;
+	public static  int DSI_LENGTH =            DSI_AVGVAL_AUX+1;
 
 	public static String DSI_COMBO_SUFFIX = "-DSI_COMBO";
 	public static String DSI_MAIN_SUFFIX =  "-DSI_MAIN";

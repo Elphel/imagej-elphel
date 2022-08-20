@@ -1253,10 +1253,11 @@ public class QuadCLTCPU {
 		if (!isLwir()) { // colorProcParameters.lwir_islwir) {
 			referenceExposures = eyesisCorrections.calcReferenceExposures(sourceFiles, debugLevel);
 		}
+		// move after restoring properties
+		/*
 		int [] channelFiles = set_channels[0].fileNumber();		
 		boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
 		double []    scaleExposures = new double[channelFiles.length];
-//		ImagePlus [] imp_srcs = 
 		conditionImageSet(
 				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
 				colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
@@ -1277,6 +1278,7 @@ public class QuadCLTCPU {
 					threadsMax,
 					1); // debugLevel); // final int       debug_level)
 		}
+		*/
 		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
 		int dsi_result = -1;
 		int max_length=OpticalFlow.COMBO_DSN_TITLES.length;
@@ -1302,11 +1304,35 @@ public class QuadCLTCPU {
 		if (dsi_result < 0) {
 				System.out.println("No DSI data for the scene "+this.getImageName()+", setting this.dsi=null");
 				setDSI(null);
-		} else {
-			restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
-					null, // String path,             // full name with extension or null to use x3d directory
-					false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
-					debugLevel);
+		}
+		// WAS: resore only if (dsi_result < 0)...  else 
+		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
+				null, // String path,             // full name with extension or null to use x3d directory
+				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
+				debugLevel);
+		
+		int [] channelFiles = set_channels[0].fileNumber();		
+		boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+		double []    scaleExposures = new double[channelFiles.length];
+		conditionImageSet(
+				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
+				sourceFiles,                    // String []                                 sourceFiles,
+				this.image_name,                       // String                                    set_name,
+				referenceExposures,             // double []                                 referenceExposures,
+				channelFiles,                   // int []                                    channelFiles,
+				scaleExposures,                 // output  // double [] scaleExposures
+				saturation_imp,                 // output  // boolean [][]                              saturation_imp,
+				threadsMax,                     // int                                       threadsMax,
+				debugLevelInner);               // int                                       debugLevel);
+		if (noise_sigma_level != null) {
+			generateAddNoise(
+					"-NOISE",
+					ref_scene, // final QuadCLTCPU ref_scene, // may be null if scale_fpn <= 0
+					noise_sigma_level,
+					noise_variant, //final int       noise_variant, // <0 - no-variants, compatible with old code
+					threadsMax,
+					1); // debugLevel); // final int       debug_level)
 		}
 		return this; //  can only be QuadCLT instance
 	}
@@ -1932,6 +1958,14 @@ public class QuadCLTCPU {
     public void setPhotometricScene() {
     	setPhotometricScene(getImageName());
     }
+    
+    public boolean isPhotometricThis() {
+    	if (this.photometric_scene == null) {
+    		return false;
+    	}
+    	return this.photometric_scene.equals(getImageName());
+    }
+    
 
     public void setLwirScales(double [] scales) {
     	lwir_scales = scales; // will need to update properties!
@@ -2253,7 +2287,7 @@ public class QuadCLTCPU {
 			for (int d = 0; d < fine_corr[n].length; d++){
 				for (int i = 0; i < fine_corr[n][d].length; i++){
 					String name = prefix+"fine_corr_"+n+fine_corr_dir_names[d]+fine_corr_coeff_names[i];
-		  			if (properties.getProperty(name)!=null) this.fine_corr[n][d][i]=Double.parseDouble(properties.getProperty(name));
+		  			if (properties.getProperty(name)!=null) this.fine_corr[n][d][i]=Double.parseDouble(properties.getProperty(name));// null
 				}
 			}
 		}
@@ -5728,6 +5762,37 @@ public class QuadCLTCPU {
 			  double [] offsets =  getLwirOffsets();
 			  double [] scales =   getLwirScales();
 			  double [] scales2 =  getLwirScales2();
+			  int needs_fix = -1;
+			  for (int i = 0; i < imp_srcs.length; i++) {
+				  if (ImagejJp4Tiff.needsFix000E6410C435(imp_srcs[i])) {
+					  needs_fix = i;
+					  break; // only one, and always 6
+				  }
+			  }
+			  if (needs_fix >= 0) {
+				  double [] fix_offsets = channelLwirEqualize( // now only calculates offsets, does not apply
+						  channelFiles,
+						  imp_srcs,
+						  lwir_subtract_dc, // boolean      remove_dc,
+						  set_name, // just for debug messages == setNames.get(nSet)
+						  threadsMax,
+						  debugLevel);
+				  double avg_offs = 0.0;
+				  for (int i = 0; i < fix_offsets.length; i++) if (i != needs_fix) {
+					  avg_offs += fix_offsets[i];
+				  }
+				  avg_offs /= (fix_offsets.length - 1);
+				  int icorr =  (int) Math.round((avg_offs - fix_offsets[needs_fix])/4096);
+				  if (icorr != 0) {
+					  float fcorr = icorr*4096;
+					  System.out.println("Correcting "+imp_srcs[needs_fix].getTitle()+" by "+fcorr);
+					  float [] pixels = (float []) imp_srcs[needs_fix].getProcessor().getPixels();
+					  for (int i = 0; i < pixels.length; i++) {
+						  pixels[i] += fcorr;
+					  }
+				  }
+			  }
+			  
 			  channelLwirApplyEqualize( // now apply (was part of channelLwirEqualize() )
 					  channelFiles, // int [] channelFiles,
 					  imp_srcs,     // ImagePlus [] imp_srcs,
@@ -6295,16 +6360,10 @@ public class QuadCLTCPU {
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {
 				  public void run() {
-					  // for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
 						  int nFile=channelFiles[srcChannel];
 						  if (nFile >=0) {
 							  offsets[srcChannel]= avr_pix[srcChannel][0];
-//							  float fd = (float)offsets[srcChannel];
-//							  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
-//							  for (int i = 0; i < pixels.length; i++) {
-//								  pixels[i] -= fd;
-//							  }
 						  }
 					  }
 				  }

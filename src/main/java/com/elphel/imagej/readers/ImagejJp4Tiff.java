@@ -502,6 +502,35 @@ public class ImagejJp4Tiff {
 		return pixels;
 	}
 	
+	public static boolean needsFix000E6410C435(ImagePlus imp) {
+		String prefix = "STD_";
+		String serial = (String) imp.getProperty(prefix+"Serial_Number");
+		if ((serial == null) || !serial.equals(FIXCH6_SERIAL)) {
+			return false; // wrong camera 
+		}
+		String schannel = ((String) imp.getProperty(prefix+"PageNumber")).substring(0,1);
+		if ((schannel == null) || (Integer.parseInt(schannel) != FIXCH6_CHANNEL)) {
+			return false; // wrong channel
+		}		
+		String sfdate = (String) imp.getProperty(prefix+"DateTime");
+		sfdate = sfdate.replaceFirst(":", "-");
+		sfdate = sfdate.replaceFirst(":", "-")+".000";
+		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
+		try {
+			Date startDate = dateFormat.parse(FIXCH6_EARLIEST);
+			Date endDate =   dateFormat.parse(FIXCH6_LATEST);
+			Date fileDate =  dateFormat.parse(sfdate);
+			if (fileDate.before(startDate) || fileDate.after(endDate)) {
+				return false; // too early or too late 
+			}
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return true;
+	}
+	
+	
 	// fixing "00:0E:64:10:C4:35" camera
 	public int fix000E6410C435(
 			Hashtable<String, Object> meta_hash,

@@ -1060,6 +1060,9 @@ public class CLTPass3d{
 		}
 		public int setTileOpDisparity(
 				double []  disparity) {
+			if (disparity== null) {
+				disparity=new double[tileProcessor.getTilesX() * tileProcessor.getTilesY()]; // all defined, infinity 
+			}
 			boolean [] selection = new boolean [disparity.length];
 			for (int i = 0; i < disparity.length; i++) {
 				selection[i] = !Double.isNaN(disparity[i]);

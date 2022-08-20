@@ -2435,7 +2435,7 @@ public class QuadCLT extends QuadCLTCPU {
 				scales_new[n] = scales_old[n]/scales[n];
 				offsets_new[n] = offsets_old[n]  + offsets[n] / scales_old[n];
 			}
-			System.out.println("calibratePhotometric() Updated calibration:");
+			System.out.println("calibratePhotometric() Final calibration:");
 			for (int n = 0; n < num_sens; n++) {
 				System.out.println(String.format("%2d: %8.4f %8.6f %8.6f", n,offsets_new[n],scales_new[n], scales2_new[n]));
 			}
@@ -2452,6 +2452,7 @@ public class QuadCLT extends QuadCLTCPU {
 			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 			final double      min_strength,
 			final double      max_diff,    // 30.0
+			final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
 			final int         num_refines, // 2
 			final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
 			int               threadsMax,
@@ -2484,7 +2485,9 @@ public class QuadCLT extends QuadCLTCPU {
 					"PHOTOMETRIC",      // String            suffix,
 					threadsMax,         // int               threadsMax,
 					-2);        // final int         debugLevel);
-			img_ref.show();
+			if (debug) {
+				img_ref.show();
+			}
 			ImageStack imageStack = img_ref.getStack();
 			int num_sens=imageStack.getSize();
 			float [] fpixels;
@@ -2496,23 +2499,11 @@ public class QuadCLT extends QuadCLTCPU {
 					dpixels[n][i] = fpixels[i];
 				}
 			}
-			boolean quadratic = true;
-//			double [][] dpix_orig = new double[num_sens][];
-//			for (int n = 0; n < num_sens; n++) {
-//				dpix_orig[n] =  dpixels[n].clone();
-//			}					
+//			boolean quadratic = true;
 			int width =  img_ref.getWidth();
 			int height = img_ref.getHeight();
 			int len = width* height;
 			double [] avg_pix = new double [len];
-			double [] offsets = new double[dpixels.length];
-			double [] scales =  new double[dpixels.length];
-			double [] scales2 = new double[dpixels.length];
-			double    s0 =  0.0;
-			double    sx=   0.0;
-			double    sx2 = 0.0;
-			double [] sy = new double[num_sens];
-			double [] sxy = new double[num_sens];
 			boolean [] good_pix = new boolean[len];
 			double [][] pa_coeff = new double[num_sens][];
 			double min_abs_a = 1E-9;
@@ -2539,7 +2530,7 @@ public class QuadCLT extends QuadCLTCPU {
 						num_good++;
 					}
 				}
-				double [][] pa_data = new double [num_good][2];
+				double [][][] pa_data = new double [num_sens][num_good][2];
 				double [][] raw = new double [num_sens][len];
 				for (int nsens = 0; nsens < num_sens; nsens++) {
 					Arrays.fill(raw[nsens],Double.NaN); // debug only
@@ -2557,15 +2548,28 @@ public class QuadCLT extends QuadCLTCPU {
 							p= (-b + Math.sqrt(b*b - 4 * a * c))/(2 * a);
 						}
 						raw[nsens][i] = p;
-						pa_data[indx][0] = p; // dpixels[nsens][i]; 
-						pa_data[indx][1] = avg_pix[i];
+						pa_data[nsens][indx][0] = p; // dpixels[nsens][i]; 
+						pa_data[nsens][indx][1] = avg_pix[i];
 						indx++;
 					}
-					// quadratic
-					pa_coeff[nsens] =(new PolynomialApproximation(0)).polynomialApproximation1d(pa_data, quadratic ? 2 : 1);
-					double a = pa_coeff[nsens][2];
-					double b = pa_coeff[nsens][1];
-					double c = pa_coeff[nsens][0];
+					double c, b, a;
+					int poly_debug = 0;
+					if (photo_order < 1) { // zero out scales2, keep old scales (even if not normalized)
+						a = 0;
+						b = scales_old[nsens];
+						double s = 0.0;
+						for (int i = 0; i < num_good; i++) {
+							s += pa_data[nsens][i][0] - pa_data[nsens][i][1]/b; 
+						}
+						c = -s/num_good*b;
+					} else {
+					// need to balance quadratic so their average is 0	
+					// linear or quadratic
+						pa_coeff[nsens] =(new PolynomialApproximation(poly_debug)).polynomialApproximation1d(pa_data[nsens], photo_order);
+						c = pa_coeff[nsens][0];
+						b = pa_coeff[nsens][1];
+						a = (pa_coeff[nsens].length > 2) ? pa_coeff[nsens][2] : 0.0;
+					}
 					double A = a;
 					double C = -c/b;
 					if (Math.abs(a) >= min_abs_a) {
@@ -2576,17 +2580,48 @@ public class QuadCLT extends QuadCLTCPU {
 					scales_new [nsens] = B;
 					offs_new[nsens] =    C;
 				}
-				
-				if (debug) {
-					System.out.println("calibratePhotometric() nref="+nref);
-					/*
-					System.out.println(String.format("%3s %8s %8s %8s",
-							"chn","   c   ","   b   ", " 1e6*a "));
-					for (int n = 0; n < num_sens; n++) {
-						System.out.println(String.format("%2d: %8.4f %8.6f %8.6f", n,pa_coeff[n][0],pa_coeff[n][1], 1e6*pa_coeff[n][2]));
+				// Make scales_new to be (geometric) average 1.0 (except photo_order == 0), update pa_data to match
+				if (photo_order > 0) {
+					double scales_avg = 1.0;
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						scales_avg *= scales_new [nsens];
 					}
-					System.out.println();
-					*/
+					scales_avg = Math.pow(scales_avg, 1.0/num_sens);
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						scales_new [nsens] /= scales_avg;
+						scales2_new [nsens] /= scales_avg;
+						for (int i = 0; i < num_good; i++) {
+							pa_data[nsens][i][1] /= scales_avg;
+						}
+					}
+				}				
+				// make scales2 be average zero, re-run scales
+				if (photo_order > 1) {
+					double scales2_offset = 0;
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						scales2_offset += scales2_new[nsens];
+					}
+					scales2_offset /= num_sens;
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						scales2_new[nsens] -= scales2_offset;
+					}
+					// modify pa_data, re-run linear
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						for (int i = 0; i < num_good; i++) {
+							double poffs = pa_data[nsens][i][0] - offs_new[nsens];
+							pa_data[nsens][i][1] -=poffs*poffs*scales2_new[nsens];
+						}
+						pa_coeff[nsens] =(new PolynomialApproximation(0)).polynomialApproximation1d(
+								pa_data[nsens], 1);
+						double c = pa_coeff[nsens][0];
+						double b = pa_coeff[nsens][1];
+						scales_new [nsens] = b;
+						offs_new[nsens] =   -c/b;
+					}
+				}
+				
+				if (true) { // debug) { during debug,
+					System.out.println("DEBUG: calibratePhotometric() nref="+nref);
 					System.out.println(String.format("%3s %10s %8s %8s %10s %8s %8s",
 						//  "chn","   c   ","   b   ", " 1e6*a "));          
 							"chn","  offs0  ","scale0 ", "scale20","  offs "," scale ", " scale2"));
@@ -2596,9 +2631,8 @@ public class QuadCLT extends QuadCLTCPU {
 								offs_new[n],scales_new[n], 1e6*scales2_new[n]));
 					}
 					System.out.println();
-					
-					
-					
+				}
+				if (debug) {
 					double [][] diffs = new double [num_sens][len];
 					for (int n = 0; n < num_sens; n++) {
 						Arrays.fill(diffs[n], Double.NaN);
@@ -2746,8 +2780,10 @@ public class QuadCLT extends QuadCLTCPU {
 						dbg_img[i][nTile] = pXpYD[nTile][i];
 					}
 				}
-				for (int i = 0; i <2; i++) {
-					dbg_img[3 + i][nTile] =  mb_tau * mb_vectors[i][nTile];
+				if (mb_vectors!=null) {
+					for (int i = 0; i <2; i++) {
+						dbg_img[3 + i][nTile] =  mb_tau * mb_vectors[i][nTile];
+					}
 				}
 			}
 			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15

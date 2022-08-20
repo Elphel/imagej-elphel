@@ -366,11 +366,16 @@ public class CLTParameters {
 	public double     fom_inf_range  =    0.8; // 0.5
 	
 	// Photometric calibration (move elsewhere)?
-	public boolean    photo_en =                      false; // perform photogrammetric calibration to equalize pixel values
+	public boolean    photo_en =                      false; // perform photogrammetric calibration to equalize pixel values and update config
+	public boolean    photo_each =                    true;  // perform photogrammetric calibration for each series ref scene and config
+	public boolean    photo_to_main =                 true;  // propagate scene sequence photometrics to the main instance to be applied
+	                                                         // to the next sequence and saved with corr-xml configuration. It is always
+	                                                         // propagated when calibration is run manually with photo_en = true
 	public int        photo_num_full =                3;     // Number of full recalibrations with re-processing of the images  
 	public int        photo_num_refines =             3;     // Calibrate, remove outliers, recalibrate, ... 
 	public double     photo_min_strength =            0.0;   // maybe add to filter out weak tiles
 	public double     photo_max_diff =                40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
+	public int        photo_order =                   2;     // Approximation order: 0 - just offset, 1 - linear, 2 - quadratic
 	public boolean    photo_debug =                   false; // Generate images and text
 	
 	
@@ -1355,10 +1360,13 @@ public class CLTParameters {
 		properties.setProperty(prefix+"fom_inf_range",              this.fom_inf_range+"");
 		
 		properties.setProperty(prefix+"photo_en",                   this.photo_en+"");            // boolean
+		properties.setProperty(prefix+"photo_each",                 this.photo_each+"");          // boolean
+		properties.setProperty(prefix+"photo_to_main",              this.photo_to_main+"");       // boolean
 		properties.setProperty(prefix+"photo_num_full",             this.photo_num_full+"");      // int
 		properties.setProperty(prefix+"photo_num_refines",          this.photo_num_refines+"");   // int
 		properties.setProperty(prefix+"photo_min_strength",         this.photo_min_strength+"");  // double
 		properties.setProperty(prefix+"photo_max_diff",             this.photo_max_diff+"");      // double
+		properties.setProperty(prefix+"photo_order",                this.photo_order+"");         // int
 		properties.setProperty(prefix+"photo_debug",                this.photo_debug+"");         // boolean
 		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
@@ -2219,10 +2227,13 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"fom_inf_range")!=null)                 this.fom_inf_range=Double.parseDouble(properties.getProperty(prefix+"fom_inf_range"));
 		
 		if (properties.getProperty(prefix+"photo_en")!=null)             this.photo_en=Boolean.parseBoolean(properties.getProperty(prefix+"photo_en"));		
+		if (properties.getProperty(prefix+"photo_each")!=null)           this.photo_each=Boolean.parseBoolean(properties.getProperty(prefix+"photo_each"));		
+		if (properties.getProperty(prefix+"photo_to_main")!=null)        this.photo_to_main=Boolean.parseBoolean(properties.getProperty(prefix+"photo_to_main"));		
 		if (properties.getProperty(prefix+"photo_num_full")!=null)       this.photo_num_full=Integer.parseInt(properties.getProperty(prefix+"photo_num_full"));
 		if (properties.getProperty(prefix+"photo_num_refines")!=null)    this.photo_num_refines=Integer.parseInt(properties.getProperty(prefix+"photo_num_refines"));
 		if (properties.getProperty(prefix+"photo_min_strength")!=null)   this.photo_min_strength=Double.parseDouble(properties.getProperty(prefix+"photo_min_strength"));
 		if (properties.getProperty(prefix+"photo_max_diff")!=null)       this.photo_max_diff=Double.parseDouble(properties.getProperty(prefix+"photo_max_diff"));
+		if (properties.getProperty(prefix+"photo_order")!=null)          this.photo_order=Integer.parseInt(properties.getProperty(prefix+"photo_order"));		
 		if (properties.getProperty(prefix+"photo_debug")!=null)          this.photo_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_debug"));		
 		
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
@@ -3218,6 +3229,11 @@ public class CLTParameters {
  		gd.addMessage  ("It is applied when the source files are read.");
 		gd.addCheckbox ("Enable photometric calibration",            this.photo_en,
 				"Equalize per- sensor gains and offsets. Requires disparity map. Save to reference scene and with current scene (to .corr-zml).");
+		gd.addCheckbox ("Re-calibrate photometric for each series",  this.photo_each,
+				"Equalize per- sensor gains and offsets for each reference scene. Requires disparity map. Save to reference scene and with current scene (to .corr-xml).");
+		gd.addCheckbox ("Propagate per-series to main",              this.photo_to_main,
+				"Propagate scene sequence photometrics to the main instance to be applied to the next sequence and saved with corr-xml configuration."+
+				"\nIt is always propagated when calibration is run manually with photo_en = true.");
 		gd.addNumericField("Full photometric (re)calibrations",      this.photo_num_full, 0,3,"",
 				"Full recalibratrions include re-importing raw images with updated offsets/gains");
 		gd.addNumericField("Refines",                                this.photo_num_refines, 0,3,"",
@@ -3226,7 +3242,10 @@ public class CLTParameters {
 				"Do not use weak tiles.");
 		gd.addNumericField("Maximal channel mismatch",               this.photo_max_diff, 5,7,"",
 				"Detect (and remove outliers). Adjusted images have RMSE ~9 counts.");
-		gd.addCheckbox ("Debug pphotometric calibration",            this.photo_debug,
+
+		gd.addNumericField("Approximation polynomial order",         this.photo_order, 0,3,"",
+				"0 - only offset, 1 - linear, 2 - quadratic");
+		gd.addCheckbox ("Debug photometric calibration",             this.photo_debug,
 				"Generate debug images an text output.");
 		
 		
@@ -4225,10 +4244,13 @@ public class CLTParameters {
 		this.fom_inf_range=         gd.getNextNumber();
 		
  		this.photo_en =                 gd.getNextBoolean();
+ 		this.photo_each =               gd.getNextBoolean();
+ 		this.photo_to_main =            gd.getNextBoolean();
 		this.photo_num_full =     (int) gd.getNextNumber();
 		this.photo_num_refines =  (int) gd.getNextNumber();
 		this.photo_min_strength =       gd.getNextNumber();
 		this.photo_max_diff =           gd.getNextNumber();
+		this.photo_order =        (int) gd.getNextNumber();
 		this.photo_debug =              gd.getNextBoolean();
 		
 		this.show_textures=         gd.getNextBoolean();
