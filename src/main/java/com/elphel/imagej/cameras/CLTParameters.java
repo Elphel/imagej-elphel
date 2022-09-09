@@ -376,6 +376,11 @@ public class CLTParameters {
 	public double     photo_min_strength =            0.0;   // maybe add to filter out weak tiles
 	public double     photo_max_diff =                40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
 	public int        photo_order =                   2;     // Approximation order: 0 - just offset, 1 - linear, 2 - quadratic
+	public double     photo_std_1 =                  75.0;   // Minimal standard deviation of the filtered values for poly order 1
+	public double     photo_std_2 =                 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+	public int        photo_offs_set =                0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+	public double     photo_offs =                 21946;    // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
+	
 	public boolean    photo_debug =                   false; // Generate images and text
 	
 	
@@ -1367,6 +1372,10 @@ public class CLTParameters {
 		properties.setProperty(prefix+"photo_min_strength",         this.photo_min_strength+"");  // double
 		properties.setProperty(prefix+"photo_max_diff",             this.photo_max_diff+"");      // double
 		properties.setProperty(prefix+"photo_order",                this.photo_order+"");         // int
+		properties.setProperty(prefix+"photo_std_1",                this.photo_std_1+"");         // double
+		properties.setProperty(prefix+"photo_std_2",                this.photo_std_2+"");         // double
+		properties.setProperty(prefix+"photo_offs_set",             this.photo_offs_set+"");      // int
+		properties.setProperty(prefix+"photo_offs",                 this.photo_offs+"");          // double
 		properties.setProperty(prefix+"photo_debug",                this.photo_debug+"");         // boolean
 		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
@@ -2234,6 +2243,10 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"photo_min_strength")!=null)   this.photo_min_strength=Double.parseDouble(properties.getProperty(prefix+"photo_min_strength"));
 		if (properties.getProperty(prefix+"photo_max_diff")!=null)       this.photo_max_diff=Double.parseDouble(properties.getProperty(prefix+"photo_max_diff"));
 		if (properties.getProperty(prefix+"photo_order")!=null)          this.photo_order=Integer.parseInt(properties.getProperty(prefix+"photo_order"));		
+		if (properties.getProperty(prefix+"photo_std_1")!=null)          this.photo_std_1=Double.parseDouble(properties.getProperty(prefix+"photo_std_1"));
+		if (properties.getProperty(prefix+"photo_std_2")!=null)          this.photo_std_2=Double.parseDouble(properties.getProperty(prefix+"photo_std_2"));
+		if (properties.getProperty(prefix+"photo_offs_set")!=null)       this.photo_offs_set=Integer.parseInt(properties.getProperty(prefix+"photo_offs_set"));		
+		if (properties.getProperty(prefix+"photo_offs")!=null)           this.photo_offs=Double.parseDouble(properties.getProperty(prefix+"photo_offs"));
 		if (properties.getProperty(prefix+"photo_debug")!=null)          this.photo_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_debug"));		
 		
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
@@ -3245,11 +3258,17 @@ public class CLTParameters {
 
 		gd.addNumericField("Approximation polynomial order",         this.photo_order, 0,3,"",
 				"0 - only offset, 1 - linear, 2 - quadratic");
+
+		gd.addNumericField("Minimal standard deviation for poly 1",  this.photo_std_1, 5,7,"",
+				"Minimal standard deviation to use polynomial order 1.");
+		gd.addNumericField("Minimal standard deviation for poly 2",  this.photo_std_2, 5,7,"",
+				"Minimal standard deviation to use polynomial order 2.");
+		gd.addNumericField("Set photo offset (0-keep, 1-balance, 2-set)",this.photo_offs_set, 0,3,"",
+				"0 - keep weighted average offset, 1 - set offset to balance result image, 2 - use next value.");
+		gd.addNumericField("Target value to weighted average offset",this.photo_offs, 5,7,"",
+				"Target weighted (by scales) average offset.");
 		gd.addCheckbox ("Debug photometric calibration",             this.photo_debug,
 				"Generate debug images an text output.");
-		
-		
-		
 		
 		gd.addTab         ("3D", "3D reconstruction");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
@@ -4251,6 +4270,12 @@ public class CLTParameters {
 		this.photo_min_strength =       gd.getNextNumber();
 		this.photo_max_diff =           gd.getNextNumber();
 		this.photo_order =        (int) gd.getNextNumber();
+		this.photo_std_1 =              gd.getNextNumber();
+		this.photo_std_2 =              gd.getNextNumber();
+
+		this.photo_offs_set =     (int) gd.getNextNumber();
+		this.photo_offs =               gd.getNextNumber();
+		
 		this.photo_debug =              gd.getNextBoolean();
 		
 		this.show_textures=         gd.getNextBoolean();

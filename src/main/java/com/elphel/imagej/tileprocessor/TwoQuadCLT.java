@@ -8798,6 +8798,10 @@ if (debugLevel > -100) return true; // temporarily !
 		    		}
 		    		double pts_scale = clt_parameters.imp.video_fps/clt_parameters.imp.sensor_fps;
 		    		String shellCommand;
+		    		//ffmpeg -i input_file.mkv -c copy -metadata:s:v:0 stereo_mode=1 output_file.mkv 
+		    		//https://ffmpeg.org/ffmpeg-formats.html
+		    		//ffmpeg -i sample_left_right_clip.mpg -an -c:v libvpx -metadata stereo_mode=left_right -y stereo_clip.webm
+		    		//anaglyph_cyan_red 
 		    		if (this_stereo_width > 0) {//  add padding to stereo video
 		    			int padded_width= 16* ( (int) Math.round((this_stereo_width + stereo_gap) * stereo_phone_width/stereo_intereye/32));
 		    			shellCommand = String.format(

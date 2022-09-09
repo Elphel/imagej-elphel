@@ -2451,8 +2451,12 @@ public class QuadCLT extends QuadCLTCPU {
 			CLTParameters     clt_parameters,
 			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 			final double      min_strength,
-			final double      max_diff,    // 30.0
-			final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
+			final double      max_diff,     //  30.0
+			int               photo_order,  //   0 - offset only, 1 - linear, 2 - quadratic
+			final double      photo_std_1,  //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+			final double      photo_std_2,	// 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+			final int         photo_offs_set, // 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+			final double      photo_offs,     // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
 			final int         num_refines, // 2
 			final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
 			int               threadsMax,
@@ -2461,7 +2465,7 @@ public class QuadCLT extends QuadCLTCPU {
 		
 		// filter disparity by LMA only, same bg and fg
 			double []         disparity_ref= combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP].clone();
-			for (int i = 00; i < disparity_ref.length; i++) {
+			for (int i = 0; i < disparity_ref.length; i++) {
 				if (combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_STRENGTH][i] < min_strength) {
 					disparity_ref[i] = Double.NaN;
 				} else if (combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP_BG_ALL][i] !=
@@ -2512,43 +2516,111 @@ public class QuadCLT extends QuadCLTCPU {
 			double [] offs_old =    ref_scene.getLwirOffsets();
 			double [] scales_old =  ref_scene.getLwirScales();
 			double [] scales2_old = ref_scene.getLwirScales2();
+			// Calculate avg_pix - average (for all 16 channels)  pixel value and initial good_pix
+			// next passes avg_pix will be modified and more bad pixels added
+			
+			double avg_img = 0.0;
+			int num_good = 0;
+			for (int i = 0; i < len; i++) {
+				for (int n = 0; n < num_sens; n++) {
+					avg_pix[i]+=dpixels[n][i];
+					good_pix[i] &= !Double.isNaN(dpixels[n][i]);
+				}
+				avg_pix[i] /= dpixels.length;
+				if (good_pix[i]) {
+					avg_img += avg_pix[i];
+					num_good++;
+				}
+			}
+			avg_img /= num_good;
+			double wavg_offs = photo_offs;
+			boolean set_offs = true;
+			if (photo_offs_set == 1) { // balance
+				for (int i = 0; i < len; i++) {
+					avg_pix[i] -= avg_img;
+				}
+				set_offs = false;
+			} else if (photo_offs_set == 0) {
+				double s = 1.0;
+				wavg_offs = 0.0;
+				for (int n = 0; n < num_sens; n++) {
+					s *= scales_old[n];
+					wavg_offs += offs_old[n]*scales_old[n];
+				}
+				s = Math.pow(s, 1.0/num_sens);
+				wavg_offs /= num_sens * s;
+			}
+			
+			// recover original "raw" pixel values undoing old corrections
+			double [][] raw = new double [num_sens][len];
+			for (int nsens = 0; nsens < num_sens; nsens++) {
+				Arrays.fill(raw[nsens],Double.NaN); // debug only
+				for (int i = 0; i < len; i++) if (good_pix[i]){
+					double A0 = scales2_old[nsens];
+					double B0 = scales_old[nsens];
+					double C0 = offs_old[nsens];
+					double a = A0;
+					double b = (B0 - 2 * C0 * A0);
+					double c = (C0*C0*A0 -C0 * B0 - dpixels[nsens][i]);
+					double p = -c/b;
+					if (Math.abs(a) >= min_abs_a) {
+						double d2 = b*b - 4 * a * c;
+						if (d2 < 0) {
+							System.out.println("calibratePhotometric2() 0: Failed quadratic: a = "+a+", b = "+b+", c="+c);
+							return false;
+						}
+						p= (-b + Math.sqrt(d2))/(2 * a);
+					}
+					raw[nsens][i] = p;
+				}
+            }
 			
 			double [] offs_new =    new double [num_sens];
 			double [] scales_new =  new double [num_sens];
 			double [] scales2_new = new double [num_sens];
-			
+			double [] avg_chn =     new double [num_sens];
+			double [] std_chn =     new double [num_sens];
+			double std = 0.0;
 			for (int nref = 0; nref < num_refines; nref++) {
-				Arrays.fill(avg_pix, 0.0);
-				int num_good = 0;
+				Arrays.fill(avg_chn, 0.0);
+				Arrays.fill(std_chn, 0.0);
+				num_good = 0;
 				for (int i = 0; i < len; i++) {
-					for (int n = 0; n < num_sens; n++) {
-						avg_pix[i]+=dpixels[n][i];
-						good_pix[i] &= !Double.isNaN(dpixels[n][i]);
-					}
-					avg_pix[i] /= dpixels.length;
 					if (good_pix[i]) {
 						num_good++;
+						for (int n = 0; n < num_sens; n++) {
+							avg_chn[n] += dpixels[n][i];
+							std_chn[n] += dpixels[n][i] * dpixels[n][i];
+						}
 					}
 				}
+				std = 0.0;
+				for (int n = 0; n < num_sens; n++) {
+					avg_chn[n] /= num_good;
+					std_chn[n] /= num_good;
+					std_chn[n] = Math.sqrt(std_chn[n] - avg_chn[n] * avg_chn[n]);
+					std += std_chn[n] * std_chn[n];
+				}
+				std = Math.sqrt(std/num_sens);
+				if ((photo_order > 0) && (std < photo_std_1)) {
+					photo_order = 0;
+					System.out.println ("Standard deviation = "+std+" < "+photo_std_1+", adjusting only offsets. nref = "+nref);
+					nref = -1;
+					continue; // restart
+				} else if ((photo_order > 1) && (std < photo_std_2)) {
+					photo_order = 1;
+					System.out.println ("Standard deviation = "+std+" < "+photo_std_2+", adjusting only offsets and scales. nref = "+nref);
+					nref = -1;
+					continue; // restart
+				} else if (debug) {
+					System.out.println ("Standard deviation = "+std+", nref = "+nref);
+				}
+				
 				double [][][] pa_data = new double [num_sens][num_good][2];
-				double [][] raw = new double [num_sens][len];
 				for (int nsens = 0; nsens < num_sens; nsens++) {
-					Arrays.fill(raw[nsens],Double.NaN); // debug only
-					
 					int indx = 0;
 					for (int i = 0; i < len; i++) if (good_pix[i]){
-						double A0 = scales2_old[nsens];
-						double B0 = scales_old[nsens];
-						double C0 = offs_old[nsens];
-						double a = A0;
-						double b = (B0 - 2 * C0 * A0);
-						double c = (C0*C0*A0 -C0 * B0 - dpixels[nsens][i]);
-						double p = -c/b;
-						if (Math.abs(a) >= min_abs_a) {
-							p= (-b + Math.sqrt(b*b - 4 * a * c))/(2 * a);
-						}
-						raw[nsens][i] = p;
-						pa_data[nsens][indx][0] = p; // dpixels[nsens][i]; 
+						pa_data[nsens][indx][0] = raw[nsens][i]; // dpixels[nsens][i]; 
 						pa_data[nsens][indx][1] = avg_pix[i];
 						indx++;
 					}
@@ -2573,7 +2645,12 @@ public class QuadCLT extends QuadCLTCPU {
 					double A = a;
 					double C = -c/b;
 					if (Math.abs(a) >= min_abs_a) {
-						C = (-b + Math.sqrt(b*b - 4*a*c))/(2 * a);
+						double d2 = b*b - 4*a*c;
+						if (d2 < 0) {
+							System.out.println("calibratePhotometric2() 1: Failed quadratic: a = "+a+", b = "+b+", c="+c);
+							return false;
+						}
+						C = (-b + Math.sqrt(d2))/(2 * a);
 					}
 					double B = 2 * C * a + b;
 					scales2_new[nsens] = A;
@@ -2594,6 +2671,14 @@ public class QuadCLT extends QuadCLTCPU {
 							pa_data[nsens][i][1] /= scales_avg;
 						}
 					}
+					for (int i = 0; i < avg_pix.length; i++) { // for the next iteration
+						avg_pix[i] /= scales_avg;
+					}
+					//avg_pix[i]
+					if (debug) {
+						System.out.println ("scales_avg = "+scales_avg+", nref = "+nref);
+					}
+
 				}				
 				// make scales2 be average zero, re-run scales
 				if (photo_order > 1) {
@@ -2606,10 +2691,15 @@ public class QuadCLT extends QuadCLTCPU {
 						scales2_new[nsens] -= scales2_offset;
 					}
 					// modify pa_data, re-run linear
+					
 					for (int nsens = 0; nsens < num_sens; nsens++) {
-						for (int i = 0; i < num_good; i++) {
-							double poffs = pa_data[nsens][i][0] - offs_new[nsens];
-							pa_data[nsens][i][1] -=poffs*poffs*scales2_new[nsens];
+						int indx = 0;
+//						for (int i = 0; i < num_good; i++) {
+						for (int i = 0; i < avg_pix.length; i++) if (good_pix[i]){
+							double poffs = pa_data[nsens][indx][0] - offs_new[nsens];
+							pa_data[nsens][indx][1] -= poffs*poffs*scales2_new[nsens];
+//							avg_pix[i] -= poffs*poffs*scales2_offset/num_sens; // for the next iteration
+							indx++;
 						}
 						pa_coeff[nsens] =(new PolynomialApproximation(0)).polynomialApproximation1d(
 								pa_data[nsens], 1);
@@ -2618,7 +2708,48 @@ public class QuadCLT extends QuadCLTCPU {
 						scales_new [nsens] = b;
 						offs_new[nsens] =   -c/b;
 					}
+					// re-normalize scales_new
+					double scales_avg = 1.0;
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						scales_avg *= scales_new [nsens];
+					}
+					scales_avg = Math.pow(scales_avg, 1.0/num_sens);
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						scales_new [nsens] /= scales_avg;
+						scales2_new [nsens] /= scales_avg;
+						for (int i = 0; i < num_good; i++) {
+							pa_data[nsens][i][1] /= scales_avg;
+						}
+					}
+					for (int i = 0; i < avg_pix.length; i++) { // for the next iteration
+						avg_pix[i] /= scales_avg;
+					}
+					//avg_pix[i]
+					if (debug) {
+						System.out.println ("normalization after quadratic: scales_avg = "+scales_avg+", nref = "+nref);
+					}
 				}
+				
+				// update offsets if set_offs
+				if (set_offs) {
+					double wa = 0.0;
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						wa += offs_new[nsens] * scales_new [nsens];
+					}
+					wa /= num_sens;
+					double a = wavg_offs - wa;
+					for (int nsens = 0; nsens < num_sens; nsens++) {
+						offs_new[nsens] += a/scales_new [nsens];
+					}
+					for (int i = 0; i < avg_pix.length; i++) if (good_pix[i]){
+						avg_pix[i] -= a;
+					}
+					if (debug) {
+						System.out.println ("calibratePhotometric2(): wa = "+wa+", a="+a);
+					}
+				}
+				
+				
 				
 				if (true) { // debug) { during debug,
 					System.out.println("DEBUG: calibratePhotometric() nref="+nref);

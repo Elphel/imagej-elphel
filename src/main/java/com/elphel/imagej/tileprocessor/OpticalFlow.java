@@ -4047,6 +4047,10 @@ public class OpticalFlow {
     	double   photo_min_strength =        clt_parameters.photo_min_strength; // 0.0;  // maybe add to filter out weak tiles
     	double   photo_max_diff =            clt_parameters.photo_max_diff; //    40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
     	int      photo_order =               clt_parameters.photo_order;
+    	double   photo_std_1 =               clt_parameters.photo_std_1; //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+    	double   photo_std_2 =               clt_parameters.photo_std_2; // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+    	int      photo_offs_set =            clt_parameters.photo_offs_set; //  0;    // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+    	double   photo_offs =                clt_parameters.photo_offs;     // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
     	boolean  photo_debug =               clt_parameters.photo_debug; //       false; // Generate images and text
     	
     	boolean show_dsi_image =             clt_parameters.imp.show_ranges && !batch_mode;
@@ -4275,7 +4279,7 @@ public class OpticalFlow {
 				
 				
 
-				if (photo_each  && !quadCLTs[ref_index].isPhotometricThis()) {
+				if (photo_each && (!quadCLTs[ref_index].isPhotometricThis() || !batch_mode)) {
 					if (debugLevel > -3) {
 						System.out.println("**** Running photometric equalization for "+quadCLTs[ref_index].getImageName()+
 								", current was from scene "+quadCLTs[ref_index].getPhotometricScene()+" ****");
@@ -4287,40 +4291,60 @@ public class OpticalFlow {
 					ds_photo[OpticalFlow.COMBO_DSN_INDX_DISP_BG_ALL] = dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA];
 					ds_photo[OpticalFlow.COMBO_DSN_INDX_STRENGTH] =    dsi[TwoQuadCLT.DSI_STRENGTH_AUX];
 						
-					boolean photo_each_debug = false; // true; // false;
-					boolean photo_each_debug2 = false; // true; // false;
+					boolean photo_each_debug = !batch_mode; // false; // true; // false;
+					boolean photo_each_debug2 = !batch_mode; // false; // true; // false;
 					for (int nrecalib = 0; nrecalib < photo_num_full; nrecalib++) { // maybe need to correct just offsets?
 						int poly_order = photo_order;
 						if ((poly_order > 1) && (nrecalib == 0)) {
 							poly_order = 1;
 						}
-						
-						QuadCLT.calibratePhotometric2(
+						boolean ok = QuadCLT.calibratePhotometric2(
 								clt_parameters,           // CLTParameters     clt_parameters,
 								quadCLTs[ref_index],      // final QuadCLT     ref_scene, will set photometric calibration to this scene
 								photo_min_strength,       // final double      min_strength,
 								photo_max_diff,           // final double      max_diff,    // 30.0
 								poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
+								photo_std_1,    // final double photo_std_1,   //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+								photo_std_2,    // final double photo_std_2,   // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+								photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+								photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
 								photo_num_refines,        // final int         num_refines, // 2
 								ds_photo,                 // combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
 								threadsMax,               // int               threadsMax,
 								photo_each_debug);        //final boolean     debug)
+						if (!ok) {
+							System.out.println("************** Failed calibratePhotometric2, restoring original");
+							quadCLTs[ref_index].setLwirOffsets(quadCLT_main.getLwirOffsets());
+							quadCLTs[ref_index].setLwirScales (quadCLT_main.getLwirScales ());
+							quadCLTs[ref_index].setLwirScales2(quadCLT_main.getLwirScales2());
+							quadCLTs[ref_index].setPhotometricScene(quadCLT_main.getPhotometricScene());
+							// Retry linear only
+							QuadCLT.calibratePhotometric2(
+									clt_parameters,           // CLTParameters     clt_parameters,
+									quadCLTs[ref_index],      // final QuadCLT     ref_scene, will set photometric calibration to this scene
+									photo_min_strength,       // final double      min_strength,
+									photo_max_diff,           // final double      max_diff,    // 30.0
+									1, // poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
+									photo_std_1,    // final double photo_std_1,   //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+									photo_std_2,    // final double photo_std_2,   // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+									photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+									photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
+									photo_num_refines,        // final int         num_refines, // 2
+									ds_photo,                 // combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
+									threadsMax,               // int               threadsMax,
+									photo_each_debug);        //final boolean     debug)
+							
+							
+							
+							
+						}
 						// copy offsets to the current to be saved with other properties. Is it correct/needed?
 						quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 								null, // String path,             // full name with extension or w/o path to use x3d directory
 								debugLevel+1);
 						quadCLTs[ref_index].setDSI(dsi); // try to avoid saving, will complain on restoring, but keep
-//						quadCLTs[ref_index].saveDSIAll ( // will reload during spawnQuadCLT
-//								"-DSI_MAIN", // String suffix, // "-DSI_MAIN"
-//								dsi);
-						
-//						quadCLT_main.setLwirOffsets(quadCLTs[ref_index].getLwirOffsets());
-//						quadCLT_main.setLwirScales (quadCLTs[ref_index].getLwirScales ());
-//						quadCLT_main.setLwirScales2(quadCLTs[ref_index].getLwirScales2());
-//						quadCLT_main.setPhotometricScene(quadCLTs[ref_index].getPhotometricScene());
 
 						// Re-read reference and other scenes using new offsets	
-//						quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 						quadCLTs[ref_index].setQuadClt(); // should work even when the data is new for the same scene
 						quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
 								set_channels[ref_index].set_name,
@@ -4826,6 +4850,10 @@ public class OpticalFlow {
 						photo_min_strength,       // final double      min_strength,
 						photo_max_diff,           // final double      max_diff,    // 30.0
 						poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
+						photo_std_1,  // final double      photo_std_1,  //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+						photo_std_2,  // final double      photo_std_2,	// 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+						photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+						photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
 						photo_num_refines,        // final int         num_refines, // 2
 						combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
 						threadsMax,               // int               threadsMax,
@@ -5284,8 +5312,31 @@ public class OpticalFlow {
 
 	        							String webm_path = avi_path.substring(0, avi_path.length()-4)+video_ext;
 	        							// added -y not to as "overwrite y/n?"
-	        							String shellCommand = String.format("ffmpeg -y -i %s -c %s -b:v 0 -crf %d %s",
-	        									avi_path, video_codec, video_crf, webm_path);
+	        				    		//ffmpeg -i input_file.mkv -c copy -metadata:s:v:0 stereo_mode=1 output_file.mkv 
+	        				    		//https://ffmpeg.org/ffmpeg-formats.html
+	        				    		//ffmpeg -i sample_left_right_clip.mpg -an -c:v libvpx -metadata stereo_mode=left_right -y stereo_clip.webm
+	        				    		//anaglyph_cyan_red 
+	        							String streo_meta = "";
+	        							if ((webm_path.contains("-STEREO-")) || (webm_path.contains("-SBS-"))) {
+	        								if (stereo_gap == 0) {
+	        									if (debugLevel > -3) {
+	        										System.out.println("Adding 3D meta: stereo_mode=left_right");
+	        									}
+	        									streo_meta = " -metadata:s:v:0 stereo_mode=left_right ";
+	        								} else {
+	        									if (debugLevel > -3) {
+	        										System.out.println("stereo_gap !=0, skipping 3D meta as firefox/vlc halves display width");
+	        									}
+	        								}
+	        							} else if (webm_path.contains("-ANAGLYPH-")) {
+        									if (debugLevel > -3) {
+        										System.out.println("Adding 3D meta: stereo_mode=anaglyph_cyan_red");
+        									}
+		        							streo_meta = " -metadata:s:v:0 stereo_mode=anaglyph_cyan_red ";
+	        							}
+
+	        							String shellCommand = String.format("ffmpeg -y -i %s -c %s -b:v 0 -crf %d %s %s",
+	        									avi_path, video_codec, video_crf, streo_meta, webm_path);
 	        							Process p = null;
 	        							if (generate_mapped) {
 	        								int exit_code = -1;
@@ -6287,6 +6338,7 @@ public class OpticalFlow {
     	double  max_search_rms =   clt_parameters.imp.max_search_rms; //             1.2;   // good - 0.34, so-so - 0.999
     	double  maybe_fom =        clt_parameters.imp.maybe_fom;      //             3.0;   // good - 30, second good - 5
     	double  sure_fom =         clt_parameters.imp.sure_fom;       //            10.0;   // good - 30, second good - 10
+    	boolean treat_serch_fpn =  clt_parameters.imp.treat_serch_fpn;// use FPN (higher) thresholds during search (even if offset is not small)
     	
 		double [][] pose = new double [2][3];
     	double angle_per_step = reference_QuadClt.getGeometryCorrection().getCorrVector().getTiltAzPerPixel() * pix_step;
@@ -6300,8 +6352,9 @@ public class OpticalFlow {
     	int ntry = 0;
     	int num_good=0;
     	double [] use_atr = null;
+    	int dbg_ntry = 61;
     	try_around:
-    		for (rad = 0; rad <= search_rad; rad++) {
+    		for (rad = 00; rad <= search_rad; rad++) {
     			for (dir = 0; dir < ((rad==0)?1:4); dir++) {
     				int n_range = (rad > 0) ? (2* rad) : 1;
     				for (n = 0; n < n_range; n++) {
@@ -6314,6 +6367,9 @@ public class OpticalFlow {
     					if (debugLevel > -1) {
     						System.out.println("buildSeries(): trying adjustPairsLMA() with initial offset azimuth: "+
     								atr[0]+", tilt ="+atr[1]);
+    					}
+    					if (ntry==dbg_ntry) {
+    						System.out.println("ntry="+ntry);
     					}
     					double [][][] coord_motion = interCorrPair_old( // new double [tilesY][tilesX][][];
     							clt_parameters,      // CLTParameters  clt_parameters,
@@ -6328,7 +6384,7 @@ public class OpticalFlow {
     							facc_2d_img,         // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
     							null,                //	final float [][][] dbg_corr_fpn,
     							false,               // boolean            near_important, // do not reduce weight of the near tiles
-    							true,                // boolean            all_fpn,        // do not lower thresholds for non-fpn (used during search)
+    							treat_serch_fpn,     // true,                // boolean            all_fpn,        // do not lower thresholds for non-fpn (used during search)
     							clt_parameters.imp.debug_level, // int                imp_debug_level,
     							clt_parameters.imp.debug_level); // 1); // -1); // int debug_level);
     					int num_defined = 0;

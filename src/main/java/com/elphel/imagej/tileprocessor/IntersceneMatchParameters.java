@@ -195,6 +195,7 @@ public class IntersceneMatchParameters {
 	public  double  max_search_rms =                1.5;   // good - 0.34, so-so - 0.999
 	public  double  maybe_fom =                     1.0;   // good - 38, second good - 4.5
 	public  double  sure_fom =                     12.0;   // good - 38, second good - 4.5
+	public  boolean treat_serch_fpn =              false;  // use FPN (higher) thresholds during search (even if offset is not small)
 	
 	
 	// Reference scene disparity 
@@ -627,6 +628,8 @@ public class IntersceneMatchParameters {
 				"Minimal acceptable Figure of Merit (semi-total strength divided by standard deviation of offsets), will look for the best among matching.");
 		gd.addNumericField("\"Sure\" FOM",                           this.sure_fom, 5,7,"",
 				"Definitely sufficient FOM (semi-total strength divided by standard deviation of offsets), will non continue looking for better.");
+		gd.addCheckbox ("Treat search all FPN",                      this.treat_serch_fpn,
+				"Use FPN (higher) thresholds during search (even if offset is not small).");
 		
 		
 		gd.addMessage  ("Reference scene disparity");
@@ -972,6 +975,7 @@ public class IntersceneMatchParameters {
 		this.max_search_rms =           gd.getNextNumber();
 		this.maybe_fom =                gd.getNextNumber();
 		this.sure_fom =                 gd.getNextNumber();
+		this.treat_serch_fpn =          gd.getNextBoolean();
 		this.use_combo_dsi =            gd.getNextBoolean();
 		this.use_lma_dsi =              gd.getNextBoolean();
 		this.fpn_remove =               gd.getNextBoolean();
@@ -1252,6 +1256,7 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"max_search_rms",       this.max_search_rms+"");      // double
 		properties.setProperty(prefix+"maybe_fom",            this.maybe_fom+"");           // double
 		properties.setProperty(prefix+"sure_fom",             this.sure_fom+"");            // double
+		properties.setProperty(prefix+"treat_serch_fpn",        this.treat_serch_fpn+"");   // boolean
 		properties.setProperty(prefix+"use_combo_dsi",        this.use_combo_dsi+"");       // boolean
 		properties.setProperty(prefix+"use_lma_dsi",          this.use_lma_dsi+"");         // boolean
 		properties.setProperty(prefix+"fpn_remove",           this.fpn_remove+"");          // boolean
@@ -1485,6 +1490,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"max_search_rms")!=null)       this.max_search_rms=Double.parseDouble(properties.getProperty(prefix+"max_search_rms"));
 		if (properties.getProperty(prefix+"maybe_fom")!=null)            this.maybe_fom=Double.parseDouble(properties.getProperty(prefix+"maybe_fom"));
 		if (properties.getProperty(prefix+"sure_fom")!=null)             this.sure_fom=Double.parseDouble(properties.getProperty(prefix+"sure_fom"));
+		if (properties.getProperty(prefix+"treat_serch_fpn")!=null)      this.treat_serch_fpn=Boolean.parseBoolean(properties.getProperty(prefix+"treat_serch_fpn"));		
 		if (properties.getProperty(prefix+"use_combo_dsi")!=null)        this.use_combo_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_combo_dsi"));		
 		if (properties.getProperty(prefix+"use_lma_dsi")!=null)          this.use_lma_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_lma_dsi"));
 		if (properties.getProperty(prefix+"fpn_remove")!=null)           this.fpn_remove=Boolean.parseBoolean(properties.getProperty(prefix+"fpn_remove"));
@@ -1735,6 +1741,7 @@ public class IntersceneMatchParameters {
 		imp.max_search_rms =        this.max_search_rms;
 		imp.maybe_fom =             this.maybe_fom;
 		imp.sure_fom =              this.sure_fom;
+		imp.treat_serch_fpn       = this.treat_serch_fpn;
 		imp.use_combo_dsi         = this.use_combo_dsi;
 		imp.use_lma_dsi           = this.use_lma_dsi;
 		imp.fpn_remove            = this.fpn_remove;
