@@ -39,10 +39,17 @@ public class TileNeibs{
 	final public static int DIR_LEFT =    2; // Right
 	final public static int DIR_DOWN =    4; // Down
 	final public static int DIR_RIGHT =   6; // Left
+	final public static int DIRS =        8; // total dirs
 
+	public static int reverseDir(int dir) {
+		if ((dir < 0) || (dir >= DIRS)) {
+			return dir;
+		}
+		return (dir+DIRS/2) % DIRS;
+	}
 	int sizeX;
 	int sizeY;
-	public int dirs = 8;
+	public int dirs = DIRS;
 	public TileNeibs(int size){
 		this.sizeX = size;
 		this.sizeY = size;
@@ -63,6 +70,12 @@ public class TileNeibs{
 		return sizeX * sizeY;
 	}
 
+	boolean isBorder(int indx) {
+		int [] xy = {indx % sizeX ,indx / sizeX};
+		return (xy[0]==0) || (xy[1]==0) || (xy[0]== (sizeX - 1)) || (xy[1]==(sizeY-1)); 
+	}
+	
+	
 	/**
 	 * Get x,y pair from index
 	 * @param indx element index

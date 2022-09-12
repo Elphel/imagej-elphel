@@ -5378,6 +5378,83 @@ public class OpticalFlow {
 	        }// for (int mode3d = 0; mode3d<generate_modes3d.length; mode3d++) if (generate_modes3d[mode3d]) {
 		} // if (generate_mapped) {
 		
+		// debugging 3D model
+		boolean build_textured3d = true;
+		double       textured_disp_adiffo = 0.3;
+		double       textured_disp_rdiffo = 0.1;
+		double       textured_disp_adiffd = 0.4;
+		double       textured_disp_rdiffd = 0.12;
+		double       textured_disp_fof =    1.5;
+		double       min_fg_bg =            0.1; // NaN bg if difference from FG < this
+		
+		
+		if (build_textured3d) {
+			int tilesX =  quadCLTs[ref_index].getTileProcessor().getTilesX();
+	        int tilesY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
+			if (combo_dsn_final == null) {
+				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+						"-INTER-INTRA-LMA", // String      suffix,
+						0, // int         num_slices, // (0 - all)
+						null); // int []      wh);
+			}
+			boolean [] sky_tiles =  new boolean[combo_dsn_final[COMBO_DSN_INDX_BLUE_SKY].length];
+			boolean [] sky_invert = new boolean[combo_dsn_final[COMBO_DSN_INDX_BLUE_SKY].length];
+			for (int i = 0; i < sky_tiles.length; i++) {
+				sky_tiles[i] = combo_dsn_final[COMBO_DSN_INDX_BLUE_SKY][i] > 0.0;
+				sky_invert[i] =  !sky_tiles[i];
+			}
+			// re-load , should create quadCLTs[ref_index].dsi
+			double [][] dls_fg = {
+					combo_dsn_final[COMBO_DSN_INDX_DISP],
+					combo_dsn_final[COMBO_DSN_INDX_LMA],
+					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
+			};
+			double [][] ds_fg = conditionInitialDS(
+					true, // boolean        use_conf,       // use configuration parameters, false - use following  
+					clt_parameters,      // CLTParameters  clt_parameters,
+					dls_fg,                 // double [][]    dls
+					quadCLTs[ref_index], // QuadCLT        scene,
+					debugLevel);         // int debug_level)
+			double [][] dls_bg = {
+					combo_dsn_final[COMBO_DSN_INDX_DISP_BG].clone(),
+					combo_dsn_final[COMBO_DSN_INDX_LMA_BG].clone(),
+					combo_dsn_final[COMBO_DSN_INDX_STRENGTH_BG].clone()
+			};
+			for (int i = 0; i < sky_tiles.length; i++) if (Double.isNaN(dls_bg[0][i])){
+				dls_bg[0][i] = dls_fg[0][i];
+				dls_bg[1][i] = dls_fg[1][i];
+				dls_bg[2][i] = dls_fg[2][i];
+			}
+			double [][] ds_bg = conditionInitialDS(
+					true, // boolean        use_conf,       // use configuration parameters, false - use following  
+					clt_parameters,      // CLTParameters  clt_parameters,
+					dls_bg,                 // double [][]    dls
+					quadCLTs[ref_index], // QuadCLT        scene,
+					debugLevel);         // int debug_level)
+//			double[][] ds_fg_bg = {ds_fg[0], ds_bg[0]};
+			double[][] ds_fg_bg = {ds_fg[0], ds_bg[0].clone()}; 
+			for (int i = 0; i < sky_tiles.length; i++) {
+				if (Math.abs(ds_fg_bg[1][i]-ds_fg_bg[0][i]) < min_fg_bg) {
+					ds_fg_bg[1][i] = Double.NaN;
+				}
+			}
+			TileCluster [] tileCluster = TexturedModel.clusterizeFgBg( // wrong result type, not decided
+					tilesX, // final int          tilesX,
+					ds_fg_bg, // final double [][]  disparities, // may have more layers
+					sky_invert, // final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
+					textured_disp_adiffo, // final double       disp_adiffo,
+					textured_disp_rdiffo, // final double       disp_rdiffo,
+					textured_disp_adiffd, // final double       disp_adiffd,
+					textured_disp_rdiffd, // final double       disp_rdiffd,
+					textured_disp_fof, // final double       disp_fof,    // enable higher difference (scale) for fried of a friend 
+					1); // 2); // final int          debugLevel) 
+			System.out.println("clusterizeFgBg() produces "+tileCluster.length+" cluster layers");
+			System.out.println("clusterizeFgBg() produces "+tileCluster.length+" cluster layers");
+			
+		}
+		
+		
+		
 		if (export_images) {
 			if (combo_dsn_final == null) {
 				combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
