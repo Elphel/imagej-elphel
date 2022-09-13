@@ -6656,7 +6656,7 @@ public class ImageDttCPU {
 													schn = MONO_CHN; // clone green to red and blue output
 												}
 												if (texture_tile[schn] == null) {
-													dpixels[chn] = null;
+													dpixels[chn] = null; //09.12.2022 WRONG - keep as is, do once ??????
 												} else {
 													// should it be better to multiply each color by alpha before accumulating? No, it is already windowed!
 													if ((chn != 3) || !sharp_alpha) {

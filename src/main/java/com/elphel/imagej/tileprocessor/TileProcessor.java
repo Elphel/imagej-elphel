@@ -8867,7 +8867,7 @@ ImageDtt.startAndJoin(threads);
 		return indices;
 	}
 
-	public double [][] getTexCoords( // get texture coordinates for indices
+	public static double [][] getTexCoords( // get texture coordinates for indices
 			int [][] indices)
 	{
 		int maxIndex = -1;
@@ -8913,7 +8913,6 @@ ImageDtt.startAndJoin(threads);
 			for (int x = 0; (x < width) && (indx <= maxIndex); x++){
 				if (indices[y][x] >=0){
 					// center coordinates for 8*8 tile is [3.5,3.5]
-//					double disp = disparity[(bounds.y + y) * tilesX + (bounds.x + x)];
 					double disp = (disparity == null)? min_disparity:( disparity[(bounds.y + y) * tilesX + (bounds.x + x)]);
 					if      (disp < min_disparity) disp = min_disparity;
 					else if (disp > max_disparity) disp = max_disparity;
@@ -8962,7 +8961,7 @@ ImageDtt.startAndJoin(threads);
 		return coordinate;
 	}
 
-	int getMaxIndex(int [][] indices)
+	static int getMaxIndex(int [][] indices)
 	{
 		int height = indices.length;
 		int width = indices[0].length;
@@ -8976,7 +8975,7 @@ ImageDtt.startAndJoin(threads);
 		return -1;
 	}
 
-	public int [][] filterTriangles(
+	public static int [][] filterTriangles(
 			int  [][] triangles,
 			double [] disparity, // disparities per vertex index
 			double    maxDispDiff) // maximal disparity difference in a triangle
@@ -9013,13 +9012,11 @@ ImageDtt.startAndJoin(threads);
 }
 
 
-	public int [][] triangulateCluster(
+	public static int [][] triangulateCluster(
 			int [][]  indices)
 	{
 		int height = indices.length;
 		int width = indices[0].length;
-		//		  int [][] ind = new int [height][];
-		//		  for (int i = 0; i < width; i++) ind[i] = indices[i].clone();
 		class Triangle {
 			int [] points = new int [3];
 			Triangle (int i1, int i2, int i3){
@@ -9070,7 +9067,7 @@ ImageDtt.startAndJoin(threads);
 		return triangles;
 	}
 
-	int iSign (int a) {return (a > 0) ? 1 : ((a < 0)? -1 : 0);}
+	static int iSign (int a) {return (a > 0) ? 1 : ((a < 0)? -1 : 0);}
 
 	public void testTriangles(
 			String     texturePath,
@@ -9136,7 +9133,7 @@ ImageDtt.startAndJoin(threads);
 	}
 
 	
-	public double [] fillNaNs(
+	public static double [] fillNaNs(
 			final double [] data,
 			int       width,
 			final int grow,

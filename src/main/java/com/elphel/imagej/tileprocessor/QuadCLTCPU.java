@@ -12553,7 +12553,6 @@ public class QuadCLTCPU {
 						  "shape_id-"+(scanIndex - next_pass), // id
 						  null, // class
 						  scan.getTextureBounds(),
-//						  scan.selected,
 						  scan.getSelected(),
 						  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 						  clt_parameters.transform_size,
@@ -12613,8 +12612,8 @@ public class QuadCLTCPU {
 			  return; // not used in lwir
 		  }
 		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected
-				  bounds,
-				  selected);
+				  bounds, 
+				  selected); 
 		  double [][] texCoord = tp.getTexCoords( // get texture coordinates for indices
 				  indices);
 		  double [][] worldXYZ = tp.getCoords( // get world XYZ in meters for indices
@@ -12639,7 +12638,7 @@ public class QuadCLTCPU {
 				  indices);
 
 
-		  triangles = 	tp.filterTriangles(
+		  triangles = 	tp.filterTriangles( // remove crazy triangles with large disparity difference
 					triangles,
 					indexedDisparity, // disparities per vertex index
 					maxDispTriangle); // maximal disparity difference in a triangle
@@ -13013,14 +13012,15 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-
+		  // create 8*tilesX * 8*tilesY RBGA (?) image. input for mono (Y,,,A), output [null,null, Y, A]?
 		  double [][] texture_overlap = image_dtt.combineRBGATiles(
 				  texture_tiles_cluster, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-///				  image_dtt.transform_size,
 				  true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 				  clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 				  threadsMax,                    // maximal number of threads to launch
 				  debugLevel);
+
+		  // Update alpha to sharpen "tree branches"
 		  if (clt_parameters.alpha1 > 0){ // negative or 0 - keep alpha as it was
 			  double scale = (clt_parameters.alpha1 > clt_parameters.alpha0) ? (1.0/(clt_parameters.alpha1 - clt_parameters.alpha0)) : 0.0;
 			  for (int i = 0; i < texture_overlap[alpha_index].length; i++){
@@ -13036,6 +13036,8 @@ public class QuadCLTCPU {
 		  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
 		  double [][] texture_rgbx = ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb);
 
+		  // Resize was extracting rectangle from the full size texture. With consolidated texture (9.12.2022) multiple
+		  // rectangles can be extracted from a single texture array
 		  boolean resize = true;
 		  if (resize) {
 		  texture_rgbx = resizeGridTexture(
@@ -13051,7 +13053,7 @@ public class QuadCLTCPU {
 		  if ((width <= 0) || (height <= 0)) {
 			  System.out.println("***** BUG in getPassImage(): width="+width+", height="+height+", resize="+resize+" ****"); // not used in lwir
 		  }
-
+		  // 9.12.2022: should be done for each cluster
 		  ImagePlus imp_texture_cluster = linearStackToColor(
 				  clt_parameters,
 				  colorProcParameters,
