@@ -35,10 +35,15 @@ public class TexturedModel {
 	public static final int          threadsMax = 100;  // maximal number of threads to launch
 	public static final int TILE_EMPTY =          0; 
 	public static final int TILE_BORDER =         1; 
-	public static final int TILE_CONFIRMED =      2; 
-	public static final int TILE_CANDIDATE =      3; // not used 
+	public static final int TILE_BORDER_FLOAT =   2; 
+	public static final int TILE_CONFIRMED =      3; 
+	public static final int TILE_CANDIDATE =      4; // not used 
 	public static final int CLUSTER_NAN =        -2; // disparity is NaN 
-	public static final int CLUSTER_UNASSIGNED =  -1; // not yet assinged (>=0 - cluster number)  
+	public static final int CLUSTER_UNASSIGNED =  -1; // not yet assinged (>=0 - cluster number)
+	
+	public static boolean isBorder(int d) {
+		return (d==TILE_BORDER) || (d==TILE_BORDER_FLOAT);
+	}
 	
 	public static TileCluster [] clusterizeFgBg( //
 			final int          tilesX,
@@ -73,7 +78,7 @@ public class TexturedModel {
 			}
 		}
 
-		final int dbg_tile = (debugLevel>0)? 977 : -1;
+		final int dbg_tile = (debugLevel>0)? 2021:-1; // 977 : -1;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -208,6 +213,7 @@ public class TexturedModel {
 		int [] tile_stat = new int [tiles];
 //		int [] tile_layer = new int [tiles]; // just to know which layer was used for assigned tiles
 //		int current_cluster = 0;
+		final boolean debug_index = debugLevel > 0;
 
 		while (true) {
 			// find remaining tile with maximal number of neighbors (usually 8) - this will require num_neibs update
@@ -232,6 +238,9 @@ public class TexturedModel {
 					}
 				}
 			}
+			if (best_tile == dbg_tile) {
+				System.out.println("clusterizeFgBg().4: best_tile="+best_tile);
+			}
 			tile_start = best_tile; // will start from this
 			if (nn == 0) { // no even single-tile clusters are left
 				break; // no more seeds for clusters
@@ -250,23 +259,28 @@ public class TexturedModel {
 				boolean confirm = false;
 				disparity[tile] = disparities[layer][tile];
 				if (tn.isBorder(tile)) {
-					tile_stat[tile] = TILE_BORDER;
+					tile_stat[tile] = TILE_BORDER_FLOAT; // TILE_BORDER;
+					if (Double.isNaN(disparity[tile])) {
+						System.out.println("clusterizeFgBg(): 4. Disparity is set NaN for tile "+tile);
+					}
 				} else {
 					confirm = true;
 					for (int dir = 0; dir < TileNeibs.DIRS; dir++) {
 						int tile1 = tn.getNeibIndex(tile, dir); // should always be > 0 here
 						//is it a border tile or already confirmed one ?
-						if ((tile_stat[tile1] == TILE_BORDER) || (tile_stat[tile1] == TILE_CONFIRMED)){
+//						if ((tile_stat[tile1] == TILE_BORDER) || (tile_stat[tile1] == TILE_CONFIRMED)){
+						if (isBorder(tile_stat[tile1]) || (tile_stat[tile1] == TILE_CONFIRMED)){
 							double mid_disp = Math.max(0.0, 0.5*(disparities[layer][tile] + disparity[tile1]));
 							double max_disp_diff = ((dir & 1) == 0) ?
 									(disp_adiffo + mid_disp * disp_rdiffo) :
 										(disp_adiffd + mid_disp * disp_rdiffd);
-							max_disp_diff *= (tile_stat[tile1] == TILE_BORDER)? disp_border : disp_fof;
+//							max_disp_diff *= (tile_stat[tile1] == TILE_BORDER)? disp_border : disp_fof;
+							max_disp_diff *= isBorder(tile_stat[tile1])? disp_border : disp_fof;
 							if ((Math.abs(disparities[layer][tile] - disparity[tile1])/max_disp_diff) > 1.0){
 								confirm = false;// too large diff
 								// make it a border tile, but keep disparity
 								//								disparity[tile] = disparities[layer][tile];
-								tile_stat[tile] = TILE_BORDER;
+								tile_stat[tile] = TILE_BORDER_FLOAT; // TILE_BORDER;
 								break;
 							}
 						}
@@ -277,6 +291,9 @@ public class TexturedModel {
 						System.out.println("Confirmed tile "+tile+ " (x="+(tile%tilesX)+", y="+(tile/tilesX)+") -> "+tile_stat[tile]);
 					}
 					tile_stat[tile] = TILE_CONFIRMED;
+					if (Double.isNaN(disparity[tile])) {
+						System.out.println("clusterizeFgBg(): 5. Disparity is set NaN for tile "+tile);
+					}
 					ncluster[tile][layer] = cluster_list.size(); // current cluster number - Mark as assigned
 					//						tile_layer[tile] = layer;
 					// right here - update number of neighbors for used tile
@@ -319,15 +336,24 @@ public class TexturedModel {
 								}
 							}
 							if (layer_assigned >= 0) { // already assigned to some cluster that was split
-								tile_stat[tile1] = TILE_BORDER;
-								disparity[tile1] = disparities[layer_assigned][tile]; // Use interrupted cluster disparity
+								tile_stat[tile1] = TILE_BORDER; // here - fixed disparity, not float
+								disparity[tile1] = disparities[layer_assigned][tile1]; // [tile]; // Use interrupted cluster disparity
+								if (Double.isNaN(disparity[tile1])) {
+									System.out.println("clusterizeFgBg(): *1. Disparity is set NaN for tile "+tile1);
+								}
 							} else 	if ((layer1 < 0) || (connections[tile][layer][dir][layer1] > 1.0)) { // no connections in this direction - add border using same disparity as this tile
 								if (tile_stat[tile1] == TILE_EMPTY) { // not yet set (otherwise keep)
-									tile_stat[tile1] = TILE_BORDER;
+									tile_stat[tile1] = TILE_BORDER_FLOAT; //TILE_BORDER;
 									disparity[tile1] = disparity[tile];
+									if (Double.isNaN(disparity[tile1])) {
+										System.out.println("clusterizeFgBg(): 2. Disparity is set NaN for tile "+tile1);
+									}
 								}
 							} else { // connection exists, add tile1/layer1 as a candidate to the list
 								tile_stat[tile1] = TILE_CANDIDATE; // to avoid suggesting the same tile multiple times
+								if (Double.isNaN(disparity[tile1])) {
+									System.out.println("clusterizeFgBg(): *3. Disparity is set NaN for tile "+tile1);
+								}
 								tile_layer_list.add(new Point(tile1, layer1));
 							}
 						}
@@ -354,17 +380,41 @@ public class TexturedModel {
 				
 				Rectangle bounds = new Rectangle(min_x, min_y, width, height);
 				double  [] disparity_crop = new double [width * height]; 
-				boolean [] border_crop = new boolean   [width * height]; 
+				boolean [] border_crop = new boolean   [width * height];
+				double [] wdir = {1.0,0.7,1.0,0.7,1.0,0.7,1.0,0.7}; // weights for directions
 				for (int dty = 0; dty < height; dty++) {
 					int ty = min_y + dty;
 					for (int dtx = 0; dtx < width; dtx++) {
 						int tdest = dty*width + dtx;
 						int tsrc = ty * tilesX + min_x + dtx;
-						border_crop[tdest] = tile_stat[tsrc] == TILE_BORDER;
+						// replace disparity for the floating border tiles with the weighted average of non-floating 
+						if (tile_stat[tsrc] == TILE_BORDER_FLOAT) { // average disparity from non-float defined tiles
+							// TODO: use best plane fit (for gradients)
+							// TODO: remove some "inner" border tiles?
+							double sw = 0.0;
+							double swd = 0.0;
+							for (int dir = 0; dir < TileNeibs.DIRS; dir++) {
+								int tile1 = tn.getNeibIndex(tsrc, dir); // should always be > 0 here
+								if (tile1 >= 0) {
+									if ((tile_stat[tile1] == TILE_BORDER) || (tile_stat[tile1] == TILE_CONFIRMED)) {
+										sw += wdir[dir];
+										swd += wdir[dir] * disparity[tile1];
+									}
+								}
+							}
+							if (sw > 0.0) {
+								disparity[tsrc] = swd/sw;
+							}
+						}
+						border_crop[tdest] = isBorder(tile_stat[tsrc]); //  == TILE_BORDER;
 						disparity_crop[tdest] = (tile_stat[tsrc] == TILE_EMPTY) ? Double.NaN : disparity[tsrc];
 					}
 				}
-				TileCluster tileCluster = (new TileCluster(bounds, border_crop, disparity_crop));
+				TileCluster tileCluster = (new TileCluster(
+						bounds,
+						(debug_index? cluster_list.size(): -1),
+						border_crop,
+						disparity_crop));
 				cluster_list.add(tileCluster);
 				// update
 
@@ -410,7 +460,11 @@ public class TexturedModel {
 		TileCluster [] consolidated_clusters = new TileCluster[this_combo];
 		Rectangle full_tiles = new Rectangle(0, 0, tilesX, tilesY);
 		for (int i = 0; i < this_combo; i++) {
-			consolidated_clusters[i] = new TileCluster(full_tiles, null, null);
+			consolidated_clusters[i] = new TileCluster(
+					full_tiles,
+					(debug_index? 0:-1),
+					null,
+					null);
 		}
 		for (int i = 0; i < comb_clusters.length; i++) {
 			consolidated_clusters[comb_clusters[i]].add(cluster_list.get(i));
@@ -419,10 +473,18 @@ public class TexturedModel {
 		if (debugLevel > 0) {
 			double [][] dbg_img =     new double[this_combo][tiles];
 			double [][] dbg_borders = new double[this_combo][tiles];
+			double [][] dbg_index = null;
+			if (debug_index) {
+				dbg_index = new double[this_combo][tiles];
+			}
 			for (int n = 0; n < dbg_img.length; n++) {
 				for (int i = 0; i < tiles;i++) {
 					dbg_img[n][i] =     consolidated_clusters[n].getDisparity()[i];
 					dbg_borders[n][i] = consolidated_clusters[n].getBorder()[i]? 1.0:0.0;
+					if (dbg_index != null) {
+						double d = consolidated_clusters[n].getClusterIndex()[i];
+						dbg_index[n][i] = (d >=0)? d : Double.NaN;
+					}
 				}				
 			}			
 			(new ShowDoubleFloatArrays()).showArrays(
@@ -437,6 +499,15 @@ public class TexturedModel {
 					tilesY,
 					true,
 					"cluster_borders");
+			if (dbg_index != null) {
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_index,
+						tilesX,
+						tilesY,
+						true,
+						"cluster_indices");
+			}
+			
 		}
 		return consolidated_clusters;
 	}

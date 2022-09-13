@@ -28,7 +28,9 @@ import java.util.Arrays;
 class TileCluster{
 	Rectangle  bounds;
 	boolean [] border;
-	double []  disparity;
+	double []  disparity;     // all and only unused - NaN 
+	int []     cluster_index; // for debug purposes, index of the source cluster
+	/*
 	public TileCluster (Rectangle  bounds, boolean [] border, double []  disparity){
 		this.bounds =    bounds;
 		if (border == null) {
@@ -41,9 +43,38 @@ class TileCluster{
 		}
 		this.disparity = disparity;
 	}
+   */
+	// to use cluster_index - set index >= 0, <0 - do not use.
+	public TileCluster (
+			Rectangle  bounds,
+			int index, // <0 to skip
+			boolean [] border,
+			double []  disparity){
+		this.bounds =    bounds;
+		if (index >= 0) {
+			this.cluster_index = new int [bounds.width * bounds.height];
+			Arrays.fill(cluster_index, -1);
+			if (disparity != null) {
+				for (int i = 0; i < cluster_index.length; i++) if (!Double.isNaN(disparity[i])){
+					cluster_index[i] = index;
+				}
+			}
+		}
+		if (border == null) {
+			border = new boolean[bounds.width * bounds.height];
+		}
+		this.border =    border;
+		if (disparity == null) {
+			disparity = new double[bounds.width * bounds.height];
+			Arrays.fill(disparity, Double.NaN);
+		}
+		this.disparity = disparity;
+	}
+	
 	public Rectangle getBounds() {return bounds;}
 	public boolean [] getBorder() {return border;}
 	public double [] getDisparity() {return disparity;}
+	public int [] getClusterIndex() {return cluster_index;}
 	/*
 	public TileCluster combine (TileCluster tileCluster) {
 		TileCluster outer, inner;
@@ -97,6 +128,14 @@ class TileCluster{
 					disparity,
 					dst_y * bounds.width + dst_x,
 					tileCluster.bounds.width);
+			if ((cluster_index != null) && (tileCluster.cluster_index != null)) {
+				System.arraycopy(
+						tileCluster.cluster_index,
+						src_y * tileCluster.bounds.width,
+						cluster_index,
+						dst_y * bounds.width + dst_x,
+						tileCluster.bounds.width);
+			}
 		}
 		return;
 	}

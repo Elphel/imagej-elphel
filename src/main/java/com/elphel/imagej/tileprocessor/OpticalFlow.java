@@ -5380,10 +5380,10 @@ public class OpticalFlow {
 		
 		// debugging 3D model
 		boolean build_textured3d = true;
-		double       textured_disp_adiffo = 0.3;
-		double       textured_disp_rdiffo = 0.1;
-		double       textured_disp_adiffd = 0.4;
-		double       textured_disp_rdiffd = 0.12;
+		double       textured_disp_adiffo = 0.35; // 0.3;
+		double       textured_disp_rdiffo = 0.12; // 0.1;
+		double       textured_disp_adiffd = 0.6; // 0.4;
+		double       textured_disp_rdiffd = 0.18; // 0.12;
 		double       textured_disp_fof =    1.5;
 		double       min_fg_bg =            0.1; // NaN bg if difference from FG < this
 		
