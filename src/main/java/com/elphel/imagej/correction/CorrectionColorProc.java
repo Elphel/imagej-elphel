@@ -40,7 +40,6 @@ import ij.gui.GenericDialog;
 
 
 public class CorrectionColorProc {
-	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
     double [] denoiseMaskChroma;
     int       denoiseMaskChromaWidth;
@@ -131,7 +130,6 @@ public class CorrectionColorProc {
     				colorProcParameters,
     				blueLeakRgb,
     				width,
-    				SDFA_INSTANCE,
     				null, // "blue_corr", //TODO: add normal generation/saving of the intermediate images
     				debugLevel); // debug level
     		double [][] blueRemovedRGB= blueLeak.process(); // will later return corrected RGB to use
@@ -229,11 +227,11 @@ public class CorrectionColorProc {
     		gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
     		gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
     		if (debugLevel> 2) {
-    			SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");
-    			SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");
-    			SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");
-    			SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");
-    			SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");
+    			ShowDoubleFloatArrays.showArrays(dmask, width, height,"dmask");
+    			ShowDoubleFloatArrays.showArrays(dpixels_pr, width, height,"dpixels_pr");
+    			ShowDoubleFloatArrays.showArrays(dpixels_pb, width, height,"dpixels_pb");
+    			ShowDoubleFloatArrays.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");
+    			ShowDoubleFloatArrays.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");
     		}
     		double mp;
     		double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);
@@ -422,11 +420,11 @@ public class CorrectionColorProc {
         	  gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
         	  gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
               if (debugLevel>2) {
-            	  SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");
-            	  SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");
-            	  SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");
-            	  SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");
-            	  SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");
+            	  ShowDoubleFloatArrays.showArrays(dmask, width, height,"dmask");
+            	  ShowDoubleFloatArrays.showArrays(dpixels_pr, width, height,"dpixels_pr");
+            	  ShowDoubleFloatArrays.showArrays(dpixels_pb, width, height,"dpixels_pb");
+            	  ShowDoubleFloatArrays.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");
+            	  ShowDoubleFloatArrays.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");
               }
               double mp;
               double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);

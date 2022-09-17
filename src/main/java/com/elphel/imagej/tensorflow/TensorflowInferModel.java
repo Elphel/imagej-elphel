@@ -345,7 +345,7 @@ long[] shape = new long[] {batch, imageSize};
     		result[3][i] = tf_tile.gt_strength;
     	}
 
-		(new showDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				result,
 				tilesX,
 				tilesY,
@@ -387,7 +387,7 @@ long[] shape = new long[] {batch, imageSize};
     		result[8][i] = (result[3][i] > 0)?result[0][i]:Float.NaN;
 
     	}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				result,
 				tilesX,
 				tilesY,

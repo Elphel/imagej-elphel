@@ -21,24 +21,18 @@ package com.elphel.imagej.tileprocessor;
  ** -----------------------------------------------------------------------------**
  **
  */
-import java.awt.Rectangle;
-import java.io.BufferedReader;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -754,7 +748,6 @@ public class TwoQuadCLT {
 		boolean infinity_corr = false;
 		double [][] scaleExposures= {scaleExposures_main, scaleExposures_aux};
 		boolean toRGB=     quadCLT_main.correctionsParameters.toRGB;
-		ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging? - TODO - move where it belongs
 		// may use this.StartTime to report intermediate steps execution times
 		String name=quadCLT_main.correctionsParameters.getModelName((String) imp_quad_main[0].getProperty("name"));
 		String path= (String) imp_quad_main[0].getProperty("path"); // Only for debug output
@@ -882,7 +875,7 @@ public class TwoQuadCLT {
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
-				sdfa_instance.showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						texture_nonoverlap_main,
 						tilesX * (2 * image_dtt.transform_size),
 						tilesY * (2 * image_dtt.transform_size),
@@ -897,7 +890,7 @@ public class TwoQuadCLT {
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
-				sdfa_instance.showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						texture_nonoverlap_aux,
 						tilesX * (2 * image_dtt.transform_size),
 						tilesY * (2 * image_dtt.transform_size),
@@ -944,7 +937,7 @@ public class TwoQuadCLT {
 				}
 
 				if (!batch_mode && clt_parameters.show_overlap) {
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							texture_overlap_main,
 							tilesX * image_dtt.transform_size,
 							tilesY * image_dtt.transform_size,
@@ -953,7 +946,7 @@ public class TwoQuadCLT {
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 				}
 				if (!batch_mode && clt_parameters.show_overlap) {
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							texture_overlap_aux,
 							tilesX * image_dtt.transform_size,
 							tilesY * image_dtt.transform_size,
@@ -1015,7 +1008,7 @@ public class TwoQuadCLT {
 		if (clt_corr_combo!=null){
 			if (disparity_bimap != null){
 				if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							disparity_bimap,
 							tilesX,
 							tilesY,
@@ -1036,7 +1029,7 @@ public class TwoQuadCLT {
 							if (!trusted[nTile]) disparity_bimap[layer][nTile] = Double.NaN;
 						}
 					}
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							disparity_bimap,
 							tilesX,
 							tilesY,
@@ -1059,7 +1052,7 @@ public class TwoQuadCLT {
 							debugLevel);
 				}
 
-				sdfa_instance.showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						corr_rslt,
 						tilesX*(2*image_dtt.transform_size),
 						tilesY*(2*image_dtt.transform_size),
@@ -1108,7 +1101,7 @@ public class TwoQuadCLT {
 					}
 
 					if (debugLevel > 0){
-						sdfa_instance.showArrays(clt,
+						ShowDoubleFloatArrays.showArrays(clt,
 								tilesX*image_dtt.transform_size,
 								tilesY*image_dtt.transform_size,
 								true,
@@ -1128,7 +1121,7 @@ public class TwoQuadCLT {
 
 				}
 
-				if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(iclt_data,
+				if (clt_parameters.gen_chn_stacks) ShowDoubleFloatArrays.showArrays(iclt_data,
 						(tilesX + 0) * image_dtt.transform_size,
 						(tilesY + 0) * image_dtt.transform_size,
 						true,
@@ -1235,7 +1228,7 @@ public class TwoQuadCLT {
 			System.arraycopy(img_rbg, l * nc, img[nc], 0 ,l);
 		}
 
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				img,
 				width,
 				height,
@@ -1300,7 +1293,6 @@ public class TwoQuadCLT {
 		boolean infinity_corr = false;
 		double [][] scaleExposures= {scaleExposures_main, scaleExposures_aux};
 		boolean toRGB=     quadCLT_main.correctionsParameters.toRGB;
-		ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging? - TODO - move where it belongs
 		// may use this.StartTime to report intermediate steps execution times
 		String name=quadCLT_main.correctionsParameters.getModelName((String) imp_quad_main[0].getProperty("name"));
 		String path= (String) imp_quad_main[0].getProperty("path"); // Only for debug output
@@ -1421,7 +1413,7 @@ public class TwoQuadCLT {
 						ImageDtt.getDisparityTitles(numSensors,quadCLT_main.isMonochrome())[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				sub_disparity_map,
 	    		tilesX,
 	    		tilesY,
@@ -1460,7 +1452,7 @@ public class TwoQuadCLT {
 	    		corr_indices,
 	    		fcorrs2d,
 	    		wh);
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_corr,
 				wh[0],
 				wh[1],
@@ -1549,7 +1541,7 @@ public class TwoQuadCLT {
     					System.out.println();
     				}
     			}
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
 						texture_tile,
 						2 * image_dtt.transform_size,
 						2 * image_dtt.transform_size,
@@ -1566,7 +1558,7 @@ public class TwoQuadCLT {
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
-				sdfa_instance.showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						texture_nonoverlap_main,
 						tilesX * (2 * image_dtt.transform_size),
 						tilesY * (2 * image_dtt.transform_size),
@@ -1580,7 +1572,7 @@ public class TwoQuadCLT {
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
-				sdfa_instance.showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						texture_nonoverlap_aux,
 						tilesX * (2 * image_dtt.transform_size),
 						tilesY * (2 * image_dtt.transform_size),
@@ -1625,7 +1617,7 @@ public class TwoQuadCLT {
 				}
 
 				if (!batch_mode && clt_parameters.show_overlap) {
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							texture_overlap_main,
 							tilesX * image_dtt.transform_size,
 							tilesY * image_dtt.transform_size,
@@ -1634,7 +1626,7 @@ public class TwoQuadCLT {
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 				}
 				if (!batch_mode && clt_parameters.show_overlap) {
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							texture_overlap_aux,
 							tilesX * image_dtt.transform_size,
 							tilesY * image_dtt.transform_size,
@@ -1696,7 +1688,7 @@ public class TwoQuadCLT {
 		if (clt_corr_combo!=null){
 			if (disparity_bimap != null){
 				if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							disparity_bimap,
 							tilesX,
 							tilesY,
@@ -1717,7 +1709,7 @@ public class TwoQuadCLT {
 							if (!trusted[nTile]) disparity_bimap[layer][nTile] = Double.NaN;
 						}
 					}
-					sdfa_instance.showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							disparity_bimap,
 							tilesX,
 							tilesY,
@@ -1740,7 +1732,7 @@ public class TwoQuadCLT {
 							debugLevel);
 				}
 
-				sdfa_instance.showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						corr_rslt,
 						tilesX*(2*image_dtt.transform_size),
 						tilesY*(2*image_dtt.transform_size),
@@ -1788,7 +1780,7 @@ public class TwoQuadCLT {
 					}
 
 					if (debugLevel > 0){
-						sdfa_instance.showArrays(clt,
+						ShowDoubleFloatArrays.showArrays(clt,
 								tilesX*image_dtt.transform_size,
 								tilesY*image_dtt.transform_size,
 								true,
@@ -1808,7 +1800,7 @@ public class TwoQuadCLT {
 							clt_parameters.tileY);          // final int                 debug_tileY
 				}
 
-				if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(iclt_data,
+				if (clt_parameters.gen_chn_stacks) ShowDoubleFloatArrays.showArrays(iclt_data,
 						(tilesX + 0) * image_dtt.transform_size,
 						(tilesY + 0) * image_dtt.transform_size,
 						true,
@@ -1914,7 +1906,7 @@ public class TwoQuadCLT {
 				dbg_img[i + nchn_main][nTile] = ers_delay[1][i][nTile] - avg_dly;
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_img,
 				tilesX,
 				tilesY,
@@ -2124,7 +2116,7 @@ public class TwoQuadCLT {
 		}
 		if (debugLevel >-2) {
 			double [][] dbg_macro = {macro_pair[0][0],macro_pair[1][0]};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_macro,
 					tilesX,
 					tilesY,
@@ -2168,7 +2160,7 @@ public class TwoQuadCLT {
 				debugLevel + 1);       // final int           debugLevel);
 		// Display macro correlation results (later convert to a full size disparity_bimap for compatibility with infinity alignment
 		if (debugLevel > -2) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					mdisparity_bimap,
 					mTilesX,
 					mTilesY,
@@ -2288,7 +2280,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 				if (disparity_bimap != null){
 					if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								disparity_bimap,
 								tilesX,
 								disparity_bimap[0].length/tilesX,
@@ -2327,7 +2319,7 @@ if (debugLevel > -100) return true; // temporarily !
 						disparity_bimap = disparity_bimap_new;
 						if (disparity_bimap != null){
 							if (clt_parameters.show_map &&  (debugLevel > 2) && clt_parameters.rig.rig_mode_debug){
-								(new ShowDoubleFloatArrays()).showArrays(
+								ShowDoubleFloatArrays.showArrays(
 										disparity_bimap,
 										tilesX,
 										disparity_bimap[0].length/tilesX,
@@ -2366,7 +2358,7 @@ if (debugLevel > -100) return true; // temporarily !
 						disparity_bimap = disparity_bimap_new;
 						if (disparity_bimap != null){
 							if (clt_parameters.show_map &&  (debugLevel > 2) && clt_parameters.rig.rig_mode_debug){
-								(new ShowDoubleFloatArrays()).showArrays(
+								ShowDoubleFloatArrays.showArrays(
 										disparity_bimap,
 										tilesX,
 										disparity_bimap[0].length/tilesX,
@@ -2453,7 +2445,7 @@ if (debugLevel > -100) return true; // temporarily !
 		} // end of for (int num_full_cycle = 0; num_full_cycle < clt_parameters.rig.rig_adjust_full_cycles;num_full_cycle++) {
 		if (disparity_bimap != null){
 			if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						disparity_bimap,
 						tilesX,
 						disparity_bimap[0].length/tilesX,
@@ -2734,7 +2726,7 @@ if (debugLevel > -100) return true; // temporarily !
 				dbg_img[6][nTile] = (selection_lone[nTile]? 1.0:0.0);
 			}
 			String [] titles = {"old_sel","new_sel","combo-lone", "f-near", "f-far","final","lone"};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tilesX,
 					dbg_img[0].length/tilesX,
@@ -2879,7 +2871,7 @@ if (debugLevel > -100) return true; // temporarily !
 							dbg_img[2][nTile] = Double.NaN;
 						}
 					}
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							dbg_img,
 							tilesX,
 							dbg_img[0].length/tilesX,
@@ -3683,7 +3675,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_bimap_infinity );              // double [][]        bimap // current state of measurements
 
 		if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap_infinity,
 					tilesX,
 					disparity_bimap_infinity[0].length/tilesX,
@@ -3759,14 +3751,14 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 				System.out.println("num_trusted = "+num_trusted+", num_bad = "+num_bad);
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						scale_bad,
 						tilesX,
 						disparity_bimap_infinity[0].length/tilesX,
 						quadCLT_main.image_name+"-INFINITY-SCALE_BAD"+clt_parameters.disparity);
 
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap_infinity,
 					tilesX,
 					disparity_bimap_infinity[0].length/tilesX,
@@ -3799,7 +3791,7 @@ if (debugLevel > -100) return true; // temporarily !
 				null,                                              // boolean []         was_trusted,
 				disparity_bimap); // double [][]        bimap // current state of measurements
 		if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -3870,14 +3862,14 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 				System.out.println("num_trusted = "+num_trusted+", num_bad = "+num_bad);
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						scale_bad,
 						tilesX,
 						disparity_bimap[0].length/tilesX,
 						quadCLT_main.image_name+"-NEAR-SCALE_BAD"+clt_parameters.disparity);
 
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -3898,7 +3890,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 
 		if (clt_parameters.show_map &&  (debugLevel > -3) && clt_parameters.rig.rig_mode_debug && !clt_parameters.batch_run){
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -3915,7 +3907,7 @@ if (debugLevel > -100) return true; // temporarily !
 					if (!trusted_near[nTile]) disparity_bimap[layer][nTile] = 0.0;
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -3941,7 +3933,7 @@ if (debugLevel > -100) return true; // temporarily !
 				updateStatus,    // final boolean                  updateStatus,
 				debugLevel); // +4);     // final int                      debugLevel);
 
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				disparity_bimap_poles,
 				tilesX,
 				disparity_bimap[0].length/tilesX,
@@ -4004,14 +3996,14 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 				System.out.println("num_trusted = "+num_trusted+", num_bad = "+num_bad);
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						scale_bad,
 						tilesX,
 						disparity_bimap_poles[0].length/tilesX,
 						quadCLT_main.image_name+"-NEAR-SCALE_BAD_POLES"+clt_parameters.disparity);
 
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap_poles,
 					tilesX,
 					disparity_bimap_poles[0].length/tilesX,
@@ -4444,7 +4436,7 @@ if (debugLevel > -100) return true; // temporarily !
 						disparity_bimap);              // double [][]        bimap // current state of measurements
 
 				if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							disparity_bimap,
 							tilesX,
 							tilesY,
@@ -4517,14 +4509,14 @@ if (debugLevel > -100) return true; // temporarily !
 							}
 						}
 						System.out.println("num_trusted = "+num_trusted+", num_bad = "+num_bad);
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								scale_bad,
 								tilesX,
 								tilesY,
 								quadCLT_main.image_name+"-gaps_cycle"+num_cycle+"-scale_bad");
 
 					}
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							dbg_img,
 							tilesX,
 							tilesY,
@@ -5338,7 +5330,7 @@ if (debugLevel > -100) return true; // temporarily !
 				updateStatus,  // updateStatus,   // final boolean    updateStatus,
 				debugLevel);    // final int        debugLevel)
 		if (debugLevel > 0) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -5423,7 +5415,7 @@ if (debugLevel > -100) return true; // temporarily !
 				System.out.println("showBiScan() iteration "+nref+": mean ="+mean+", rms = "+ rms+", max diff. = "+max_diff );
 			}
 
-			if (debugLevel > 10) {(new ShowDoubleFloatArrays()).showArrays(
+			if (debugLevel > 10) {ShowDoubleFloatArrays.showArrays(
 					disparity_bimap,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -5447,7 +5439,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 		}
 		if (debugLevel > 0) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -5861,7 +5853,7 @@ if (debugLevel > -100) return true; // temporarily !
 				debugLevel);          // final int        debugLevel);
 
 		if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap_lt,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -5923,7 +5915,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 		if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap_lt,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -5946,7 +5938,7 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 		if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					disparity_bimap_lt,
 					tilesX,
 					disparity_bimap[0].length/tilesX,
@@ -7592,7 +7584,7 @@ if (debugLevel > -100) return true; // temporarily !
 			dbg_inf[3][nTile] = disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile];
 			dbg_inf[4][nTile] = disparity_bimap[ImageDtt.BI_TARGET_INDEX][nTile];
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_inf,
 				tilesX,
 				numTiles/tilesX,
@@ -10130,7 +10122,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		if (debug_img) 	disp_diff[7] = disp_lma.clone();
 		if (debug_img) {
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				disp_diff,
 				tilesX,
 				tilesY,
@@ -10492,7 +10484,7 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_num_noise_val,
 					tilesX,
 					good_tiles.length/ tilesX,
@@ -10543,7 +10535,7 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_num_noise_val,
 					tilesX,
 					good_tiles.length/ tilesX,
@@ -10584,7 +10576,7 @@ if (debugLevel > -100) return true; // temporarily !
 					dbg_noise_levels[i][ntile] = noise_levels0[ntile][i];
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_noise_levels,
 					tilesX,
 					good_tiles.length/ tilesX,
@@ -10643,7 +10635,7 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 			}
 
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_noise_levels_range,
 					tilesX,
 					good_tiles.length/ tilesX,
@@ -10686,7 +10678,7 @@ if (debugLevel > -100) return true; // temporarily !
 				int atile = interIntraLMA.tile_index[itile];
 				dbg_st[atile] = interIntraLMA.St[itile];
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_st,
 					tilesX,
 					good_tiles.length/ tilesX,
@@ -11853,7 +11845,7 @@ if (debugLevel > -100) return true; // temporarily !
 					dbg_numCorrMax[i][ntile] = numCorrMax[i][ntile];
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_numCorrMax,
 					tilesX,
 					tilesY,
@@ -11866,7 +11858,7 @@ if (debugLevel > -100) return true; // temporarily !
 					dbg_num_tiles[i][nClust] = num_tiles2[i][nClust];
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_num_tiles,
 					clustersX,
 					clustersY,
@@ -12839,7 +12831,7 @@ if (debugLevel > -100) return true; // temporarily !
 		String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
 		double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
 
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi_main,quadCLT.tp.getTilesX(), quadCLT.tp.getTilesY(),  title, titles);
+		ImagePlus imp = ShowDoubleFloatArrays.makeArrays(dsi_main,quadCLT.tp.getTilesX(), quadCLT.tp.getTilesY(),  title, titles);
 		quadCLT.eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
 				x3d_path, // String                path,
@@ -12864,7 +12856,7 @@ if (debugLevel > -100) return true; // temporarily !
 //		String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
 //		double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
 
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+		ImagePlus imp = ShowDoubleFloatArrays.makeArrays(
 				dsi_aux_from_main, // dsi_main,
 				quadCLT_aux.tp.getTilesX(),
 				quadCLT_aux.tp.getTilesY(),
@@ -12886,7 +12878,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
 		  double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
 
-		  (new ShowDoubleFloatArrays()).showArrays(dsi_main,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(), true, title, titles);
+		  ShowDoubleFloatArrays.showArrays(dsi_main,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(), true, title, titles);
 	}
 */
 
@@ -13106,7 +13098,7 @@ if (debugLevel > -100) return true; // temporarily !
 			System.out.println("enhanceMainDSI(): num_too_far="+num_too_far+", num_by_neib="+num_by_neib+", num_rnd="+num_rnd+", num_extrapolated="+num_extrapolated);
 		}
 		if (dbg_img != null) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tilesX,
 					tilesY,

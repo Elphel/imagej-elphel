@@ -383,7 +383,14 @@ public class CLTParameters {
 	
 	public boolean    photo_debug =                   false; // Generate images and text
 	
-	
+	public double     tex_disp_adiffo =               0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
+	public double     tex_disp_rdiffo =               0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
+	public double     tex_disp_adiffd =               0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
+	public double     tex_disp_rdiffd =               0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
+	public double     tex_disp_fof =                  1.5;  // Increase tolerance for friend of a friend
+	public double     tex_fg_bg =                     0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
+	public double     tex_distort =                   0.8;  // Maximal texture distortion to accumulate multiple scenes (0 - any)
+	public double     tex_mb =                        1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
 	
 	public boolean    show_textures    = true;  // show generated textures
 	public boolean    debug_filters    = false;// show intermediate results of filtering
@@ -1378,6 +1385,15 @@ public class CLTParameters {
 		properties.setProperty(prefix+"photo_offs",                 this.photo_offs+"");          // double
 		properties.setProperty(prefix+"photo_debug",                this.photo_debug+"");         // boolean
 		
+		properties.setProperty(prefix+"tex_disp_adiffo",            this.tex_disp_adiffo+"");     // double
+		properties.setProperty(prefix+"tex_disp_rdiffo",            this.tex_disp_rdiffo+"");     // double
+		properties.setProperty(prefix+"tex_disp_adiffd",            this.tex_disp_adiffd+"");     // double
+		properties.setProperty(prefix+"tex_disp_rdiffd",            this.tex_disp_rdiffd+"");     // double
+		properties.setProperty(prefix+"tex_disp_fof",               this.tex_disp_fof+"");        // double
+		properties.setProperty(prefix+"tex_fg_bg",                  this.tex_fg_bg+"");           // double
+		properties.setProperty(prefix+"tex_distort",                this.tex_distort+"");         // double
+		properties.setProperty(prefix+"tex_mb",                     this.tex_mb+"");              // double
+		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
 		properties.setProperty(prefix+"debug_filters",              this.debug_filters+"");
 
@@ -2248,6 +2264,15 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"photo_offs_set")!=null)       this.photo_offs_set=Integer.parseInt(properties.getProperty(prefix+"photo_offs_set"));		
 		if (properties.getProperty(prefix+"photo_offs")!=null)           this.photo_offs=Double.parseDouble(properties.getProperty(prefix+"photo_offs"));
 		if (properties.getProperty(prefix+"photo_debug")!=null)          this.photo_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_debug"));		
+		
+		if (properties.getProperty(prefix+"tex_disp_adiffo")!=null)      this.tex_disp_adiffo=Double.parseDouble(properties.getProperty(prefix+"tex_disp_adiffo"));
+		if (properties.getProperty(prefix+"tex_disp_rdiffo")!=null)      this.tex_disp_rdiffo=Double.parseDouble(properties.getProperty(prefix+"tex_disp_rdiffo"));
+		if (properties.getProperty(prefix+"tex_disp_adiffd")!=null)      this.tex_disp_adiffd=Double.parseDouble(properties.getProperty(prefix+"tex_disp_adiffd"));
+		if (properties.getProperty(prefix+"tex_disp_rdiffd")!=null)      this.tex_disp_rdiffd=Double.parseDouble(properties.getProperty(prefix+"tex_disp_rdiffd"));
+		if (properties.getProperty(prefix+"tex_disp_fof")!=null)         this.tex_disp_fof=Double.parseDouble(properties.getProperty(prefix+"tex_disp_fof"));
+		if (properties.getProperty(prefix+"tex_fg_bg")!=null)            this.tex_fg_bg=Double.parseDouble(properties.getProperty(prefix+"tex_fg_bg"));
+		if (properties.getProperty(prefix+"tex_distort")!=null)          this.tex_distort=Double.parseDouble(properties.getProperty(prefix+"tex_distort"));
+		if (properties.getProperty(prefix+"tex_mb")!=null)               this.tex_mb=Double.parseDouble(properties.getProperty(prefix+"tex_mb"));
 		
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
 		if (properties.getProperty(prefix+"debug_filters")!=null)                 this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
@@ -3271,6 +3296,24 @@ public class CLTParameters {
 				"Generate debug images an text output.");
 		
 		gd.addTab         ("3D", "3D reconstruction");
+		gd.addMessage     ("Meshes clustering for texture generation");
+		gd.addNumericField("Ortho tolerance absolute",           this.tex_disp_adiffo, 5,7,"pix",
+				"Disparity absolute tolerance to connect in ortho directions.");
+		gd.addNumericField("Ortho tolerance relative",           this.tex_disp_rdiffo, 5,7,"pix",
+				"Disparity relative tolerance to connect in ortho directions.");
+		gd.addNumericField("Diagonal tolerance absolute",        this.tex_disp_adiffd, 5,7,"pix",
+				"Disparity absolute tolerance to connect in diagonal directions.");
+		gd.addNumericField("Diagonal tolerance relative",        this.tex_disp_rdiffd, 5,7,"pix",
+				"Disparity relative tolerance to connect in diagonal directions.");
+		gd.addNumericField("Relax friend-of-a friend tolerance", this.tex_disp_fof, 5,7,"",
+				"Relax (increase disparity) tolerance for friend of a friend.");
+		gd.addNumericField("Minimal FG/BG disparity separation", this.tex_fg_bg, 5,7,"pix",
+				"Minimal FG/BG disparity difference (NaN bg if difference from FG < this).");
+		gd.addNumericField("Multiscene texture distortion",      this.tex_distort, 5,7,"pix",
+				"Maximal texture distortion to accumulate multiple scenes (neighbor tile center offset from the uniform grid. 0 - do not filter");
+		gd.addNumericField("Maximal motion blur to reduce weight",this.tex_mb, 5,7,"pix",
+				"Reduce texture weight if motion blur exceeds this (as square of MB length).");
+		gd.addMessage     ("Earlier 3D generation parameters");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
 		gd.addCheckbox    ("show intermediate results of filtering",                                                 this.debug_filters);
 
@@ -4275,8 +4318,16 @@ public class CLTParameters {
 
 		this.photo_offs_set =     (int) gd.getNextNumber();
 		this.photo_offs =               gd.getNextNumber();
-		
 		this.photo_debug =              gd.getNextBoolean();
+		
+		this.tex_disp_adiffo =          gd.getNextNumber();
+		this.tex_disp_rdiffo =          gd.getNextNumber();
+		this.tex_disp_adiffd =          gd.getNextNumber();
+		this.tex_disp_rdiffd =          gd.getNextNumber();
+		this.tex_disp_fof =             gd.getNextNumber();
+		this.tex_fg_bg =                gd.getNextNumber();
+		this.tex_distort =              gd.getNextNumber();
+		this.tex_mb =                   gd.getNextNumber();
 		
 		this.show_textures=         gd.getNextBoolean();
 		this.debug_filters=         gd.getNextBoolean();

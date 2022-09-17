@@ -665,7 +665,7 @@ public class ImagejJp4Tiff {
 		}
 		
 		if (dbg_img != null) {
-			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					dbg_img,
 					width,
 					height,
@@ -806,7 +806,7 @@ public class ImagejJp4Tiff {
 		}
 		
 		if (dbg_img != null) {
-			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					dbg_img,
 					width,
 					height,

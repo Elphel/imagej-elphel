@@ -1616,7 +1616,7 @@ public class ErsCorrection extends GeometryCorrection {
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img3,
 					tilesX2,
 					tilesY2,
@@ -1659,7 +1659,7 @@ public class ErsCorrection extends GeometryCorrection {
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tilesX2,
 					tilesY2,
@@ -1940,7 +1940,7 @@ public class ErsCorrection extends GeometryCorrection {
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img3,
 					tilesX2,
 					tilesY2,
@@ -1982,7 +1982,7 @@ public class ErsCorrection extends GeometryCorrection {
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tilesX2,
 					tilesY2,

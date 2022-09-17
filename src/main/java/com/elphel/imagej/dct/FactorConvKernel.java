@@ -1014,7 +1014,7 @@ public class FactorConvKernel {
 		return lMAData.getTargetRMSW();
 	}
 	
-	public double [] generateAsymWeights(
+	public static double [] generateAsymWeights(
 			int asym_size,
 			double scale,
 			double xc,
@@ -1249,7 +1249,8 @@ public class FactorConvKernel {
 						System.out.println();	
 					}
 				}
-				if ((RMSes!=null) && (RMSes[1] < this.goal_rms_pure)){
+//				if ((RMSes!=null) && (RMSes[1] < this.goal_rms_pure)){
+				if (RMSes[1] < this.goal_rms_pure) {
 					if (debugLevel > 0){
 						System.out.println("calcKernels(): reached goal: "+RMSes[1]+" < "+this.goal_rms_pure);
 					}
@@ -1803,20 +1804,16 @@ public class FactorConvKernel {
 			System.out.println("sym_kernel.length="+sym_kernel.length);
 			System.out.println("asym_kernel.length="+asym_kernel.length);
 			System.out.println("target_kernel.length="+target_kernel.length);
-		    ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(sym_kernel,  sym_radius, sym_radius, "init-sym_kernel");
-			sdfa_instance.showArrays(asym_kernel, asym_size, asym_size, "init-asym_kernel");
-			sdfa_instance.showArrays(target_kernel, conv_size, conv_size, "target_kernel");
-			
-		    
+			ShowDoubleFloatArrays.showArrays(sym_kernel,  sym_radius, sym_radius, "init-sym_kernel");
+			ShowDoubleFloatArrays.showArrays(asym_kernel, asym_size, asym_size, "init-asym_kernel");
+			ShowDoubleFloatArrays.showArrays(target_kernel, conv_size, conv_size, "target_kernel");
 		}
-		
 		return kernels;
 	}
 	
 	
 
-	public int getNumPars(double [] kvect){
+	public static int getNumPars(double [] kvect){
 		int num_pars = 0;
 		for (int i = 0; i<kvect.length ; i++){
 			if (!Double.isNaN(kvect[i]))num_pars++;

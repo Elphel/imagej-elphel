@@ -193,7 +193,7 @@ public class MultisceneLY {
 				if (is_inf[nTile]) dbg_img[0][nTile] += 2.0;
 				if (is_fg[nTile])  dbg_img[1][nTile] += 2.0;
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tp.getTilesX(),
 					tp.getTilesY(),
@@ -316,7 +316,7 @@ public class MultisceneLY {
 					dbg_inf_scenes[nscene][nTile] = inf_scenes[nscene][nTile]? 1.0 : 0.0;
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_inf_scenes,
 					tilesX,
 					tilesY,
@@ -758,7 +758,7 @@ public class MultisceneLY {
 				}
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_cluster,
 				clustersX,
 				clustersY,
@@ -1083,7 +1083,7 @@ public class MultisceneLY {
 					for (int i = ind_length; i < titles.length; i++) {
 						titles[i] = "combo-"+(i - ind_length);
 					}
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					ShowDoubleFloatArrays.showArrays( // out of boundary 15
 							accum_2d_decimated,
 							wh[0],
 							wh[1],
@@ -1100,7 +1100,7 @@ public class MultisceneLY {
 						threadsMax,    // final int               threadsMax,     // maximal number of threads to launch
 						debug_level);  // final int               globalDebugLevel)
 				
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						disparity_map_decimated,
 						wh[0],
 						wh[1],
@@ -1431,7 +1431,7 @@ public class MultisceneLY {
 			}
 		}
 		for (int m = 0; m < lazy_eye_data2.length; m++) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_cluster[m],
 					clustersX,
 					clustersY,
@@ -1649,7 +1649,7 @@ public class MultisceneLY {
 								dbg_nd[dbg_nd.length - 1][cluster] += ly_diff12[nly][cluster][n + ExtrinsicAdjustment.get_INDX_ND0(numSens)] / rdelta / numSens;
 							}
 						}
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								dbg_nd,
 								clustersX,
 								clustersY,
@@ -1686,7 +1686,7 @@ public class MultisceneLY {
 			}
 		}
 		for (int nly = 0; nly < dbg_img2.length; nly++) if (dbg_img2[nly] != null ) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img2[nly],
 					width,
 					height,
@@ -1715,7 +1715,7 @@ public class MultisceneLY {
 			}
 		}
 		for (int nly = 0; nly < dbg_img2.length; nly++) if (dbg_img2[nly] != null ) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img2[nly],
 					width,
 					height,

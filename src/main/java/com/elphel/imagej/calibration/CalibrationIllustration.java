@@ -613,7 +613,6 @@ public class CalibrationIllustration {
         		}
         	}
         }
-//        (new ShowDoubleFloatArrays()).showArrays(rslt, wh[0],wh[1], true,"kernels_compressed");
 		return nonzero ? rslt : null;
 	}
 	
@@ -638,7 +637,7 @@ public class CalibrationIllustration {
 			pseudo_pixels[3][i] = 1.0; // alpha
 		}
 		String [] rgb_titles =  {"red","green","blue","alpha"};
-		ImageStack stack = (new  ShowDoubleFloatArrays()).makeStack(
+		ImageStack stack = ShowDoubleFloatArrays.makeStack(
 				pseudo_pixels, 
 				width,         
 				dpixels.length/width,
@@ -680,7 +679,7 @@ public class CalibrationIllustration {
 			pseudo_pixels[3][i] = 1.0; // alpha
 		}
 		String [] rgb_titles =  {"red","green","blue","alpha"};
-		ImageStack stack = (new  ShowDoubleFloatArrays()).makeStack(
+		ImageStack stack = ShowDoubleFloatArrays.makeStack(
 				pseudo_pixels, 
 				width,         
 				dpixels[0].length/width,
@@ -840,7 +839,6 @@ public class CalibrationIllustration {
 					(1 << LwirReaderParameters.TYPE_LWIR),  // final int         types_mask, // +1 - TYPE_EO, +2 - TYPE_LWIR
 					null); // final double [][] pixels) // if not null - will fill
 			windows = getWindows (imps,illustrationParameters.auto_range_wnd_type);
-//		(new ShowDoubleFloatArrays()).showArrays(windows, width, height, true,  "windows");
 			double [][] offs_gains = balanceOffsGains(
 					balancing_scenes, // CapturedScene [] scenes,
 					windows,          // double [][]      window,
@@ -1081,7 +1079,7 @@ public class CalibrationIllustration {
 	                		}
 
 	                		String [] rgb_titles =  {"red","green","blue","alpha"};
-	                		stack = (new  ShowDoubleFloatArrays()).makeStack(
+	                		stack = ShowDoubleFloatArrays.makeStack(
 	                				pseudo_pixels, // iclt_data,
 	                				width,         // (tilesX + 0) * clt_parameters.transform_size,
 	                				height,        // (tilesY + 0) * clt_parameters.transform_size,
@@ -1477,7 +1475,7 @@ public class CalibrationIllustration {
 		}
 
 		String [] rgb_titles =  {"red","green","blue","alpha"};
-		stack = (new  ShowDoubleFloatArrays()).makeStack(
+		stack = ShowDoubleFloatArrays.makeStack(
 				pseudo_pixels, // iclt_data,
 				width,         // (tilesX + 0) * clt_parameters.transform_size,
 				height,        // (tilesY + 0) * clt_parameters.transform_size,
@@ -1552,7 +1550,7 @@ public class CalibrationIllustration {
 		
 
 		String [] rgb_titles =  {"red","green","blue","alpha"};
-		stack = (new  ShowDoubleFloatArrays()).makeStack(
+		stack = ShowDoubleFloatArrays.makeStack(
 				pseudo_pixels, // iclt_data,
 				width,         // (tilesX + 0) * clt_parameters.transform_size,
 				height,        // (tilesY + 0) * clt_parameters.transform_size,
@@ -2194,7 +2192,7 @@ public class CalibrationIllustration {
 								}
 
 								String [] rgb_titles =  {"red","green","blue","alpha"};
-								stack = (new  ShowDoubleFloatArrays()).makeStack(
+								stack = ShowDoubleFloatArrays.makeStack(
 										pseudo_pixels, // iclt_data,
 										width,         // (tilesX + 0) * clt_parameters.transform_size,
 										height,        // (tilesY + 0) * clt_parameters.transform_size,

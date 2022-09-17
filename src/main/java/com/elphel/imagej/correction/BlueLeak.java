@@ -42,7 +42,6 @@ public class BlueLeak {
 	private int height;
 	private int length;
 	ColorProcParameters  colorProcParameters;
-	private ShowDoubleFloatArrays SDFA_INSTANCE;
 	private int [] dirs20;
 	private double [] weights20;
 	private int [] dirs8;
@@ -56,14 +55,12 @@ public class BlueLeak {
 			ColorProcParameters  colorProcParameters,
 			double [][] rgb,
 			int width,
-			ShowDoubleFloatArrays SDFA_INSTANCE,
 			String dbgImgTitle,
 			int debugLevel){
 		length=rgb[0].length;
 		rgb_in=rgb;
 		this.width=width;
 		height=length/width;
-		this.SDFA_INSTANCE=SDFA_INSTANCE;
 		this.colorProcParameters=colorProcParameters;
 		if (debugLevel>2) System.out.println("width="+width+" height="+height+" length="+length);
 		int [] dirs8 = {-width,-width+1, 1, width+1, width,width-1,-1,-width-1};
@@ -188,7 +185,7 @@ public class BlueLeak {
 			dbgImg[0]=rgb_in[2];
 			dbgImg[1]=yRef;
 			dbgImg[2]=dbgStateToDouble(state);
-			SDFA_INSTANCE.showArrays(dbgImg, width, height, true, "blue_overexp_expanded", channel_blue_titles);
+			ShowDoubleFloatArrays.showArrays(dbgImg, width, height, true, "blue_overexp_expanded", channel_blue_titles);
 		}
 		
 		int numStep=0;
@@ -290,7 +287,7 @@ public class BlueLeak {
 			dbgImg[2]=yRef;
 			dbgImg[3]=leak;
 			dbgImg[4]=dbgStateToDouble(state);
-			SDFA_INSTANCE.showArrays(dbgImg, width, height, true, "blue_overexp_expanded__"+numStep, channel_blue_titles);
+			ShowDoubleFloatArrays.showArrays(dbgImg, width, height, true, "blue_overexp_expanded__"+numStep, channel_blue_titles);
 		}
 		blue=new double[length];
 		for (int i=0;i<length;i++) blue[i]=rgb_in[2][i]; // just copy
@@ -383,7 +380,7 @@ public class BlueLeak {
 			dbgImg[0]=rgb_in[2];
 			dbgImg[1]=blue;
 			dbgImg[2]=dbgStateToDouble(state);
-			SDFA_INSTANCE.showArrays(dbgImg, width, height, true, dbgImgTitle, channel_blue_titles);
+			ShowDoubleFloatArrays.showArrays(dbgImg, width, height, true, dbgImgTitle, channel_blue_titles);
 		}
 		
 		return blue; // corrected blue channel
@@ -731,7 +728,7 @@ public class BlueLeak {
 			}
 			if (debugLevel>1) System.out.println("Marked "+numDet+" blue pixels as if not overexposed (trees, wires)");
 			if (debugLevel>1) {
-				SDFA_INSTANCE.showArrays(details, width, height,"Details");
+				ShowDoubleFloatArrays.showArrays(details, width, height,"Details");
 			}
 		}
 
@@ -743,7 +740,7 @@ public class BlueLeak {
 			dbg_proc[9]=overExpPix[1];
 			dbg_proc[10]=overExpPix[2];
 
-			SDFA_INSTANCE.showArrays(dbg_proc, width, height, true, "test_chn",channel_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_proc, width, height, true, "test_chn",channel_titles);
 		}
 		/// public void showArraysSparse(double[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
 		double [] blue = findBlueSolutions(

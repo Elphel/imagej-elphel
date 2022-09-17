@@ -2764,7 +2764,7 @@ public class Correlation2d {
 			dbg_data[1] =  debugStrip3(data_0);
 			int long_width = 2 * data_width; // (2 * transform_size-1);
 			if (dbg_data[0] != null) {
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_data,
 						long_width,
 						dbg_data[0].length/long_width,
@@ -3649,7 +3649,7 @@ public class Correlation2d {
     	    		corrs,
     	    		clust_width);
 
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				dbg_corrs,
     				dbg_out_width,
     				dbg_out_height,
@@ -3753,7 +3753,7 @@ public class Correlation2d {
     	    		dbg_corr,
     	    		clust_width);
 
-    		(new ShowDoubleFloatArrays()).showArrays( // empty array
+    		ShowDoubleFloatArrays.showArrays( // empty array
     				dbg_corrs,
     				dbg_out_width,
     				dbg_out_height,
@@ -3764,7 +3764,7 @@ public class Correlation2d {
     	    		dbg_weights,
     	    		clust_width);
 
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				dbg_w,
     				dbg_out_width,
     				dbg_out_height,
@@ -3957,19 +3957,19 @@ public class Correlation2d {
     	if (debug_graphic && lmaSuccess) {
     		String [] sliceTitles = lma.dbgGetSliceTitles();
     		if (corrs.length == 1) {
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					lma.dbgGetSamples(ds, 0)[0],
     					corr_size,
     					corr_size,
     					true,
     					"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					lma.dbgGetSamples(ds, 1)[0],
     					corr_size,
     					corr_size,
     					true,
     					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					lma.dbgGetSamples(ds, 2)[0],
     					corr_size,
     					corr_size,
@@ -3983,25 +3983,25 @@ public class Correlation2d {
     				y_minux_fx[i] = new double [repacked_y[i].length];
     				for (int j = 0; j < y_minux_fx[i].length; j++) y_minux_fx[i][j] = repacked_y[i][j] - repacked_fx[i][j];
     			}
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					repacked_y,
     					dbg_out_width,
     					dbg_out_height,
     					true,
     					"y"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					repacked_fx,
     					dbg_out_width,
     					dbg_out_height,
     					true,
     					"fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					y_minux_fx,
     					dbg_out_width,
     					dbg_out_height,
     					true,
     					"y-fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					repackCluster(lma.dbgGetSamples(ds, 1),clust_width),
     					dbg_out_width,
     					dbg_out_height,
@@ -4149,7 +4149,7 @@ public class Correlation2d {
     	
     	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
     	if (debug_graphic) {
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				corrs,
     				corr_size,
     				corr_size,
@@ -4157,7 +4157,7 @@ public class Correlation2d {
     				"corr_pairs"+"_x"+tileX+"_y"+tileY,
     				getCorrTitles());
     		if (corr_shape != null) {
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				new double [][] {corr_shape,norm_shape, corr_shape_dia},
     				corr_size,
     				corr_size,
@@ -4166,7 +4166,7 @@ public class Correlation2d {
     				new String [] {"corr_shape","norm_shape","corr_shape_dia"});
     		}
     		if (pair_shape_masks != null) {
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				pair_shape_masks,
     				corr_size,
     				corr_size,
@@ -4279,7 +4279,7 @@ public class Correlation2d {
    		}
    		if (debug_graphic) {
    			if (dbg_corr != null) {
-   				(new ShowDoubleFloatArrays()).showArrays(
+   				ShowDoubleFloatArrays.showArrays(
    						dbg_corr,
    						corr_size,
    						corr_size,
@@ -4288,7 +4288,7 @@ public class Correlation2d {
    						getCorrTitles());
    			}
    			if (filtWeight != null) {
-   				(new ShowDoubleFloatArrays()).showArrays(
+   				ShowDoubleFloatArrays.showArrays(
    						filtWeight,
    						corr_size,
    						corr_size,
@@ -4297,7 +4297,7 @@ public class Correlation2d {
    						getCorrTitles());
    			}
    			if (samplesWeight != null) {
-   				(new ShowDoubleFloatArrays()).showArrays(
+   				ShowDoubleFloatArrays.showArrays(
    						samplesWeight,
    						corr_size,
    						corr_size,
@@ -4491,19 +4491,19 @@ public class Correlation2d {
     			if (debug_graphic && lmaSuccess) {
     				String [] sliceTitles = lma.dbgGetSliceTitles();
  //   				if (corrs.length == 1) { // only for single-tile cluster (here it is always single, and corrs is double [][], not double [][][]
-    					(new ShowDoubleFloatArrays()).showArrays(
+    					ShowDoubleFloatArrays.showArrays(
     							lma.dbgGetSamples(null,0)[0],
     							corr_size,
     							corr_size,
     							true,
     							"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    					(new ShowDoubleFloatArrays()).showArrays(
+    					ShowDoubleFloatArrays.showArrays(
     							lma.dbgGetSamples(null,2)[0],
     							corr_size,
     							corr_size,
     							true,
     							"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    					(new ShowDoubleFloatArrays()).showArrays(
+    					ShowDoubleFloatArrays.showArrays(
     							lma.dbgGetSamples(null,1)[0],
     							corr_size,
     							corr_size,
@@ -4883,7 +4883,7 @@ public class Correlation2d {
    		}
    		if (debug_graphic) { // filt weight bad for highly elongated max. Is it used?
    			if (dbg_corr != null) {
-   				(new ShowDoubleFloatArrays()).showArrays( // OK
+   				ShowDoubleFloatArrays.showArrays( // OK
    						dbg_corr,
    						corr_size,
    						corr_size,
@@ -4893,7 +4893,7 @@ public class Correlation2d {
    			}
    			for (int nmax = 0; nmax < filtWeight.length; nmax++) {// Not long
    				if (filtWeight[nmax] != null) {
-   					(new ShowDoubleFloatArrays()).showArrays(
+   					ShowDoubleFloatArrays.showArrays(
    							filtWeight[nmax],
    							corr_size,
    							corr_size,
@@ -4904,7 +4904,7 @@ public class Correlation2d {
    			}
    			for (int nmax = 0; nmax < lma_corr_weights.length; nmax++) {// Not long
    				if (lma_corr_weights[nmax] != null) {
-   					(new ShowDoubleFloatArrays()).showArrays(
+   					ShowDoubleFloatArrays.showArrays(
    							lma_corr_weights[nmax],
    							corr_size,
    							corr_size,
@@ -5026,19 +5026,19 @@ public class Correlation2d {
 				}
 				if (debug_graphic && lmaSuccess) {
 					String [] sliceTitles = lma.dbgGetSliceTitles();
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							lma.dbgGetSamples(null,0)[0],
 							corr_size,
 							corr_size,
 							true,
 							"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							lma.dbgGetSamples(null,2)[0],
 							corr_size,
 							corr_size,
 							true,
 							"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							lma.dbgGetSamples(null,1)[0],
 							corr_size,
 							corr_size,
@@ -5316,7 +5316,7 @@ public class Correlation2d {
 		}
     	
     	if (debug_graphic) {
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				corrs,
     				corr_size,
     				corr_size,
@@ -5325,7 +5325,7 @@ public class Correlation2d {
     				getCorrTitles());
     		if (corr_shapes != null) {
     			for (int nmax = 0; nmax < disp_str_dual.length; nmax++) {
-    				(new ShowDoubleFloatArrays()).showArrays(
+    				ShowDoubleFloatArrays.showArrays(
     						new double [][] {corr_shapes[nmax],corr_sharps[nmax], norm_shapes[nmax], corr_shapes_dia[nmax],notch_shape},
     						corr_size,
     						corr_size,
@@ -5336,7 +5336,7 @@ public class Correlation2d {
     		}
     		//    		if (pair_shapes_masks != null) {
     		for (int nmax = 0; nmax < disp_str_dual.length; nmax++) {
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					pair_shapes_masks[nmax],
     					corr_size,
     					corr_size,
@@ -5346,7 +5346,7 @@ public class Correlation2d {
     		}
 
     		for (int nmax = 0; nmax < disp_str_dual.length; nmax++) {
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					pair_sharp_masks[nmax],
     					corr_size,
     					corr_size,
@@ -5355,7 +5355,7 @@ public class Correlation2d {
     					getCorrTitles());
     		}
     		if (notch != null) {
-    				(new ShowDoubleFloatArrays()).showArrays(
+    				ShowDoubleFloatArrays.showArrays(
     						notch,
     						corr_size,
     						corr_size,
@@ -5711,7 +5711,7 @@ public class Correlation2d {
     		}
 
     		//    		String [] titles = {"ortho","diagonal"};
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				y_and_fx,
     				2 * transform_size-1,
     				2 * transform_size-1,
@@ -5865,7 +5865,7 @@ public class Correlation2d {
     		}
 
     		//    		String [] titles = {"ortho","diagonal"};
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				y_and_fx,
     				2 * transform_size-1,
     				2 * transform_size-1,
@@ -5977,7 +5977,7 @@ public class Correlation2d {
     		}
 
     		//    		String [] titles = {"ortho","diagonal"};
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				y_and_fx,
     				2 * transform_size-1,
     				2 * transform_size-1,

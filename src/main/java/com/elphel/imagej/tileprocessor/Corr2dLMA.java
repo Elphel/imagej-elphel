@@ -1174,7 +1174,7 @@ public class Corr2dLMA {
     		}
     	}
     	if (title != null) {
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				dbg_img,
     				size,
     				size,
@@ -1182,7 +1182,7 @@ public class Corr2dLMA {
     				title,
     				titles);
 /*
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		ShowDoubleFloatArrays.showArrays(
     				dbg_weights,
     				size,
     				size,

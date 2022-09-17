@@ -1100,7 +1100,7 @@ public class GeometryCorrection {
 					}
 					npar++;
 				}
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_data,
 						tilesX,
 						tilesY,

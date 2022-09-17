@@ -53,8 +53,6 @@ import java.util.concurrent.atomic.DoubleAccumulator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.checkerframework.checker.units.qual.m;
-
 import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
@@ -66,10 +64,7 @@ import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
-import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.readers.ImagejJp4Tiff;
-import com.elphel.imagej.tileprocessor.CorrVector;
-import com.elphel.imagej.tileprocessor.QuadCLTCPU.SetChannels;
 import com.elphel.imagej.x3d.export.WavefrontExport;
 import com.elphel.imagej.x3d.export.X3dOutput;
 
@@ -346,7 +341,7 @@ public class QuadCLTCPU {
 	}
 	
   
-	public QuadCLTCPU spawnQuadCLT(
+	public QuadCLTCPU spawnQuadCLT( // never used
 			String              set_name,
 			CLTParameters       clt_parameters,
 			ColorProcParameters colorProcParameters, //
@@ -593,7 +588,7 @@ public class QuadCLTCPU {
 		
 		
 		if (debugLevel>0) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					new double[][] {fom, strength, spread, disparity, avg_val, temp_scales},
 					width,
 					fom.length/width,
@@ -697,7 +692,7 @@ public class QuadCLTCPU {
 			for (int i = 0; i < sky_tiles.length; i++) {
 				dbg_img[0][i] = sky_tiles[i]? 1 : 0;
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					width,
 					sky_tiles.length/width,
@@ -1143,7 +1138,7 @@ public class QuadCLTCPU {
     		if (debugLevel > 1) { // -2) {
     			String title = image_name+"-DSRBG";
     			String [] titles = getDSRGGTitles();
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					this.dsrbg,
     					tp.getTilesX(),
     					tp.getTilesY(),
@@ -1199,7 +1194,7 @@ public class QuadCLTCPU {
 		if (debugLevel > -1) { // -2) {
 			String title = image_name+"-RBGA"; // max A = 0.00297 with LWIR
 			String [] titles = isMonochrome()? (new String [] {"Y","A"}):(new String []{"R","B","G","A"});
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					rgba,
 					tp.getTilesX(),
 					tp.getTilesY(),
@@ -1666,7 +1661,7 @@ public class QuadCLTCPU {
 		String x3d_path = getX3dDirectory();
 		String file_name = image_name + suffix;
 		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
-		ImageStack imageStack = (new ShowDoubleFloatArrays()).makeStack(data, width, height, labels);
+		ImageStack imageStack = ShowDoubleFloatArrays.makeStack(data, width, height, labels);
 		ImagePlus imp = new ImagePlus( file_name, imageStack);
 		FileSaver fs=new FileSaver(imp);
 		fs.saveAsTiff(file_path);
@@ -1777,7 +1772,7 @@ public class QuadCLTCPU {
 	{
 		String x3d_path = getX3dDirectory();
 		String title = image_name+TwoQuadCLT.DSI_COMBO_SUFFIX;
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+		ImagePlus imp = ShowDoubleFloatArrays.makeArrays(
 				dsi,tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
 		eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
@@ -1791,7 +1786,7 @@ public class QuadCLTCPU {
 	public void showDSI(double [][] dsi)
 	{
 		  String title = image_name + TwoQuadCLT.DSI_COMBO_SUFFIX;
-		  (new ShowDoubleFloatArrays()).showArrays(
+		  ShowDoubleFloatArrays.showArrays(
 				  dsi, tp.getTilesX(), tp.getTilesY(), true, title, TwoQuadCLT.DSI_SLICES);
 	}
 
@@ -1808,7 +1803,7 @@ public class QuadCLTCPU {
 				dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],
 				dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
 
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+		ImagePlus imp = ShowDoubleFloatArrays.makeArrays(
 				dsi_main, tp.getTilesX(), tp.getTilesY(),  title, titles);
 		eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
@@ -1824,7 +1819,7 @@ public class QuadCLTCPU {
 	{
 		String x3d_path = getX3dDirectory();
 		String title = image_name+suffix; // "-DSI_MAIN";
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+		ImagePlus imp = ShowDoubleFloatArrays.makeArrays(
 				dsi, tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
 		eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
@@ -1847,7 +1842,7 @@ public class QuadCLTCPU {
 //		String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
 //		double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
 
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+		ImagePlus imp = ShowDoubleFloatArrays.makeArrays(
 				dsi_aux_from_main, // dsi_main,
 				quadCLT_aux.tp.getTilesX(),
 				quadCLT_aux.tp.getTilesY(),
@@ -1880,7 +1875,7 @@ public class QuadCLTCPU {
 				  dsi[use_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA],
 				  dsi[use_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN]};
 
-		  (new ShowDoubleFloatArrays()).showArrays(dsi_main,tp.getTilesX(), tp.getTilesY(), true, title, titles);
+		  ShowDoubleFloatArrays.showArrays(dsi_main,tp.getTilesX(), tp.getTilesY(), true, title, titles);
 	}
 	
 	
@@ -2599,9 +2594,6 @@ public class QuadCLTCPU {
 					  isLwir(),
 					  clt_parameters.getScaleStrength(isAux()));
 			  int chn,tileY,tileX;
-//			  DttRad2 dtt = new DttRad2(dtt_size);
-			  ShowDoubleFloatArrays sdfa_instance = null;
-			  if (globalDebugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 			  int nTile = 9;
 
@@ -2627,7 +2619,7 @@ public class QuadCLTCPU {
 				  double s =0.0;
 				  for (int i=0;i<kernel.length;i++) s+=kernel[i];
 				  System.out.println("calculateCLTKernel(): sum(kernel_raw)="+s);
-				  sdfa_instance.showArrays(
+				  ShowDoubleFloatArrays.showArrays(
 						  kernel,
 						  size,
 						  size,
@@ -2647,7 +2639,7 @@ public class QuadCLTCPU {
 				  int klen = (2*dtt_size-1) * (2*dtt_size-1);
 				  for (int i = 0; i < klen; i++) s += kernel_centered[i];
 				  System.out.println("calculateCLTKernel(): sum(kernel_centered)="+s);
-				  sdfa_instance.showArrays(
+				  ShowDoubleFloatArrays.showArrays(
 						  kernel_centered,
 						  size,
 						  size,
@@ -2676,8 +2668,6 @@ public class QuadCLTCPU {
 							  clt_parameters.getScaleStrength(isAux()));
 					  int chn,tileY,tileX;
 					  DttRad2 dtt = new DttRad2(dtt_size);
-					  ShowDoubleFloatArrays sdfa_instance = null;
-					  if (globalDebugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
 						  chn=nTile/numberOfKernelsInChn;
@@ -2702,7 +2692,7 @@ public class QuadCLTCPU {
 							  double s =0.0;
 							  for (int i=0;i<kernel.length;i++) s+=kernel[i];
 							  System.out.println("calculateCLTKernel(): sum(kernel_raw)="+s);
-							  if (globalDebugLevel > 1) sdfa_instance.showArrays(
+							  if (globalDebugLevel > 1) ShowDoubleFloatArrays.showArrays(
 									  kernel,
 									  size,
 									  size,
@@ -2723,7 +2713,7 @@ public class QuadCLTCPU {
 							  int klen = (2*dtt_size-1) * (2*dtt_size-1);
 							  for (int i = 0; i < klen; i++) s += kernel_centered[i];
 							  System.out.println("calculateCLTKernel(): sum(kernel_centered)="+s);
-							  if (globalDebugLevel > 1) sdfa_instance.showArrays(
+							  if (globalDebugLevel > 1) ShowDoubleFloatArrays.showArrays(
 									  kernel_centered,
 									  size,
 									  size,
@@ -2743,7 +2733,7 @@ public class QuadCLTCPU {
 								  int klen = (2*dtt_size-1) * (2*dtt_size-1);
 								  for (int i = 0; i < klen; i++) s += kernel_centered[i];
 								  System.out.println("calculateCLTKernel(): sum(kernel_normalized)="+s);
-								  if (globalDebugLevel > 1) sdfa_instance.showArrays(
+								  if (globalDebugLevel > 1) ShowDoubleFloatArrays.showArrays(
 										  kernel_centered,
 										  size,
 										  size,
@@ -2767,7 +2757,7 @@ public class QuadCLTCPU {
 							  String [] titles = {"CC", "SC", "CS", "SS"};
 							  int length=dbg_clt[0].length;
 							  int size=(int) Math.sqrt(length);
-							  if (globalDebugLevel > 1) sdfa_instance.showArrays(
+							  if (globalDebugLevel > 1) ShowDoubleFloatArrays.showArrays(
 									  dbg_clt,
 									  size,
 									  size,
@@ -2826,7 +2816,7 @@ public class QuadCLTCPU {
 							  String [] titles = {"CC", "SC", "CS", "SS"};
 							  int length=dbg_clt[0].length;
 							  int size=(int) Math.sqrt(length);
-							  if (globalDebugLevel > 1) sdfa_instance.showArrays(
+							  if (globalDebugLevel > 1) ShowDoubleFloatArrays.showArrays(
 									  dbg_clt,
 									  size,
 									  size,
@@ -2974,8 +2964,7 @@ public class QuadCLTCPU {
 		  int dtt_len = clt_kernels[chn][0][0][0][0].length;
 		  int dtt_size= (int)Math.sqrt(dtt_len);
 		  String [] titles = {"red", "blue", "green"};
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-		  sdfa_instance.showArrays(
+		  ShowDoubleFloatArrays.showArrays(
 				  flat_kernels,
 				  clt_kernels[chn][0][0].length*(2*dtt_size),
 				  clt_kernels[chn][0].length*(2*dtt_size+1),
@@ -3069,7 +3058,6 @@ public class QuadCLTCPU {
 				  0,  // 0 - sharp, 1 - smooth
 				  correctionsParameters.firstSubCameraConfig,
 				  correctionsParameters.numSubCameras,
-//				  eyesisCorrections.usedChannels.length, // numChannels, // number of channels
 				  eyesisCorrections.debugLevel);
 		  if (sharpKernelPaths==null) return false;
 		  for (int i=0;i<sharpKernelPaths.length;i++){
@@ -3081,8 +3069,6 @@ public class QuadCLTCPU {
 				  clt_kernels[chn] = null;
 			  }
 		  }
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			  if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (clt_kernels[chn]==null)){
 				  ImagePlus imp_kernel_sharp=new ImagePlus(sharpKernelPaths[chn]);
@@ -3136,7 +3122,7 @@ public class QuadCLTCPU {
 					  layerNames = new String[1];
 					  layerNames[0] = "mono_clt_kernels";
 				  }
-				  ImageStack cltStack = sdfa_instance.makeStack(
+				  ImageStack cltStack = ShowDoubleFloatArrays.makeStack(
 						  flat_kernels,
 						  width,
 						  height,
@@ -3188,10 +3174,6 @@ public class QuadCLTCPU {
 				  clt_kernels[chn] = null;
 			  }
 		  }
-		  ShowDoubleFloatArrays sdfa_instance = null;
-		  if (debugLevel>10){ // was 0, but failed with "17"
-			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-		  }
 
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			  if (eyesisCorrections.usedChannels[chn] && (cltKernelPaths[chn]!=null)){
@@ -3221,7 +3203,7 @@ public class QuadCLTCPU {
 						  debugLevel);                    // update status info
 
 
-				  if (sdfa_instance != null){
+				  if (debugLevel>10) { // (sdfa_instance != null){
 					  for (int nc = 0; nc < clt_kernels[chn].length; nc++){
 					  double [][] dbg_clt = {
 							  clt_kernels[chn][nc][clt_parameters.tileY/2][clt_parameters.tileX/2][0],
@@ -3231,7 +3213,7 @@ public class QuadCLTCPU {
 					  String [] titles = {"CC", "SC", "CS", "SS"};
 					  int length=dbg_clt[0].length;
 					  int size=(int) Math.sqrt(length);
-					  sdfa_instance.showArrays(
+					  ShowDoubleFloatArrays.showArrays(
 							  dbg_clt,
 							  size,
 							  size,
@@ -3677,14 +3659,11 @@ public class QuadCLTCPU {
 
 	  public ImagePlus processCLTChannelImage( // not used in lwir
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
-//			  EyesisCorrectionParameters.DCTParameters           dct_parameters,
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
-//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  double 		     scaleExposure,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -3694,7 +3673,6 @@ public class QuadCLTCPU {
 		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		  double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_src.getProperty("name");
@@ -3819,9 +3797,7 @@ public class QuadCLTCPU {
 		  String [] rbg_titles = {"Red", "Blue", "Green"};
 		  ImageStack stack;
 		  if (!this.correctionsParameters.debayer) {
-//			  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-//			  ImageStack
-			  stack = sdfa_instance.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
+			  stack = ShowDoubleFloatArrays.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
 			  result= new ImagePlus(titleFull, stack);
 			  eyesisCorrections.saveAndShow(result, this.correctionsParameters);
 			  return result;
@@ -3829,7 +3805,7 @@ public class QuadCLTCPU {
 		  // =================
 		  if (debugLevel > 0) {
 			  System.out.println("Showing image BEFORE_CLT_PROC");
-			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
+			  ShowDoubleFloatArrays.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
 		  }
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
 			  ImageDtt image_dtt = new ImageDtt(
@@ -3847,8 +3823,6 @@ public class QuadCLTCPU {
 					  double_stack,                 // final double [][]       imade_data,
 					  imp_src.getWidth(),           //	final int               width,
 					  clt_kernels[channel],         // final double [][][][][] clt_kernels, // [color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-//					  clt_parameters.kernel_step,
-//					  clt_parameters.transform_size,
 					  clt_parameters.clt_window,
 					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
@@ -3908,7 +3882,7 @@ public class QuadCLTCPU {
 			        }
 
 			        if (debugLevel > 0){
-			        	sdfa_instance.showArrays(clt,
+			        	ShowDoubleFloatArrays.showArrays(clt,
 			        			tilesX*image_dtt.transform_size,
 			        			tilesY*image_dtt.transform_size,
 			        			true,
@@ -3927,7 +3901,7 @@ public class QuadCLTCPU {
 						  debugLevel);
 
 			  }
-					  if (debugLevel > -1) sdfa_instance.showArrays(
+					  if (debugLevel > -1) ShowDoubleFloatArrays.showArrays(
 							  iclt_data,
 							  (tilesX + 1) * image_dtt.transform_size,
 							  (tilesY + 1) * image_dtt.transform_size,
@@ -3937,7 +3911,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 			 */
-			  if (debugLevel > 0) sdfa_instance.showArrays(iclt_data,
+			  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(iclt_data,
 					  (tilesX + 1) * image_dtt.transform_size,
 					  (tilesY + 1) * image_dtt.transform_size,
 					  true,
@@ -3945,7 +3919,7 @@ public class QuadCLTCPU {
 
 			  // convert to ImageStack of 3 slices
 			  String [] sliceNames = {"red", "blue", "green"};
-			  stack = sdfa_instance.makeStack(
+			  stack = ShowDoubleFloatArrays.makeStack(
 					  iclt_data,
 					  (tilesX + 1) * image_dtt.transform_size,
 					  (tilesY + 1) * image_dtt.transform_size,
@@ -3954,7 +3928,7 @@ public class QuadCLTCPU {
 
 		  } else { // if (this.correctionsParameters.deconvolve) - here use a simple debayer
 			  System.out.println("Bypassing CLT-based aberration correction");
-			  stack = sdfa_instance.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
+			  stack = ShowDoubleFloatArrays.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
 			  debayer_rbg(stack, 0.25); // simple standard 3x3 kernel debayer
 		  }
 		  if (debugLevel > -1){
@@ -4340,11 +4314,9 @@ public class QuadCLTCPU {
 							  imp_srcs[srcChannel], // should have properties "name"(base for saving results), "channel","path"
 							  clt_parameters,
 							  debayerParameters,
-//							  nonlinParameters,
 							  colorProcParameters,
 							  channelGainParameters,
 							  rgbParameters,
-//							  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 							  scaleExposure[srcChannel],
 							  threadsMax,  // maximal number of threads to launch
 							  updateStatus,
@@ -4373,29 +4345,22 @@ public class QuadCLTCPU {
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
-//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  double 		     scaleExposure,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
 		  boolean advanced=this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
-//		  boolean crop=      advanced? true: this.correctionsParameters.crop;
 		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		  double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_src.getProperty("name");
-		  //		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
 		  int channel= (Integer) imp_src.getProperty("channel");
 		  String path= (String) imp_src.getProperty("path");
 
-//		  String title=name+"-"+String.format("%02d", channel);
 		  String title=String.format("%s%s-%02d",name, sAux(), channel);
 		  ImagePlus result=imp_src;
 		  if (debugLevel>1) System.out.println("processing: "+path);
@@ -4430,7 +4395,7 @@ public class QuadCLTCPU {
 		  String [] rbg_titles = {"Red", "Blue", "Green"};
 		  ImageStack stack;
 		  if (!this.correctionsParameters.debayer) {
-			  stack = sdfa_instance.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
+			  stack = ShowDoubleFloatArrays.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
 			  result= new ImagePlus(titleFull, stack);
 			  eyesisCorrections.saveAndShow(result, this.correctionsParameters);
 			  return result;
@@ -4438,7 +4403,7 @@ public class QuadCLTCPU {
 		  // =================
 		  if (debugLevel > 0) {
 			  System.out.println("Showing image BEFORE_CLT_PROC");
-			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
+			  ShowDoubleFloatArrays.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
 		  }
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
 			  ImageDtt image_dtt = new ImageDtt(
@@ -4517,7 +4482,7 @@ public class QuadCLTCPU {
 			        }
 
 			        if (debugLevel > 0){
-			        	sdfa_instance.showArrays(clt,
+			        	ShowDoubleFloatArrays.showArrays(clt,
 			        			tilesX*image_dtt.transform_size,
 			        			tilesY*image_dtt.transform_size,
 			        			true,
@@ -4538,7 +4503,7 @@ public class QuadCLTCPU {
 			  }
 
 //					  if (debugLevel > -1) System.out.println("Applyed LPF, sigma = "+dct_parameters.dbg_sigma);
-					  if (debugLevel > 0) sdfa_instance.showArrays(
+					  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(
 							  iclt_data,
 							  (tilesX + 1) * image_dtt.transform_size,
 							  (tilesY + 1) * image_dtt.transform_size,
@@ -4548,7 +4513,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 			 */
-			  if (debugLevel > 0) sdfa_instance.showArrays(iclt_data,
+			  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(iclt_data,
 					  (tilesX + 0) * image_dtt.transform_size,
 					  (tilesY + 0) * image_dtt.transform_size,
 					  true,
@@ -4556,7 +4521,7 @@ public class QuadCLTCPU {
 
 			  // convert to ImageStack of 3 slices
 			  String [] sliceNames = {"red", "blue", "green"};
-			  stack = sdfa_instance.makeStack(
+			  stack = ShowDoubleFloatArrays.makeStack(
 					  iclt_data,
 					  (tilesX + 0) * image_dtt.transform_size,
 					  (tilesY + 0) * image_dtt.transform_size,
@@ -4565,7 +4530,7 @@ public class QuadCLTCPU {
 
 		  } else { // if (this.correctionsParameters.deconvolve) - here use a simple debayer
 			  System.out.println("Bypassing CLT-based aberration correction");
-			  stack = sdfa_instance.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
+			  stack = ShowDoubleFloatArrays.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
 			  debayer_rbg(stack, 0.25); // simple standard 3x3 kernel debayer
 		  }
 		  if (debugLevel > -1){
@@ -4974,22 +4939,17 @@ public class QuadCLTCPU {
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
-//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  double []	       scaleExposures, // probably not needed here
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
 		  boolean advanced=this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
-//		  boolean crop=      advanced? true: this.correctionsParameters.crop;
 		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		  double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_quad[0].getProperty("name");
 		  //		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
@@ -5084,7 +5044,7 @@ public class QuadCLTCPU {
 				  }
 
 				  if (debugLevel > 0){
-					  sdfa_instance.showArrays(clt,
+					  ShowDoubleFloatArrays.showArrays(clt,
 							  tilesX*image_dtt.transform_size,
 							  tilesY*image_dtt.transform_size,
 							  true,
@@ -5103,13 +5063,13 @@ public class QuadCLTCPU {
 						  debugLevel);
 
 			  }
-			  if (debugLevel > 0) sdfa_instance.showArrays(
+			  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(
 					  iclt_data,
 					  (tilesX + 0) * image_dtt.transform_size,
 					  (tilesY + 0) * image_dtt.transform_size,
 					  true,
 					  results[iQuad].getTitle()+"-rbg_sigma");
-			  if (debugLevel > 0) sdfa_instance.showArrays(iclt_data,
+			  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(iclt_data,
 					  (tilesX + 0) * image_dtt.transform_size,
 					  (tilesY + 0) * image_dtt.transform_size,
 					  true,
@@ -5117,7 +5077,7 @@ public class QuadCLTCPU {
 
 			  // convert to ImageStack of 3 slices
 			  String [] sliceNames = {"red", "blue", "green"};
-			  stack = sdfa_instance.makeStack(
+			  stack = ShowDoubleFloatArrays.makeStack(
 					  iclt_data,
 					  (tilesX + 0) * image_dtt.transform_size,
 					  (tilesY + 0) * image_dtt.transform_size,
@@ -5693,7 +5653,7 @@ public class QuadCLTCPU {
 			  }
 			  int width =  imp_srcs[0].getWidth();
 			  int height = imp_srcs[0].getHeight();
-			  (new ShowDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
+			  ShowDoubleFloatArrays.showArrays(dbg_satur, width, height, true, "Saturated" , titles);
 
 			  if ((debugLevel > -1) && !isMonochrome()) { // 0){
 				  double [][] dbg_dpixels_norm = new double [channelFiles.length][];
@@ -5704,8 +5664,8 @@ public class QuadCLTCPU {
 						  dbg_dpixels_norm[srcChannel][i] = pixels[i];
 					  }
 				  }
-				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
-				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
+				  ShowDoubleFloatArrays.showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
+				  ShowDoubleFloatArrays.showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
 				  double [][] dbg_dpixels_split = new double [4 * dbg_dpixels.length][dbg_dpixels[0].length / 4];
 				  String [] dbg_titles = {"g1_0","r_0","b_0","g2_0","g1_2","r_1","b_1","g2_1","g1_2","r_2","b_2","g2_2","g1_3","r_3","b_3","g2_3"};
 				  for (int srcChn = 0; srcChn < 4; srcChn++) {
@@ -5718,7 +5678,7 @@ public class QuadCLTCPU {
 						  }
 					  }
 				  }
-				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
+				  ShowDoubleFloatArrays.showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
 			  }
 
 		  }
@@ -6425,16 +6385,6 @@ public class QuadCLTCPU {
 		  final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
 		  boolean advanced=  this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-
-		  // may use this.StartTime to report intermediate steps execution times
-		  /*
-		  ImagePlus [] results = new ImagePlus[imp_quad.length];
-		  for (int i = 0; i < results.length; i++) {
-			  results[i] = imp_quad[i];
-			  results[i].setTitle(results[i].getTitle()+"RAW");
-		  }
-		  */
 		  if (debugLevel>1) System.out.println("processing: "+image_path);
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
@@ -6603,7 +6553,7 @@ public class QuadCLTCPU {
 		  // visualize correlation results
 		  if (disparity_map != null){
 			  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
-				  sdfa_instance.showArrays(
+				  ShowDoubleFloatArrays.showArrays(
 						  disparity_map,
 						  tilesX,
 						  tilesY,
@@ -6612,176 +6562,6 @@ public class QuadCLTCPU {
 						  ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome())); // ImageDtt.DISPARITY_TITLES);
 			  }
 		  }
-		  /*
-		  
-		  // visualize correlation results
-		  // bo-b3 non-zero, r*, g* - zero
-		  if (clt_corr_combo!=null){
-			  if (disparity_map != null){
-				  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -1)){
-					  sdfa_instance.showArrays(
-							  disparity_map,
-							  tilesX,
-							  tilesY,
-							  true,
-							  image_name+sAux()+"-DISP_MAP-D"+clt_parameters.disparity,
-							  ImageDtt.DISPARITY_TITLES);
-				  }
-			  }
-
-			  if (infinity_corr && (disparity_map != null)){// not used in lwir
-				  System.out.println("=== applying geometry correction coefficients to correct disparity at infinity ===");
-				  System.out.println("=== Set inf_repeat =0 to disable automatic correction and just generate a data image to correct in offline mode ===");
-				  double [] mismatch_strength = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
-				  int [] strength_indices = {2,5,8,11};
-				  for (int nt = 0; nt < mismatch_strength.length; nt++) {
-					  if (Double.isNaN(mismatch_strength[nt])) {
-						  mismatch_strength[nt] = 0.0;
-					  } else {
-						  if (mismatch_strength[nt] > 0) {
-							  for (int i = 0; i < strength_indices.length; i++) {
-								  if (!(mismatch_strength[nt] < clt_mismatch[strength_indices[i]][nt])) {
-									  mismatch_strength[nt] = clt_mismatch[strength_indices[i]][nt];
-								  }
-								  //								  if (nt == 37005) {
-								  //									  System.out.println("breakpoint in processCLTQuadCorr()");
-								  //								  }
-							  }
-						  }
-					  }
-				  }
-				  double [][] inf_ds = { // when using with disparity, programmed disparity should be 0
-						  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-						  mismatch_strength}; // disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX]};
-				  String [] titles = {"disp_cm", "strength"};
-				  if (!batch_mode && (clt_mismatch != null)){
-					  double [][] inf_ds1 = {
-							  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-							  mismatch_strength, //disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX],
-							  clt_mismatch[0].clone(), // dx0
-							  clt_mismatch[1].clone(), // dy0 +
-							  clt_mismatch[3].clone(), // dx1
-							  clt_mismatch[4].clone(), // dy1 +
-							  clt_mismatch[6].clone(), // dx2 +
-							  clt_mismatch[7].clone(), // dy2
-							  clt_mismatch[9].clone(), // dx3 +
-							  clt_mismatch[10].clone()};// dy3
-					  // restore full d{xy}[i] with subtracted disparity - debugging (otherwise clone() above is not neded)
-						// Add disparity to dx0, dx1, dy2, dy3 pairs
-						if (clt_parameters.inf_restore_disp) {
-							if (debugLevel > -2) {
-								System.out.println("---- Adding disparity to  d{xy}[i] ---");
-							}
-							for (int nTile = 0; nTile < inf_ds1[0].length; nTile++) if (inf_ds1[1][nTile] > 0){ // strength
-								for (int i = 0; i < AlignmentCorrection.INDICES_10_DISP.length; i++) {
-									inf_ds1[AlignmentCorrection.INDICES_10_DISP[i]][nTile] += inf_ds1[AlignmentCorrection.INDEX_10_DISPARITY][nTile];
-								}
-							}
-						} else {
-							if (debugLevel > -2) {
-								System.out.println("---- d{xy}[i] have disparity canceled, xy_mismatch will only reflect residual values---");
-							}
-						}
-
-					  String [] titles1 = {"disp_cm", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-					  inf_ds = inf_ds1;
-					  titles = titles1;
-				  }
-				  if (clt_parameters.inf_repeat < 1) {
-					  System.out.println("=== Generating image to be saved and then used for correction with 'CLT ext infinity corr'===");
-					  // This image can be saved and re-read with "CLT ext infinity corr" command
-					  if (!batch_mode && (sdfa_instance != null)){
-						  sdfa_instance.showArrays(
-								  inf_ds,
-								  tilesX,
-								  tilesY,
-								  true,
-								  image_name+sAux() + "-inf_corr",
-								  titles );
-					  }
-				  } else { // calculate/apply coefficients
-					  if (debugLevel + (clt_parameters.fine_dbg ? 1:0) > 0){
-						  // still show image, even as it is not needed
-						  if (!batch_mode && (sdfa_instance != null)) {
-							  sdfa_instance.showArrays(
-									  inf_ds,
-									  tilesX,
-									  tilesY,
-									  true,
-									  image_name+sAux() + "-inf_corr",
-									  titles );
-						  }
-					  }
-
-					  AlignmentCorrection ac = new AlignmentCorrection(this);
-					  // includes both infinity correction and mismatch correction for the same infinity tiles
-					  double [][][] new_corr = ac.infinityCorrection(
-							  clt_parameters.ly_poly,        // final boolean use_poly,
-							  clt_parameters.fcorr_inf_strength, //  final double min_strenth,
-							  clt_parameters.fcorr_inf_diff,     // final double max_diff,
-							  clt_parameters.inf_iters,          // 20, // 0, // final int max_iterations,
-							  clt_parameters.inf_final_diff,     // 0.0001, // final double max_coeff_diff,
-							  clt_parameters.inf_far_pull,       // 0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
-							  clt_parameters.inf_str_pow,        // 1.0, //   final double     strength_pow,
-							  clt_parameters.inf_smpl_side,      // 3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
-							  clt_parameters.inf_smpl_num,       // 5, //   final int        smplNum,  //         = 3;      // Number after removing worst (should be >1)
-							  clt_parameters.inf_smpl_rms,       // 0.1, // 0.05, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-							  // histogram parameters
-							  clt_parameters.ih_smpl_step,       // 8,    // final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
-							  clt_parameters.ih_disp_min,        // -1.0, // final double     hist_disp_min,
-							  clt_parameters.ih_disp_step,       // 0.05, // final double     hist_disp_step,
-							  clt_parameters.ih_num_bins,        // 40,   // final int        hist_num_bins,
-							  clt_parameters.ih_sigma,           // 0.1,  // final double     hist_sigma,
-							  clt_parameters.ih_max_diff,        // 0.1,  // final double     hist_max_diff,
-							  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
-							  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
-							  clt_parameters,                    // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-							  inf_ds,                            // double [][] disp_strength,
-							  tilesX,                            // int         tilesX,
-							  clt_parameters.corr_magic_scale,   // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5
-							  debugLevel + (clt_parameters.fine_dbg ? 1:0));                   // int debugLevel)
-
-					  if ((new_corr != null) && (debugLevel > -1)){
-						  System.out.println("process_infinity_corr(): ready to apply infinity correction");
-						  show_fine_corr(
-								  new_corr, // double [][][] corr,
-								  "");// String prefix)
-
-					  }
-
-					  if (clt_parameters.inf_disp_apply){
-						  apply_fine_corr(
-								  new_corr,
-								  debugLevel + 2);
-					  }
-				  }
-			  }
-
-
-			  if (!batch_mode && !infinity_corr && clt_parameters.corr_show && (debugLevel > -1)){ // not used in lwir FALSE
-				  double [][] corr_rslt = new double [clt_corr_combo.length][];
-				  String [] titles = new String[clt_corr_combo.length]; // {"combo","sum"};
-				  for (int i = 0; i< titles.length; i++) titles[i] = ImageDtt.TCORR_TITLES[i];
-				  for (int i = 0; i<corr_rslt.length; i++) {
-					  corr_rslt[i] = image_dtt.corr_dbg(
-							  clt_corr_combo[i],
-							  2*image_dtt.transform_size - 1,
-							  clt_parameters.corr_border_contrast,
-							  threadsMax,
-							  debugLevel);
-				  }
-// all zeros
-				  sdfa_instance.showArrays(
-						  corr_rslt,
-						  tilesX*(2*image_dtt.transform_size),
-						  tilesY*(2*image_dtt.transform_size),
-						  true,
-						  image_name+sAux()+"-CORR-D"+clt_parameters.disparity,
-						  titles );
-			  }
-
-		  }
-		  */
 		  // pairwise 2D correlations
 		  if (!batch_mode && !infinity_corr && (clt_corr_out != null)){
 			  if (debugLevel > -2){ // -1
@@ -6794,7 +6574,7 @@ public class QuadCLTCPU {
 						  debugLevel);
 				  // titles.length = 15, corr_rslt_partial.length=16!
 				  System.out.println("corr_rslt.length = "+corr_rslt.length+", titles.length = "+titles.length); // 120
-				  sdfa_instance.showArrays( // out of boundary 15
+				  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 						  corr_rslt,
 						  tilesX*(2*image_dtt.transform_size),
 						  tilesY*(2*image_dtt.transform_size),
@@ -6814,7 +6594,7 @@ public class QuadCLTCPU {
 						  threadsMax,
 						  debugLevel);
 				  System.out.println("combo_rslt.length = "+combo_rslt.length+", titles.length = "+titles.length);
-				  sdfa_instance.showArrays(
+				  ShowDoubleFloatArrays.showArrays(
 						  combo_rslt,
 						  tilesX * (clt_parameters.img_dtt.mcorr_comb_width + 1),
 						  tilesY * (clt_parameters.img_dtt.mcorr_comb_height + 1),
@@ -6835,7 +6615,7 @@ public class QuadCLTCPU {
 						  debugLevel);
 				  // titles.length = 15, corr_rslt_partial.length=16!
 				  System.out.println("corr_rslt.length = "+corr_rslt.length+", titles.length = "+titles.length);
-				  sdfa_instance.showArrays( // out of boundary 15
+				  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 						  corr_rslt,
 						  tilesX * (clt_parameters.img_dtt.mcorr_comb_width + 1),
 						  tilesY * (clt_parameters.img_dtt.mcorr_comb_height + 1),
@@ -6873,15 +6653,6 @@ public class QuadCLTCPU {
 								  debugLevel);
 						  for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
 					  }
-					  /*
-					  if (debugLevel > 0){
-						  sdfa_instance.showArrays(clt,
-								  tilesX*image_dtt.transform_size,
-								  tilesY*image_dtt.transform_size,
-								  true,
-								  results[iQuad].getTitle()+"-CLT-D"+clt_parameters.disparity);
-					  }
-					   */
 				  }
 				  iclt_data[iQuad] = new double [clt_data[iQuad].length][];
 
@@ -6895,14 +6666,6 @@ public class QuadCLTCPU {
 							  debugLevel);
 
 				  }
-				  /*
-				  if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(
-						  iclt_data[iQuad],
-						  (tilesX + 0) * image_dtt.transform_size,
-						  (tilesY + 0) * image_dtt.transform_size,
-						  true,
-						  results[iQuad].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
-				   */
 			  } // end of generating shifted channel images
 
 
@@ -7022,7 +6785,7 @@ public class QuadCLTCPU {
 						  clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						  threadsMax,                    // maximal number of threads to launch
 						  debugLevel);
-				  sdfa_instance.showArrays(
+				  ShowDoubleFloatArrays.showArrays(
 						  texture_nonoverlap,
 						  tilesX * (2 * image_dtt.transform_size),
 						  tilesY * (2 * image_dtt.transform_size),
@@ -7051,7 +6814,7 @@ public class QuadCLTCPU {
 				  }
 
 				  if (!batch_mode && clt_parameters.show_overlap) {// not used in lwir
-					  sdfa_instance.showArrays( // all but r-rms, b-rms
+					  ShowDoubleFloatArrays.showArrays( // all but r-rms, b-rms
 							  texture_overlap,
 							  tilesX * image_dtt.transform_size,
 							  tilesY * image_dtt.transform_size,
@@ -7276,32 +7039,6 @@ public class QuadCLTCPU {
 			  results[i].setTitle(results[i].getTitle()+"RAW");
 		  }
 		  if (debugLevel>1) System.out.println("processing: "+path);
-/*		// 08/12/2020 Moved to condifuinImageSet				  
-
-		  double [][][] double_stacks = new double [imp_quad.length][][];
-		  for (int i = 0; i < double_stacks.length; i++){
-			  double_stacks[i] = eyesisCorrections.bayerToDoubleStack(
-					  imp_quad[i], // source Bayer image, linearized, 32-bit (float))
-					  null, // no margins, no oversample
-					  this.is_mono);
-		  }
-
-		  for (int i = 0; i < double_stacks.length; i++){
-			  if ( double_stacks[i].length > 2) {
-				  for (int j =0 ; j < double_stacks[i][0].length; j++){
-					  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
-				  }
-			  } else {
-				  for (int j =0 ; j < double_stacks[i][0].length; j++){
-					  double_stacks[i][0][j]*=1.0; // Scale mono by 1/4 - to have the same overall "gain" as for bayer
-				  }
-			  }
-		  }
-
-		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
-				  clt_parameters,
-				  threadsMax);
-*/		  
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
 				  clt_parameters.transform_size,
@@ -7312,7 +7049,6 @@ public class QuadCLTCPU {
 				  clt_parameters.getScaleStrength(isAux()));
 		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  double [][] disparity_array = tp.setSameDisparity(clt_parameters.disparity); // 0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  ImagePlus imp_sel = WindowManager.getCurrentImage();
 		  if ((imp_sel == null) || (imp_sel.getStackSize() != 3)) {
 			  System.out.println("No image / wrong image selected, using infinity");
@@ -7343,13 +7079,9 @@ public class QuadCLTCPU {
 		  // for testing defined for a window, later the tiles to process will be calculated based on previous passes results
 
 		  int [][]    tile_op = tp.setSameTileOp(clt_parameters,  clt_parameters.tile_task_op, debugLevel);
-//		  double [][] disparity_array = tp.setSameDisparity(clt_parameters.disparity); // 0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
-
 		  //TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
-
 		  double [][][][]     clt_corr_combo =   null;
 		  double [][][][][]   clt_corr_partial = null; // [tp.tilesY][tp.tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)]
-///		  double [][]         clt_mismatch =     null; // [3*4][tp.tilesY * tp.tilesX] // transpose unapplied
 		  double [][][][]     texture_tiles =    null; // [tp.tilesY][tp.tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualization mode full 16 or overlapped
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  final int tilesX = tp.getTilesX();
@@ -7464,7 +7196,7 @@ public class QuadCLTCPU {
 					  }
 				  }
 				  //clt_parameters.img_dtt.lma_diff_minw
-				  sdfa_instance.showArrays(
+				  ShowDoubleFloatArrays.showArrays(
 						  dbg_cluster,
 						  clustersX,
 						  clustersY,
@@ -7493,7 +7225,7 @@ public class QuadCLTCPU {
 						  }
 					  }
 					  String [] titles3 = {"combo", "lma", "strength"};
-					  sdfa_instance.showArrays(
+					  ShowDoubleFloatArrays.showArrays(
 							  scan_maps,
 							  tilesX,
 							  tilesY,
@@ -7504,10 +7236,9 @@ public class QuadCLTCPU {
 				  }
 		  }
 
-/**/
 		  if (disparity_map != null){
 			  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
-				  sdfa_instance.showArrays(
+				  ShowDoubleFloatArrays.showArrays(
 						  disparity_map,
 						  tilesX,
 						  tilesY,
@@ -7515,90 +7246,7 @@ public class QuadCLTCPU {
 						  name+sAux()+"-DISP_MAP-D"+clt_parameters.disparity,
 						  ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()));// ImageDtt.DISPARITY_TITLES);
 			  }
-			  /*
-			  if (clt_mismatch != null) {
-				  sdfa_instance.showArrays(
-						  clt_mismatch,
-						  tilesX,
-						  tilesY,
-						  true,
-						  name+sAux()+"-CLT_MISMATCH-D"+clt_parameters.disparity);
-				  //					  ImageDtt.DISPARITY_TITLES);
-				  double min_bw = 0.005;
-//				  double [][] mismatch_w = new double [clt_mismatch.length][tilesX*tilesY];
-				  double mismatch_sigma = clt_parameters.tileStep * clt_parameters.img_dtt.lma_diff_sigma;
-				  DoubleGaussianBlur gb = new DoubleGaussianBlur();
-				  for (int ntile = 0; ntile < clt_mismatch[0].length; ntile++) {
-					  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile];
-					  if ( !(w >=  clt_parameters.img_dtt.lma_diff_minw)) {
-						  w = 0.0;
-					  }
-					  for (int n = 0; n < clt_mismatch.length/3; n++) {
-						  if (w <= 0.0) {
-							  clt_mismatch[3*n+0][ntile] = Double.NaN;
-							  clt_mismatch[3*n+1][ntile] = Double.NaN;
-							  clt_mismatch[3*n+2][ntile] = 0.0;
-						  } else {
-							  clt_mismatch[3*n+2][ntile]  = w;
-						  }
-					  }
-				  }
-				  sdfa_instance.showArrays(
-						  clt_mismatch,
-						  tilesX,
-						  tilesY,
-						  true,
-						  name+sAux()+"-CLT_MISMATCH-FILTERED-D"+clt_parameters.disparity);
-
-
-				  for (int ntile = 0; ntile < clt_mismatch[0].length; ntile++) {
-					  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile];
-					  if ( !(w >=  clt_parameters.img_dtt.lma_diff_minw)) {
-						  w = 0.0;
-					  }
-					  for (int n = 0; n < clt_mismatch.length/3; n++) {
-						  if (w <= 0.0) {
-							  clt_mismatch[3*n+0][ntile] = 0.0;
-							  clt_mismatch[3*n+1][ntile] = 0.0;
-							  clt_mismatch[3*n+2][ntile] = 0.0;
-						  } else {
-							  clt_mismatch[3*n+0][ntile] *= w;
-							  clt_mismatch[3*n+1][ntile] *= w;
-							  clt_mismatch[3*n+2][ntile]  = w;
-						  }
-					  }
-				  }
-				  for (int n = 0; n < clt_mismatch.length/3; n++) {
-					  gb.blurDouble(clt_mismatch[3*n+0] , tilesX, tilesY, mismatch_sigma, mismatch_sigma, 0.01);
-					  gb.blurDouble(clt_mismatch[3*n+1] , tilesX, tilesY, mismatch_sigma, mismatch_sigma, 0.01);
-					  gb.blurDouble(clt_mismatch[3*n+2] , tilesX, tilesY, mismatch_sigma, mismatch_sigma, 0.01);
-					  for (int ntile = 0; ntile < clt_mismatch[0].length; ntile++) {
-						  if (clt_mismatch[3*n+2][ntile] >= min_bw) {
-							  clt_mismatch[3*n+0][ntile] /= clt_mismatch[3*n+2][ntile];
-							  clt_mismatch[3*n+1][ntile] /= clt_mismatch[3*n+2][ntile];
-							  if (n>0) {
-								  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile] - clt_parameters.img_dtt.lma_diff_minw;
-								  if ( w <  0.0) {
-									  w = 0.0;
-								  }
-								  clt_mismatch[3*n+2][ntile]  = w;
-							  }
-						  } else {
-							  clt_mismatch[3*n+0][ntile] = Double.NaN;
-							  clt_mismatch[3*n+1][ntile] = Double.NaN;
-							  clt_mismatch[3*n+2][ntile] = 0.0;
-						  }
-					  }
-				  }
-				  sdfa_instance.showArrays(
-						  clt_mismatch,
-						  tilesX,
-						  tilesY,
-						  true,
-						  name+sAux()+"-CLT_MISMATCH-BLUR-D"+clt_parameters.disparity);
-			  } */
 		  }
-/**/
 
 		  return results;
 	  }
@@ -7643,6 +7291,27 @@ public class QuadCLTCPU {
 		  }
 		  return hist;
 	  }
+	  
+	  public static int [] getLwirHistogramSliceAlpha(
+			  double [][] data,
+			  double    hard_cold,
+			  double    hard_hot,
+			  int       num_bins) {
+		  int chn_y =     0;
+		  int chn_alpha = 1;
+		  int [] hist = new int [num_bins];
+		  double k = num_bins / (hard_hot - hard_cold);
+		  for (int i = 0; i < data[chn_y].length; i++) {
+			  double d = data[chn_y][i] * data[chn_alpha][i]; 
+			  int bin = (int) ((d - hard_cold)*k);
+			  if (bin < 0) bin = 0;
+			  else if (bin >= num_bins) bin = (num_bins -1);
+			  hist[bin]++;
+		  }
+		  return hist;
+	  }
+	  
+	  
 	  public static int [] getLwirHistogram( // USED in lwir
 			  float [] data,
 			  double    hard_cold,
@@ -7658,6 +7327,7 @@ public class QuadCLTCPU {
 		  }
 		  return hist;
 	  }
+	  
 	  public static int [] addHist( // USED in lwir
 			  int [] this_hist,
 			  int [] other_hist) {
@@ -7704,7 +7374,7 @@ public class QuadCLTCPU {
 		  return v;
 	  }
 
-	  public static double [] autorange( // USED in lwir
+	  public static double [] autorange( // USED in lwir (double input)
 			  double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
 			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
 			  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
@@ -7754,7 +7424,7 @@ public class QuadCLTCPU {
 		  return abs_lim;
 	  }
 
-	  public static double [] autorange( // USED in lwir
+	  public static double [] autorange( // USED in lwir (float input)
 			  float [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
 			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
 			  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
@@ -7798,6 +7468,58 @@ public class QuadCLTCPU {
 		  return abs_lim;
 	  }
 
+	  /**
+	   * Collectively autorange LWIR texture with alpha(0.0...1.0) - multiply by it
+	   * @param textures  multiple texture slices - use all [nslices][nchn:2/4][pixel]
+	   * @param hard_cold matches data, DC (this.lwir_offset)  subtracted
+	   * @param hard_hot  matches data, DC (this.lwir_offset)  subtracted
+	   * @param too_cold  total pixels number
+	   * @param too_hot   total pixels number
+	   * @param num_bins  number of the histogram bins
+	   * @return
+	   */
+	  public static double [] autorangeTextures( // USED in lwir using double
+			  double [][][] textures, //  [nslices][nchn][i]
+			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+			  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
+			  double too_cold, // pixels per image
+			  double too_hot,  // pixels per image
+			  int num_bins) {
+//		  int     num_channels = textures[0].length;
+//		  boolean is_mono =       num_channels < 3;
+//		  too_cold *= num_chn; // iclt_data.length;
+//		  too_hot *= num_chn; // iclt_data.length;
+		  int [] hist = null;
+		  for (int nslice = 0; nslice < textures.length; nslice++) {
+			  int [] this_hist = getLwirHistogramSliceAlpha(
+					  textures[nslice], // double [][][] data,
+					  hard_cold,
+					  hard_hot,
+					  num_bins);
+			  if (hist == null) {
+				  hist = this_hist;
+			  } else {
+				  addHist(
+						  hist,
+						  this_hist);
+			  }
+		  }
+		  double [] rel_lim = {
+				  getMarginFromHist(
+						  hist, // histogram
+						  too_cold, // double cumul_val, // cummulative number of items to be ignored
+						  false), // boolean high_marg)
+				  getMarginFromHist(
+						  hist, // histogram
+						  too_hot, // double cumul_val, // cummulative number of items to be ignored
+						  true)}; // boolean high_marg)
+		  double [] abs_lim = {
+				  rel_lim[0] * (hard_hot - hard_cold) + hard_cold,
+				  rel_lim[1] * (hard_hot - hard_cold) + hard_cold,
+		  };
+		  return abs_lim;
+	  }
+	  
 
 	  // float, for GPU
 	  public ImagePlus linearStackToColor( // not used in lwir
@@ -7817,7 +7539,6 @@ public class QuadCLTCPU {
 			  int debugLevel
 			  )
 	  {
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  // convert to ImageStack of 3 slices
 		  String [] sliceNames = {"red", "blue", "green"};
 		  int green_index = 2;
@@ -7876,7 +7597,7 @@ public class QuadCLTCPU {
 			  if (alpha != null) {
 				  rgba[3] = alpha; // 0..1
 			  }
-			  ImageStack stack = sdfa_instance.makeStack(
+			  ImageStack stack = ShowDoubleFloatArrays.makeStack(
 					  rgba,       // iclt_data,
 					  width,      // (tilesX + 0) * clt_parameters.transform_size,
 					  height,     // (tilesY + 0) * clt_parameters.transform_size,
@@ -7897,7 +7618,7 @@ public class QuadCLTCPU {
 			  return imp_rgba;
 		  }
 
-		  ImageStack stack = sdfa_instance.makeStack(
+		  ImageStack stack = ShowDoubleFloatArrays.makeStack(
 //				  rgb_in, // iclt_data,
 				  rbg_in, // iclt_data,
 				  width,  // (tilesX + 0) * clt_parameters.transform_size,
@@ -7941,15 +7662,16 @@ public class QuadCLTCPU {
 			  int debugLevel
 			  )
 	  {
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  // convert to ImageStack of 3 slices
 		  String [] sliceNames = isMonochrome()? new String[]{"mono"}: new String[]{"red", "blue", "green"};
 		  int main_color_index = isMonochrome()? 0 : 2;
 		  double []   alpha = null; // (0..1.0)
-		  double [][] rbg_in = isMonochrome()? new double [][] {iclt_data[0]} : new double[][] {iclt_data[0],iclt_data[1],iclt_data[2]};
+		  double [][] rbg_in = isMonochrome()?
+				  new double [][] {iclt_data[0]} :
+					  new double[][] {iclt_data[0],iclt_data[1],iclt_data[2]};
 		  float [] alpha_pixels = null;
 		  if (iclt_data.length > rbg_in.length) {
-			  alpha = iclt_data[rbg_in.length];
+			  alpha = iclt_data[rbg_in.length]; // last slice
 			  if (alpha != null){
 				  alpha_pixels = new float [alpha.length];
 				  for (int i = 0; i <alpha.length; i++){
@@ -7959,11 +7681,22 @@ public class QuadCLTCPU {
 		  }
 		  if (isLwir()) {
 			  if (!colorProcParameters.lwir_pseudocolor) {
-				  ImageProcessor ip= new FloatProcessor(width,height);
 				  float [] pixels = new float [iclt_data[0].length];
 				  for (int i = 0; i < pixels.length; i++) {
 					  pixels[i] = (float) iclt_data[0][i];
 				  }
+				  if (alpha_pixels != null) {
+					  /*
+					  ImageStack stack = ShowDoubleFloatArrays.makeStack(
+							  {pixels,alpha_pixels},       // iclt_data,
+							  width,      // (tilesX + 0) * clt_parameters.transform_size,
+							  height,     // (tilesY + 0) * clt_parameters.transform_size,
+							  titles,     // or use null to get chn-nn slice names
+							  true);      // replace NaN with 0.0
+*/
+				  }
+				  
+				  ImageProcessor ip= new FloatProcessor(width,height);
 				  ip.setPixels(pixels);
 				  ip.resetMinAndMax();
 				  ImagePlus imp =  new ImagePlus(name+suffix, ip);
@@ -8003,7 +7736,7 @@ public class QuadCLTCPU {
 			  if (alpha != null) {
 				  rgba[3] = alpha; // 0..1
 			  }
-			  ImageStack stack = sdfa_instance.makeStack(
+			  ImageStack stack = ShowDoubleFloatArrays.makeStack(
 					  rgba,       // iclt_data,
 					  width,      // (tilesX + 0) * clt_parameters.transform_size,
 					  height,     // (tilesY + 0) * clt_parameters.transform_size,
@@ -8024,7 +7757,7 @@ public class QuadCLTCPU {
 			  return imp_rgba;
 		  }
 
-		  ImageStack stack = sdfa_instance.makeStack(
+		  ImageStack stack = ShowDoubleFloatArrays.makeStack(
 				  rbg_in, // iclt_data,
 				  width,  // (tilesX + 0) * clt_parameters.transform_size,
 				  height, // (tilesY + 0) * clt_parameters.transform_size,
@@ -8074,7 +7807,6 @@ public class QuadCLTCPU {
 			  int debugLevel
 			  )
 	  {
-//		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		  if (debugLevel > -1) { // 0){
 			  double [] chn_avg = {0.0,0.0,0.0};
 			  float [] pixels;
@@ -8091,7 +7823,6 @@ public class QuadCLTCPU {
 		  }
 
 		  if (debugLevel > 1) System.out.println("before colors.1");
-//		  if (debugLevel > -1) System.out.println("before colors.1");
 		  //Processing colors - changing stack sequence to r-g-b (was r-b-g)
 		  if (!eyesisCorrections.fixSliceSequence(
 				  stack,
@@ -8100,15 +7831,12 @@ public class QuadCLTCPU {
 			  return null;// not used in lwir
 		  }
 		  if (debugLevel > 1) System.out.println("before colors.2");
-//		  if (debugLevel > -1) System.out.println("before colors.2");
 		  if (saveShowIntermediate && (debugLevel > 1)){
-//		  if (saveShowIntermediate && (debugLevel > -1)){
 			  ImagePlus imp_dbg=new ImagePlus(name+sAux()+"-preColors",stack);
 			  eyesisCorrections.saveAndShow(
 					  imp_dbg,
 					  this.correctionsParameters);
 		  }
-//		  if (debugLevel > 1) System.out.println("before colors.3, scaleExposure="+scaleExposure+" scale = "+(255.0/eyesisCorrections.psfSubpixelShouldBe4/eyesisCorrections.psfSubpixelShouldBe4/scaleExposure));
 		  if (debugLevel > -1) System.out.println("before colors.3, scaleExposure="+scaleExposure+" scale = "+(255.0/eyesisCorrections.psfSubpixelShouldBe4/eyesisCorrections.psfSubpixelShouldBe4/scaleExposure));
 		  CorrectionColorProc correctionColorProc=new CorrectionColorProc(eyesisCorrections.stopRequested);
 		  double [][] yPrPb=new double [3][];
@@ -9269,7 +8997,7 @@ public class QuadCLTCPU {
 			  for (int i = 0; i<dbg_img[0].length;i++){
 				  dbg_img[0][i] =  bgmask[i]?1:0;
 			  }
-			  (new ShowDoubleFloatArrays()).showArrays(
+			  ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tp.getTilesX(),
 					tp.getTilesY(),
@@ -10211,7 +9939,7 @@ public class QuadCLTCPU {
 				  ddd[5][nTile] = bg_sel[nTile]?1.0:0.0;
 				  ddd[6][nTile] = bg_use[nTile]?1.0:0.0;
 			  }
-			  (new ShowDoubleFloatArrays()).showArrays(
+			  ShowDoubleFloatArrays.showArrays(
 				  ddd,
 				  tp.getTilesX(),
 				  tp.getTilesY(),
@@ -10310,7 +10038,7 @@ public class QuadCLTCPU {
 				  //ddd[5][nTile] = bg_sel[nTile]?1.0:0.0;
 				  ddd[6][nTile] = combo_use[nTile]?1.0:0.0;
 			  }
-			  (new ShowDoubleFloatArrays()).showArrays(
+			  ShowDoubleFloatArrays.showArrays(
 					  ddd,
 					  tp.getTilesX(),
 					  tp.getTilesY(),
@@ -10344,7 +10072,7 @@ public class QuadCLTCPU {
 					  dbg_bg_sel,
 					  dbg_bg_use, // too few
 					  dbg_combo_use};
-			  (new ShowDoubleFloatArrays()).showArrays(dbg_img,  tp.getTilesX(), tp.getTilesY(), true, "extrinsics_bgnd_combo",titles);
+			  ShowDoubleFloatArrays.showArrays(dbg_img,  tp.getTilesX(), tp.getTilesY(), true, "extrinsics_bgnd_combo",titles);
 		  }
 	  }	  
 	  
@@ -10857,7 +10585,7 @@ public class QuadCLTCPU {
 					  scans14[14 * 1 + 2 + i] =  combo_mismatch[i];
 				  }
 				  if (debugLevelInner > 0) {
-					  (new ShowDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
+					  ShowDoubleFloatArrays.showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
 				  }
 
 				  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel > 1)) {
@@ -11171,12 +10899,12 @@ public class QuadCLTCPU {
 					  "refined_from_LY-"+combo_scan); //String title)
 
 
-			  (new ShowDoubleFloatArrays()).showArrays(
+			  ShowDoubleFloatArrays.showArrays(
 					  disparities,
 					  tilesX,
 					  tilesY,
 					  true, "disparities"); //  , titles);
-			  (new ShowDoubleFloatArrays()).showArrays(
+			  ShowDoubleFloatArrays.showArrays(
 					  strengths,
 					  tilesX,
 					  tilesY,
@@ -11467,7 +11195,7 @@ public class QuadCLTCPU {
 				  scans14[14 * 0 + 2 + i] =  combo_mismatch[i];
 			  }
 			  if (debugLevelInner > 0) {
-				  (new ShowDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
+				  ShowDoubleFloatArrays.showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
 			  }
 
 			  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel > 1)) {
@@ -12078,7 +11806,7 @@ public class QuadCLTCPU {
     			  }
     		  }
 
-    		  (new ShowDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
+    		  ShowDoubleFloatArrays.showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
     	  }
     	  int [] numLeftRemoved = {0, 0};
     	  int num_extended = 0;
@@ -12295,7 +12023,7 @@ public class QuadCLTCPU {
 				}
 			}
 
-		  (new ShowDoubleFloatArrays()).showArrays(
+		  ShowDoubleFloatArrays.showArrays(
 				  dbg_img,
 				  tp.getTilesX(),
 				  tp.getTilesY(),
@@ -12614,7 +12342,7 @@ public class QuadCLTCPU {
 		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected
 				  bounds, 
 				  selected); 
-		  double [][] texCoord = tp.getTexCoords( // get texture coordinates for indices
+		  double [][] texCoord = TileProcessor.getTexCoords( // get texture coordinates for indices
 				  indices);
 		  double [][] worldXYZ = tp.getCoords( // get world XYZ in meters for indices
 				  disparity,
@@ -12634,11 +12362,11 @@ public class QuadCLTCPU {
 							indices,
 							tile_size);
 
-		  int [][] triangles = 	tp.triangulateCluster(
+		  int [][] triangles = 	TileProcessor.triangulateCluster(
 				  indices);
 
 
-		  triangles = 	tp.filterTriangles( // remove crazy triangles with large disparity difference
+		  triangles = 	TileProcessor.filterTriangles( // remove crazy triangles with large disparity difference
 					triangles,
 					indexedDisparity, // disparities per vertex index
 					maxDispTriangle); // maximal disparity difference in a triangle
@@ -12694,24 +12422,19 @@ public class QuadCLTCPU {
 
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
-		  ShowDoubleFloatArrays sdfa_instance = null;
-
+		  boolean show_dbg = false;
 		  if ((clt_parameters.debug_filters && (debugLevel > -1)) || dbg_gpu_transition)
-		  if ((debugLevel > -1))
-			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-
-//		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
+			  if ((debugLevel > -1))
+				  show_dbg = true;
 
 		  boolean [] bgnd_tiles =   tp.getBackgroundMask( // which tiles do belong to the background
 				  clt_parameters.bgnd_range,     // disparity range to be considered background
 				  clt_parameters.bgnd_sure,      // minimal strength to be considered definitely background
 				  clt_parameters.bgnd_maybe,     // maximal strength to ignore as non-background
-//				  clt_parameters.sure_smth,      // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
 				  clt_parameters.rsure_smth,
 				  clt_parameters.cold_sky_above,
 				  clt_parameters.min_clstr_seed, // number of tiles in a cluster to seed (just background?)
 				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
-//				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 				  clt_parameters.show_bgnd_nonbgnd,
 				  (clt_parameters.debug_filters ? (debugLevel) : -1));
 		  boolean [] bgnd_tiles_new = null;//
@@ -12723,7 +12446,6 @@ public class QuadCLTCPU {
 				  clt_parameters.sure_smth,      // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
 				  clt_parameters.min_clstr_seed, // number of tiles in a cluster to seed (just background?)
 				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
-//				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 				  clt_parameters.show_bgnd_nonbgnd,
 				  (clt_parameters.debug_filters ? (debugLevel) : -1));
 		  }
@@ -12756,7 +12478,7 @@ public class QuadCLTCPU {
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				  bgnd_tiles_grown2,
 				  null); // prohibit
-		  if (false && (sdfa_instance!=null)){
+		  if ((debugLevel > 1000) && show_dbg){
 			  double [][] dbg_img = new double[5][tilesY * tilesX];
 			  String [] titles = {"old","new","strict","grown","more_grown"};
 			  for (int i = 0; i<dbg_img[0].length;i++){
@@ -12767,7 +12489,7 @@ public class QuadCLTCPU {
 				  dbg_img[3][i] =  bgnd_tiles_grown[i]?1:0;
 				  dbg_img[4][i] =  bgnd_tiles[i]?1:0;
 			  }
-			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "strict_grown",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img,  tilesX, tilesY, true, "strict_grown",titles);
 		  }
 		  // not here - will be set/calculated for GPU only
 ///		  bgnd_data.setTextureSelection(bgnd_tiles_grown2); // selected for background w/o extra transparent layer
@@ -12782,7 +12504,6 @@ public class QuadCLTCPU {
 			  ColorProcParameters                       colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters  rgbParameters,
 			  String     name,
-//			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel
@@ -12792,7 +12513,6 @@ public class QuadCLTCPU {
 		  final boolean new_mode = false;
 		  int num_bgnd = 0;
 
-//		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
 		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
 		  double [][][][] texture_tiles_bgnd = new double[tilesY][tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
@@ -12956,9 +12676,10 @@ public class QuadCLTCPU {
 	  {
 		 final int tilesX = tp.getTilesX();
 		 final int tilesY = tp.getTilesY();
+		 final int tile_size = tp.getTileSize();
 
-		  ShowDoubleFloatArrays sdfa_instance = null;
-    	  if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+//		  ShowDoubleFloatArrays sdfa_instance = null;
+    	  boolean show_dbg = (debugLevel > -1);
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  boolean [] borderTiles = scan.getBorderTiles();
 		  double [][][][] texture_tiles = scan.texture_tiles;
@@ -12976,14 +12697,14 @@ public class QuadCLTCPU {
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
-		  double [][]alphaFade = tp.getAlphaFade(image_dtt.transform_size);
+		  double [][]alphaFade = TileProcessor.getAlphaFade(tile_size);
 		  if ((debugLevel > 0) && (scanIndex == 1)) { // not used in lwir
 			  String [] titles = new String[16];
 			  for (int i = 0; i<titles.length;i++)  titles[i]=""+i;
-			  sdfa_instance.showArrays(alphaFade, 2*image_dtt.transform_size,2*image_dtt.transform_size,true,"alphaFade",titles);
+			  ShowDoubleFloatArrays.showArrays(alphaFade, 2*tile_size,2*tile_size,true,"alphaFade",titles);
 		  }
 		  double [][][][] texture_tiles_cluster = new double[tilesY][tilesX][][];
-		  double [] alpha_zero = new double [4*image_dtt.transform_size*image_dtt.transform_size];
+		  double [] alpha_zero = new double [4*tile_size*tile_size];
 		  int alpha_index = 3;
 		  for (int i = 0; i < alpha_zero.length; i++) alpha_zero[i]=0.0;
 		  // border tiles are copied, alpha from alphaFade (not multiplied?)
@@ -14301,7 +14022,7 @@ public class QuadCLTCPU {
 		  // display correlation images (add "combo_all" to titles if needed)
 		  if (show_2d_correlations) {
 			  if (dbg_tilts != null) {
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					ShowDoubleFloatArrays.showArrays( // out of boundary 15
 							dbg_tilts,
 							tilesX,
 							tilesY,
@@ -14331,7 +14052,7 @@ public class QuadCLTCPU {
 				for (int i = ind_length; i < titles.length; i++) {
 					titles[i] = "combo-"+(i - ind_length);
 				}
-				(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+				ShowDoubleFloatArrays.showArrays( // out of boundary 15
 						dbg_corr_rslt_partial,
 						tilesX*(2*image_dtt.transform_size),
 						tilesY*(2*image_dtt.transform_size),
@@ -14747,7 +14468,7 @@ public class QuadCLTCPU {
 			  }
 			  int width =  imp_srcs[0].getWidth();
 			  int height = imp_srcs[0].getHeight();
-			  (new ShowDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
+			  ShowDoubleFloatArrays.showArrays(dbg_satur, width, height, true, "Saturated" , titles);
 
 			  if (debugLevel > -1) { // 0){
 				  double [][] dbg_dpixels_norm = new double [channelFiles.length][];
@@ -14758,8 +14479,8 @@ public class QuadCLTCPU {
 						  dbg_dpixels_norm[srcChannel][i] = pixels[i];
 					  }
 				  }
-				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
-				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
+				  ShowDoubleFloatArrays.showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
+				  ShowDoubleFloatArrays.showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
 				  double [][] dbg_dpixels_split = new double [4 * dbg_dpixels.length][dbg_dpixels[0].length / 4];
 				  String [] dbg_titles = {"g1_0","r_0","b_0","g2_0","g1_2","r_1","b_1","g2_1","g1_2","r_2","b_2","g2_2","g1_3","r_3","b_3","g2_3"};
 				  for (int srcChn = 0; srcChn < 4; srcChn++) {
@@ -14772,7 +14493,7 @@ public class QuadCLTCPU {
 						  }
 					  }
 				  }
-				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
+				  ShowDoubleFloatArrays.showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
 			  }
 		  }
 
@@ -15374,7 +15095,7 @@ public class QuadCLTCPU {
 		  }
 		  scan.setTilesRBGA(tileTones); // Alpha is very low, ~1/400
 		  if (debugLevel>10) {
-			  (new ShowDoubleFloatArrays()).showArrays(
+			  ShowDoubleFloatArrays.showArrays(
 					  tileTones,
 					  tilesX,
 					  tilesY,
@@ -15621,7 +15342,7 @@ public class QuadCLTCPU {
 		  gpuResetCorrVector();
 		  /*
 		  for (int npar = 0; npar < num_pars; npar++) {
-			  (new ShowDoubleFloatArrays()).showArrays(
+			  ShowDoubleFloatArrays.showArrays(
 					  ly_diff[npar],
 					  ea.clustersX,
 					  ea.clustersY,
@@ -15652,7 +15373,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-		  (new ShowDoubleFloatArrays()).showArrays(
+		  ShowDoubleFloatArrays.showArrays(
 				  dbg_img,
 				  width,
 				  height,
@@ -15678,7 +15399,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-		  (new ShowDoubleFloatArrays()).showArrays(
+		  ShowDoubleFloatArrays.showArrays(
 				  dbg_img,
 				  width,
 				  height,
@@ -15704,7 +15425,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-		  (new ShowDoubleFloatArrays()).showArrays(
+		  ShowDoubleFloatArrays.showArrays(
 				  dbg_img,
 				  width,
 				  height,

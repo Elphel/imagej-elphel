@@ -511,7 +511,7 @@ public class ExtendSurfaces {
 				dbg_img[2][i] = expanding[i] ? 50.0: 0.0;
 			}
 			
-			(new ShowDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, "startExpanding",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img,  tilesX, tilesY, true, "startExpanding",titles);
 
 		}
 		

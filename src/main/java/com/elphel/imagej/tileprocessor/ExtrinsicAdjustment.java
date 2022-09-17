@@ -235,7 +235,7 @@ public class ExtrinsicAdjustment {
 				pixels[indx_length][cluster] = force_disparity[cluster]?1.0:0.0;
 			}
 		}
-		 (new ShowDoubleFloatArrays()).showArrays(
+		 ShowDoubleFloatArrays.showArrays(
 				 pixels,
 				 clustersX,
 				 clustersY,
@@ -339,7 +339,7 @@ public class ExtrinsicAdjustment {
 				}
 			}
 		}
-		 (new ShowDoubleFloatArrays()).showArrays(
+		 ShowDoubleFloatArrays.showArrays(
 				 pixels,
 				 clustersX,
 				 clustersY,
@@ -370,7 +370,7 @@ public class ExtrinsicAdjustment {
 				}
 			}
 		}
-		 (new ShowDoubleFloatArrays()).showArrays(
+		 ShowDoubleFloatArrays.showArrays(
 				 pixels,
 				 clustersX,
 				 clustersY,
@@ -439,7 +439,7 @@ public class ExtrinsicAdjustment {
 				rad_to_hdiag); // limit corners 
 
 		if (dbg_images  && (debugLevel > 0)) { // disabled
-			 (new ShowDoubleFloatArrays()).showArrays(
+			 ShowDoubleFloatArrays.showArrays(
 					 weight_window,
 					 clustersX,
 					 clustersY,
@@ -843,7 +843,7 @@ public class ExtrinsicAdjustment {
 				dfe[i] = d / aw;
 			}
 			if (debug) {
-			 (new ShowDoubleFloatArrays()).showArrays(
+			 ShowDoubleFloatArrays.showArrays(
 					 dfe,
 					 clustersX,
 					 clustersY,
@@ -1655,7 +1655,7 @@ public class ExtrinsicAdjustment {
 					}
 				}
 			}
-			 (new ShowDoubleFloatArrays()).showArrays(
+			 ShowDoubleFloatArrays.showArrays(
 					 dbg_img,
 					 width,
 					 height,
@@ -1682,7 +1682,7 @@ public class ExtrinsicAdjustment {
 						}
 					}
 				}
-				 (new ShowDoubleFloatArrays()).showArrays(
+				 ShowDoubleFloatArrays.showArrays(
 						 dbg_img,
 						 width,
 						 height,
@@ -1733,7 +1733,7 @@ public class ExtrinsicAdjustment {
 				}
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_img,
 				width,
 				height,
@@ -1849,7 +1849,7 @@ public class ExtrinsicAdjustment {
 						 dbg_img[5][cluster] = moving_maybe[cluster] ? 1.0:0.0;
 					 }
 				 }
-				 (new ShowDoubleFloatArrays()).showArrays(
+				 ShowDoubleFloatArrays.showArrays(
 						 dbg_img,
 						 clustersX,
 						 clustersY,
@@ -1966,7 +1966,7 @@ public class ExtrinsicAdjustment {
 			}
 		}
 		
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_img,
 				clustersX,
 				clustersY,
@@ -2028,7 +2028,7 @@ public class ExtrinsicAdjustment {
 				dbg_img[4][cluster] = moving[cluster]? 1.0 : 0.0;
 				dbg_img[5][cluster] = grown[cluster]? 1.0 : 0.0;
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					clustersX,
 					clustersY,
@@ -2121,7 +2121,7 @@ public class ExtrinsicAdjustment {
 				}
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_img,
 				width,
 				height,
@@ -2222,7 +2222,7 @@ public class ExtrinsicAdjustment {
 
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_img,
 				width,
 				height,
@@ -2621,7 +2621,7 @@ public class ExtrinsicAdjustment {
 			}
 		}
 		String title = ((typ == 0)?"dDND_dpar":"dXY_dpar") + (use_sym? "_sym":"_tarz");
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_img,
 				width,
 				height,

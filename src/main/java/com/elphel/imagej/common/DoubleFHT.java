@@ -61,7 +61,6 @@ public class DoubleFHT  {
 	private double [] translateFHTdXY=null;
 	private int translateFHTN=0;
 	public boolean debug=false;
-	private ShowDoubleFloatArrays SDFA_INSTANCE= new ShowDoubleFloatArrays(); // just for debugging?
 	public DoubleFHT() {
 	  this.C = null;
 	  this.S = null;
@@ -502,18 +501,18 @@ public class DoubleFHT  {
     		 double [] data,
     		 double dx,
     		 double dy){
-    	 if (debug) SDFA_INSTANCE.showArrays(data, "source-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
+    	 if (debug) ShowDoubleFloatArrays.showArrays(data, "source-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
     	 swapQuadrants(data);
     	 if (!transform(data,false)) return null; // direct FHT
     	 if ((this.maxN!=translateFHTN) || (dx!=translateFHTdXY[0]) || (dy!=translateFHTdXY[1])){
     		 calcTranslateFHT(dx,dy);
     	 }
-    	 if (debug) SDFA_INSTANCE.showArrays(data, "fht-source-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
+    	 if (debug) ShowDoubleFloatArrays.showArrays(data, "fht-source-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
     	 data= multiply(data, this.translateFHT, false); // convolution, not correlation
-    	 if (debug) SDFA_INSTANCE.showArrays(data, "fht-multiplied-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
+    	 if (debug) ShowDoubleFloatArrays.showArrays(data, "fht-multiplied-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
     	 transform(data,true) ; // inverse transform
     	 swapQuadrants(data);
-    	 if (debug) SDFA_INSTANCE.showArrays(data, "result-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
+    	 if (debug) ShowDoubleFloatArrays.showArrays(data, "result-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
     	 return data;
      }
 
@@ -559,7 +558,7 @@ public class DoubleFHT  {
     	 this.translateFHTdXY[0]=dx;
     	 this.translateFHTdXY[1]=dy;
     	 this.translateFHTN=this.maxN;
-    	 if (debug) SDFA_INSTANCE.showArrays(this.translateFHT, "translateFHT-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
+    	 if (debug) ShowDoubleFloatArrays.showArrays(this.translateFHT, "translateFHT-"+IJ.d2s(dx,3)+":"+IJ.d2s(dy,3));
      }
 
  	private boolean updateMaxN(double [] data){
@@ -1265,7 +1264,7 @@ public class DoubleFHT  {
 
 			}
 			String [] titles={"amp","phase","weight","d/dx","d/dy"};
-			SDFA_INSTANCE.showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugdPHdXdY,
 					this.maxN,
 					this.maxN,
@@ -1483,7 +1482,7 @@ public class DoubleFHT  {
 			String [] titles=new String[numAngles+1];
 			for (int n=0;n<numAngles;n++) titles[n]=IJ.d2s(180.0*n/numAngles,1);
 			titles[numAngles]="usage number";
-			SDFA_INSTANCE.showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugPolarPhaseMasks,
 					this.maxN,
 					this.maxN,
@@ -1921,7 +1920,7 @@ public class DoubleFHT  {
 		}
 		/*
 		if (this.debug){
-			SDFA_INSTANCE.showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					amplitude,
 					this.maxN,
 					halfN,
@@ -1942,7 +1941,7 @@ public class DoubleFHT  {
 				}
 
 			}
-			SDFA_INSTANCE.showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugAmplitude,
 					this.maxN,
 					this.maxN,

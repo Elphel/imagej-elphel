@@ -6186,7 +6186,7 @@ public boolean LevenbergMarquardt(
                         }
                         index++;
                     }
-             (new ShowDoubleFloatArrays()). showArrays(
+             ShowDoubleFloatArrays. showArrays(
                      pixels,
                      width,
                      numSamples/width,

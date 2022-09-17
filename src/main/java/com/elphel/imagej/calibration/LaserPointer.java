@@ -476,16 +476,12 @@ public class LaserPointer{
 				);
 
 	 */
-	public boolean [] localMaximum(
+	public static boolean [] localMaximum(
 			double [] pixels,
 			int width,
 			int radius,
 			int debugLevel){
 		int height=pixels.length/width;
-		ShowDoubleFloatArrays sdfra_instance= null;
-		if (debugLevel>1) {
-			sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
-		}
 
 		boolean [] bmax=new boolean[pixels.length];
 		// horizontal pass
@@ -510,7 +506,7 @@ public class LaserPointer{
 				hmax[i*width+j]=max;
 			}
 		}
-		if (debugLevel>2) sdfra_instance.showArrays(hmax,   width, height, "hmax-"+radius);
+		if (debugLevel>2) ShowDoubleFloatArrays.showArrays(hmax,   width, height, "hmax-"+radius);
 
 		//vertical pass
 		for (int j=0;j<width;j++){
@@ -541,10 +537,7 @@ public class LaserPointer{
 			double [] pixels,
 			int width
 			){
-		ShowDoubleFloatArrays sdfra_instance= null;
-//		if (this.debugLevel>0) sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
-		if (this.debugLevel > 4) sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
-		boolean show_debug = sdfra_instance != null;
+		boolean show_debug = (this.debugLevel > 4); // ShowDoubleFloatArrays != null;
 		DoubleGaussianBlur gb=new DoubleGaussianBlur();
 		double initialScale=0.5;
 		int height=pixels.length/width;
@@ -621,10 +614,10 @@ public class LaserPointer{
 				}
 			}
 		} else dpixels=pixels.clone();
-		if (show_debug && (this.debugLevel>2)) sdfra_instance.showArrays(dpixels, dwidth, dheight,  "decimated");
+		if (show_debug && (this.debugLevel>2)) ShowDoubleFloatArrays.showArrays(dpixels, dwidth, dheight,  "decimated");
 		double [] dpixels_lp=dpixels.clone();
 		gb.blurDouble(dpixels_lp, dwidth, dheight, scale*this.localContrastSigma, scale*this.localContrastSigma, 0.01);
-		if (show_debug && (this.debugLevel>2)) sdfra_instance.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_lp");
+		if (show_debug && (this.debugLevel>2)) ShowDoubleFloatArrays.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_lp");
 		double sum=0.0;
 		for (int i=0;i<dpixels.length;i++){
 			dpixels[i]-=dpixels_lp[i];
@@ -632,26 +625,26 @@ public class LaserPointer{
 			sum+=dpixels_lp[i];
 		}
 		double corr=(1.0-this.localToGlobalContrast)*Math.sqrt(sum/(dwidth*dheight));
-		if (show_debug && (this.debugLevel>2)) sdfra_instance.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_var");
+		if (show_debug && (this.debugLevel>2)) ShowDoubleFloatArrays.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_var");
 		gb.blurDouble(dpixels_lp, dwidth, dheight, scale*this.localContrastSigma, scale*this.localContrastSigma, 0.01);
-		if (show_debug && (this.debugLevel>2)) sdfra_instance.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_var_blur");
+		if (show_debug && (this.debugLevel>2)) ShowDoubleFloatArrays.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_var_blur");
 		for (int i=0;i<dpixels.length;i++){
 			dpixels_lp[i]=this.localToGlobalContrast*Math.sqrt(dpixels_lp[i])+corr;
 			dpixels[i]/=dpixels_lp[i];
 		}
-		if (show_debug && (this.debugLevel>2)) sdfra_instance.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_denom");
+		if (show_debug && (this.debugLevel>2)) ShowDoubleFloatArrays.showArrays(dpixels_lp, dwidth, dheight,  "dpixels_denom");
 		if (this.patternLowPassSigma>0) {
-			if (show_debug && (this.debugLevel>2)) sdfra_instance.showArrays(dpixels, dwidth, dheight,    "dpixels_normalized");
+			if (show_debug && (this.debugLevel>2)) ShowDoubleFloatArrays.showArrays(dpixels, dwidth, dheight,    "dpixels_normalized");
 			gb.blurDouble(dpixels, dwidth, dheight, scale*this.patternLowPassSigma, scale*this.patternLowPassSigma, 0.01);
 		}
-		if (show_debug && (this.debugLevel>1)) sdfra_instance.showArrays(dpixels, dwidth, dheight,    "dpixels_norm_blur");
+		if (show_debug && (this.debugLevel>1)) ShowDoubleFloatArrays.showArrays(dpixels, dwidth, dheight,    "dpixels_norm_blur");
 		int [] ipixels=new int [dpixels.length];
 		for (int i=0;i<dpixels.length;i++){
 			if (dpixels[i]>this.patternThreshold) ipixels[i]=1;
 			else if (dpixels[i]<-this.patternThreshold) ipixels[i]=-1;
 			else ipixels[i]=0;
 		}
-		if (show_debug && (this.debugLevel>1))	sdfra_instance.showArrays(ipixels, dwidth, dheight,    "ipixels_threshold");
+		if (show_debug && (this.debugLevel>1))	ShowDoubleFloatArrays.showArrays(ipixels, dwidth, dheight,    "ipixels_threshold");
 
 		int maxDist = (int) Math.round(scale*this.maximalCellSize);
 		if (maxDist<1) maxDist=1;
@@ -665,26 +658,26 @@ public class LaserPointer{
 					this.bordersOK,
 					show_debug 
 					);
-			if (show_debug && (this.debugLevel>2))	sdfra_instance.showArrays(ipixels, dwidth, dheight,    "pass-"+pass);
+			if (show_debug && (this.debugLevel>2))	ShowDoubleFloatArrays.showArrays(ipixels, dwidth, dheight,    "pass-"+pass);
 		}
 		//blur-threshold-grow
 		// convert to Double (white cells - 1.0, black and none - 0.0)
 		for (int i=0;i<dpixels.length;i++) dpixels[i]= (ipixels[i]>0)?1.0:0.0;
 		// blur result with sigma > cell period to find continuous pattern cell areas
 		gb.blurDouble(dpixels, dwidth, dheight, scale*this.localContrastSigma, scale*this.localContrastSigma, 0.01);
-		if (show_debug && (this.debugLevel>2))	sdfra_instance.showArrays(dpixels, dwidth, dheight,    "white_blurred");
+		if (show_debug && (this.debugLevel>2))	ShowDoubleFloatArrays.showArrays(dpixels, dwidth, dheight,    "white_blurred");
 		// Threshold to boolean mask
 		boolean [] dmask=new boolean[dpixels.length];
 		for (int i=0;i<dpixels.length;i++) dmask[i]= (dpixels[i]>=this.blurredMaskThreshold);
-		if (show_debug && (this.debugLevel>1))	sdfra_instance.showArrays(dmask, dwidth, dheight,    "white_threshold");
+		if (show_debug && (this.debugLevel>1))	ShowDoubleFloatArrays.showArrays(dmask, dwidth, dheight,    "white_threshold");
 		int iBlurMaskGrow= (int) Math.round(scale*this.localContrastSigma); // does in need separate coefficient?
 		growMask( dmask, //boolean [] pixels,
 				dwidth, // int width,
 				iBlurMaskGrow); //int grow);
-		if (show_debug && (this.debugLevel>1))	sdfra_instance.showArrays(dmask, dwidth, dheight,    "white_threshold_grown"+iBlurMaskGrow);
+		if (show_debug && (this.debugLevel>1))	ShowDoubleFloatArrays.showArrays(dmask, dwidth, dheight,    "white_threshold_grown"+iBlurMaskGrow);
 		// Mask out white cells outside of the compact areas just found
 		for (int i=0;i<dpixels.length;i++) if (!dmask[i])  ipixels[i]=0;
-		if (show_debug && ((this.debugLevel>1)))	sdfra_instance.showArrays(ipixels, dwidth, dheight,    "ipixels_masked");
+		if (show_debug && ((this.debugLevel>1)))	ShowDoubleFloatArrays.showArrays(ipixels, dwidth, dheight,    "ipixels_masked");
 		boolean [] mask=new boolean[pixels.length];
 		if (this.decimatePatternFilter>1){
 			for (int i=0;i<pixels.length;i++){
@@ -759,8 +752,6 @@ public class LaserPointer{
 			boolean show_debug
 			){
 		int height=pixels.length/width;
-		ShowDoubleFloatArrays sdfra_instance= null;
-		if (show_debug) sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 
 		int [] distLeft= new int [pixels.length];
 		int [] distRight=new int [pixels.length]; // also used for down
@@ -782,13 +773,13 @@ public class LaserPointer{
 			}
 		}
 		if (show_debug && (this.debugLevel>3)){
-			sdfra_instance.showArrays(distLeft, width, height,    "distLeft-"+fromBlack);
-			sdfra_instance.showArrays(distRight, width, height,   "distRight-"+fromBlack);
+			ShowDoubleFloatArrays.showArrays(distLeft, width, height,    "distLeft-"+fromBlack);
+			ShowDoubleFloatArrays.showArrays(distRight, width, height,   "distRight-"+fromBlack);
 
 		}
 		// combine two (max distance)
 		for (int i=0;i<pixels.length;i++) if (distRight[i]>distLeft[i])distLeft[i]=distRight[i];
-		if (show_debug && (this.debugLevel>3)) sdfra_instance.showArrays(distLeft, width, height,    "comboLeftRight-"+fromBlack);
+		if (show_debug && (this.debugLevel>3)) ShowDoubleFloatArrays.showArrays(distLeft, width, height,    "comboLeftRight-"+fromBlack);
 
 
 		// Down
@@ -799,7 +790,7 @@ public class LaserPointer{
 			v1=distRight[index1++]+1;
 			distRight[i]= (v1>distLeft[i])?distLeft[i]:v1;
 		}
-		if (show_debug && (this.debugLevel>3)) sdfra_instance.showArrays(distRight, width, height,    "distDown-"+fromBlack);
+		if (show_debug && (this.debugLevel>3)) ShowDoubleFloatArrays.showArrays(distRight, width, height,    "distDown-"+fromBlack);
 		// Up
 		for (int j=pixels.length-width;j<pixels.length;j++) distUp[j]= bordersOK?0:distLeft[j];
 		index1=pixels.length-1;
@@ -808,10 +799,10 @@ public class LaserPointer{
 			v1=distUp[index1--]+1;
 			distUp[i]= (v1>distLeft[i])?distLeft[i]:v1;
 		}
-		if (show_debug && (this.debugLevel>3)) sdfra_instance.showArrays(distUp, width, height,    "distUp-"+fromBlack);
+		if (show_debug && (this.debugLevel>3)) ShowDoubleFloatArrays.showArrays(distUp, width, height,    "distUp-"+fromBlack);
 		// combine two  (max distance)
 		for (int i=0;i<pixels.length;i++) if (distUp[i]>distRight[i])distRight[i]=distUp[i];
-		if (show_debug && (this.debugLevel>3)) sdfra_instance.showArrays(distRight, width, height,    "combo-"+fromBlack);
+		if (show_debug && (this.debugLevel>3)) ShowDoubleFloatArrays.showArrays(distRight, width, height,    "combo-"+fromBlack);
 		// Now distRight contains the longest of 4 quadrants distance from "good" pixels - remove bad opposite side ones
 		for (int i=0;i<pixels.length;i++) if ((distRight[i]>maxDist) && (pixels[i]!=sign)) pixels[i]=0; // if opposite signe (or 0) make 0
 	}
@@ -825,8 +816,6 @@ public class LaserPointer{
 			String title,
 			int debugLevel   // debug level (normal == 1)
 			){
-		ShowDoubleFloatArrays sdfra_instance= null;
-		if (debugLevel>1) sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 		// As high precision is not needed we can map Bayer pixels to the same grid of half resolution of the image
 		// 0,3 - green 1 - red (laser)
 		int bayerG1=0;
@@ -839,7 +828,7 @@ public class LaserPointer{
 		int halfHeight=len/halfWidth;
 		if (debugLevel>2){
 			String subtitles[] ={"green1","red","blue","green2","combo","5"};
-			sdfra_instance.showArrays(pointedBayer.clone(), halfWidth, halfHeight, true, title+"-bayer", subtitles);
+			ShowDoubleFloatArrays.showArrays(pointedBayer.clone(), halfWidth, halfHeight, true, title+"-bayer", subtitles);
 		}
 
 		for (int i=0; i<len;i++){
@@ -858,11 +847,11 @@ public class LaserPointer{
 					(backgroundBayer[bayerG1][i]*(1.0-this.greenFloor)+avrgGreenB*this.greenFloor)-backgroundBayer[bayerR][i];
 
 		}
-		if (debugLevel>3) sdfra_instance.showArrays(pointedBayer[bayerR].clone(), halfWidth, halfHeight, title);
+		if (debugLevel>3) ShowDoubleFloatArrays.showArrays(pointedBayer[bayerR].clone(), halfWidth, halfHeight, title);
 		// low pass filter, 2-d
 		DoubleGaussianBlur gb=new DoubleGaussianBlur();
 		gb.blurDouble(pointedBayer[bayerR], halfWidth, halfHeight, this.lowpassSigma, this.lowpassSigma, 0.01);
-		if (debugLevel>2) sdfra_instance.showArrays(pointedBayer[bayerR].clone(), halfWidth, halfHeight, title+"-smooth");
+		if (debugLevel>2) ShowDoubleFloatArrays.showArrays(pointedBayer[bayerR].clone(), halfWidth, halfHeight, title+"-smooth");
 		// Finding just maximum, to centroid here
 		int indx=0;
 		double max=pointedBayer[bayerR][indx];
@@ -900,11 +889,9 @@ public class LaserPointer{
 
 		double [][] greens=headLaserMode?null:pre_greens;
 		int startIndex=skipFirst?1:0;
-		ShowDoubleFloatArrays sdfra_instance= null;
 		String [] subtitles_all= null;
 		String [] subtitles= null;
 		if (debugLevel>1) {
-			sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 			subtitles_all= new String [reds.length];
 			for (int i=0;i<reds.length;i++){
 				subtitles_all[i]="";
@@ -932,15 +919,15 @@ public class LaserPointer{
 		for (int i=0;i<thresholds.length;i++) thresholds[i]=0;
 
 		if (debugLevel>2){
-			if (greens!=null) sdfra_instance.showArrays(greens, halfWidth, halfHeight, true, "green-"+title, subtitles_all);
-			sdfra_instance.showArrays(reds,   halfWidth, halfHeight, true, "red-"+title, subtitles_all);
+			if (greens!=null) ShowDoubleFloatArrays.showArrays(greens, halfWidth, halfHeight, true, "green-"+title, subtitles_all);
+			ShowDoubleFloatArrays.showArrays(reds,   halfWidth, halfHeight, true, "red-"+title, subtitles_all);
 		}
 		if (debugLevel>debugTiming) printTiming("red-"+title);
 		boolean[]  patternMask=null;
 		if (this.usePatternFilter){
 			double [] ppixels=(greens!=null)?greens[0]:reds[0];
 			patternMask=getPatternMask(	ppixels, halfWidth );
-			if (debugLevel>2)	sdfra_instance.showArrays(patternMask, halfWidth, halfHeight,  "patternMask-"+title);
+			if (debugLevel>2)	ShowDoubleFloatArrays.showArrays(patternMask, halfWidth, halfHeight,  "patternMask-"+title);
 			if (debugLevel>debugTiming) printTiming("patternMask-"+title);
 		}
 		for (int i=startIndex;i<reds.length;i++) {
@@ -968,14 +955,14 @@ public class LaserPointer{
 		greens=null; // don't need it anymore
 		if (debugLevel>2){
 			System.out.println("saturationRed="+saturationRed+" minimalIntensity="+minimalIntensity+" maximalIntensity="+maximalIntensity);
-			sdfra_instance.showArrays(reds,   halfWidth, halfHeight, true, "normalized-"+title, subtitles_all);
+			ShowDoubleFloatArrays.showArrays(reds,   halfWidth, halfHeight, true, "normalized-"+title, subtitles_all);
 		}
 		if (debugLevel>debugTiming) printTiming("normalized-"+title);
 		double [] dThresholds=new double [len];
 		for (int i=0;i<len;i++){
 			dThresholds[i]=((thresholds[i] & 1)!=0)?(-1): ( ((thresholds[i] & 2)!=0)?1.0:0.0 );
 		}
-		if (debugLevel>2)	sdfra_instance.showArrays(dThresholds,   halfWidth, halfHeight, "intensity_limits-"+title);
+		if (debugLevel>2)	ShowDoubleFloatArrays.showArrays(dThresholds,   halfWidth, halfHeight, "intensity_limits-"+title);
 		if (debugLevel>debugTiming) printTiming("intensity_limits-"+title);
 		// high-pass images
 		if (!headLaserMode && (this.highpassSigma>0)){
@@ -985,7 +972,7 @@ public class LaserPointer{
 				for (int i=0;i<redBlured.length;i++)reds[numImg][i]-=redBlured[i];
 			}
 		}
-		if (debugLevel>2)sdfra_instance.showArrays(reds,   halfWidth, halfHeight, true, "highpass-"+title, subtitles_all);
+		if (debugLevel>2)ShowDoubleFloatArrays.showArrays(reds,   halfWidth, halfHeight, true, "highpass-"+title, subtitles_all);
 		if (debugLevel>debugTiming) printTiming("highpass-"+title);
 		// low pass filter, 2-d
 		double threshold=headLaserMode?this.threshold:this.threshold; // so far - the same?
@@ -1180,8 +1167,8 @@ public class LaserPointer{
 			}
 		}
 		if (debugLevel>2){
-			sdfra_instance.showArrays(diffOnOff,   halfWidth, halfHeight, true, "diffOnOff-"+title, subtitles);
-			if (noise!=null) sdfra_instance.showArrays(noise,   halfWidth, halfHeight, true, "noise-"+title, subtitles);
+			ShowDoubleFloatArrays.showArrays(diffOnOff,   halfWidth, halfHeight, true, "diffOnOff-"+title, subtitles);
+			if (noise!=null) ShowDoubleFloatArrays.showArrays(noise,   halfWidth, halfHeight, true, "noise-"+title, subtitles);
 		}
 		if (debugLevel>debugTiming) printTiming("diffOnOff-"+title);
 		if (lpSigma>0.0) {
@@ -1192,15 +1179,15 @@ public class LaserPointer{
 			}
 		}
 		if (debugLevel>2){
-			sdfra_instance.showArrays(diffOnOff,   halfWidth, halfHeight, true, "diffSmooth-"+(threshold)+"-"+title, subtitles);
-			if (noise!=null) sdfra_instance.showArrays(noise,   halfWidth, halfHeight, true, "noise_Smooth-"+(threshold)+"-"+title, subtitles);
+			ShowDoubleFloatArrays.showArrays(diffOnOff,   halfWidth, halfHeight, true, "diffSmooth-"+(threshold)+"-"+title, subtitles);
+			if (noise!=null) ShowDoubleFloatArrays.showArrays(noise,   halfWidth, halfHeight, true, "noise_Smooth-"+(threshold)+"-"+title, subtitles);
 		}
 		if (debugLevel>debugTiming) printTiming("diffSmooth-"+title);
 		if (noise!=null){
 			for (int numPointer=0; numPointer <whichOn.length;numPointer++) for (int i=0;i<len;i++){
 				noise[numPointer][i]=diffOnOff[numPointer][i]/noise[numPointer][i]; // now - s/n
 			}
-			if (debugLevel>2)	sdfra_instance.showArrays(noise,   halfWidth, halfHeight, true, "s2n_Smooth-"+(threshold)+"-"+title, subtitles);
+			if (debugLevel>2)	ShowDoubleFloatArrays.showArrays(noise,   halfWidth, halfHeight, true, "s2n_Smooth-"+(threshold)+"-"+title, subtitles);
 			if (debugLevel>debugTiming) printTiming("s2n_Smooth-"+title);
 		}
 
@@ -1214,7 +1201,7 @@ public class LaserPointer{
 					halfWidth, // int width,
 					(int) this.localMaxRadius/2, //); //int radius)
 					debugLevel-1);
-			if (debugLevel>3) sdfra_instance.showArrays(isLocalMax,   halfWidth, halfHeight, "isLocalMax-"+(numPointer)+"-"+title);
+			if (debugLevel>3) ShowDoubleFloatArrays.showArrays(isLocalMax,   halfWidth, halfHeight, "isLocalMax-"+(numPointer)+"-"+title);
 
 			for (int i=0;i<localMaxPixels[numPointer].length;i++) if (!isLocalMax[i]) localMaxPixels[numPointer][i]=0.0;
 		}
@@ -1226,14 +1213,14 @@ public class LaserPointer{
 			}
 		}
 
-		if (debugLevel>2) sdfra_instance.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "localmax-"+(threshold)+"-"+title, subtitles);
+		if (debugLevel>2) ShowDoubleFloatArrays.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "localmax-"+(threshold)+"-"+title, subtitles);
 		if (debugLevel>debugTiming) printTiming("localmax-"+title);
 		// filter by S/N ratio
 		if (noise!=null){
 			for (int numPointer=0; numPointer <whichOn.length;numPointer++){
 				for (int i=0;i<localMaxPixels[numPointer].length;i++) if (noise[numPointer][i]<this.laserSignalToNoise) localMaxPixels[numPointer][i]=0.0;
 			}
-			if (debugLevel>2)sdfra_instance.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "localmax_s2n-"+(this.laserSignalToNoise)+"-"+title, subtitles);
+			if (debugLevel>2)ShowDoubleFloatArrays.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "localmax_s2n-"+(this.laserSignalToNoise)+"-"+title, subtitles);
 			if (debugLevel>debugTiming) printTiming("localmax_s2n-"+title);
 		}
 
@@ -1263,10 +1250,10 @@ public class LaserPointer{
 			for (int numPointer=0; numPointer <whichOn.length;numPointer++){
 				for (int i=0;i<localMaxPixels[numPointer].length;i++) if (!patternMask[i]) localMaxPixels[numPointer][i]=0.0;
 			}
-			if (debugLevel>2)	sdfra_instance.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "in-patt-max-"+(threshold)+"-"+title, subtitles);
+			if (debugLevel>2)	ShowDoubleFloatArrays.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "in-patt-max-"+(threshold)+"-"+title, subtitles);
 			if (debugLevel>debugTiming) printTiming("in-patt-max-"+title);
 		}
-		if (debugLevel>2)sdfra_instance.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "localmax_threshold-"+(this.laserSignalToNoise)+"-"+title, subtitles);
+		if (debugLevel>2)ShowDoubleFloatArrays.showArrays(localMaxPixels,   halfWidth, halfHeight, true, "localmax_threshold-"+(this.laserSignalToNoise)+"-"+title, subtitles);
 		if (debugLevel>debugTiming) printTiming("localmax_threshold-"+(this.laserSignalToNoise)+"-"+title);
 		if (debugLevel>1) {
 			String dbgStr="";
@@ -1356,7 +1343,7 @@ public class LaserPointer{
     							}
     				}
     			}
-	    		if (debugLevel>2)	sdfra_instance.showArrays(diffOnOff,   halfWidth, halfHeight, true, "filteredSmooth-"+title, subtitles);
+	    		if (debugLevel>2)	ShowDoubleFloatArrays.showArrays(diffOnOff,   halfWidth, halfHeight, true, "filteredSmooth-"+title, subtitles);
     		}
 		 */
 		// Finding just maximums, no centroid here

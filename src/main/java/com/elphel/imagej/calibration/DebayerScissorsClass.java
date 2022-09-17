@@ -169,8 +169,7 @@ public class DebayerScissorsClass {
   						  /* Scale green channel x0.5 as there are twice more pixels there as in red or blue. Or move it somewhere else and multiply to original range ? */
   						  for (i=0;i<tile[greenChn].length;i++) tile[greenChn][i]*=0.5;
   						  if ((tileY==yTileDebug) && (tileX==xTileDebug)) {
-  							  if (SDFA_instance==null) SDFA_instance=      new ShowDoubleFloatArrays();
-  							  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "x"+(tileX*step)+"_y"+(tileY*step));
+  							  ShowDoubleFloatArrays.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "x"+(tileX*step)+"_y"+(tileY*step));
   						  }
   						  for (chn=0;chn<nChn;chn++){
   							  fht_instance.swapQuadrants(tile[chn]);

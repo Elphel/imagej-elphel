@@ -79,7 +79,8 @@ public class IntersceneMatchParameters {
 	public  double  range_disparity_offset =   -0.08;
 	public  double  range_min_strength = 0.5;
 	public  double  range_max =       5000.0;
-
+	// Export 3D model
+	public  boolean export3d =           false; // true;
 	
 	
 	
@@ -412,12 +413,10 @@ public class IntersceneMatchParameters {
 				"Disregard weaker results when measuring range.");
 		gd.addNumericField("Maximal displayed range",                this.range_max, 5,7,"m",
 				"Do not display extremely far objects.");
-		
 
-	
-		
-		
-		
+		gd.addMessage  ("3D model generation");
+		gd.addCheckbox ("Generate 3D model",                         this.export3d,
+				"Generate textures and model.");
 
 		gd.addMessage  ("Debug and visialization parameters");
 		gd.addCheckbox ("Replace scene with reference scene",        this.scene_is_ref_test,
@@ -876,6 +875,7 @@ public class IntersceneMatchParameters {
 		this.range_min_strength =             gd.getNextNumber();
 		this.range_max =                      gd.getNextNumber();
 		
+		this.export3d =                       gd.getNextBoolean();
 
 		
 		
@@ -1162,6 +1162,7 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"range_min_strength",            this.range_min_strength+"");            // double
 		properties.setProperty(prefix+"range_max",                     this.range_max+"");                     // double
 		
+		properties.setProperty(prefix+"export3d",                      this.export3d+"");                      // boolean
 		
 		properties.setProperty(prefix+"scene_is_ref_test",    this.scene_is_ref_test+"");   // boolean
 		properties.setProperty(prefix+"render_ref",           this.render_ref+"");          // boolean
@@ -1396,6 +1397,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"range_min_strength")!=null)   this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
 		if (properties.getProperty(prefix+"range_max")!=null)            this.range_max=Double.parseDouble(properties.getProperty(prefix+"range_max"));
 
+		if (properties.getProperty(prefix+"export3d")!=null)             this.export3d=Boolean.parseBoolean(properties.getProperty(prefix+"export3d"));		
 		
 		
 		if (properties.getProperty(prefix+"scene_is_ref_test")!=null)    this.scene_is_ref_test=Boolean.parseBoolean(properties.getProperty(prefix+"scene_is_ref_test"));		
@@ -1644,6 +1646,7 @@ public class IntersceneMatchParameters {
 		imp.range_min_strength            = this.range_min_strength;
 		imp.range_max                     = this.range_max;
 
+		imp.export3d                      = this.export3d;
 		
 		
 		

@@ -67,7 +67,6 @@ import ij.text.TextWindow;
 public class Distortions {
 //	final public double hintedMaxRelativeRadius=1.2; // make adjustable?
 	final public double hintedMaxRelativeRadiusToDiagonal= 1.3; // 0.96; // make adjustable?
-	private ShowDoubleFloatArrays SDFA_INSTANCE=new ShowDoubleFloatArrays(); // just for debugging?
 //    int numInputs=27; // with A8...// 24;   // parameters in subcamera+...
 //    int numOutputs=16; // with A8...//13;  // parameters in a single camera
 	public PatternParameters patternParameters;
@@ -952,7 +951,7 @@ public class Distortions {
 
 		if (enableShow && this.refineParameters.flatFieldShowSensorMasks) {
 			if (same_size) {
-			(new ShowDoubleFloatArrays()).showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
+			ShowDoubleFloatArrays.showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
 				masks,
 				getSensorWidth(0)/ getDecimateMasks(0),
 				getSensorHeight(0)/getDecimateMasks(0),
@@ -979,7 +978,7 @@ public class Distortions {
 		if (enableShow && this.refineParameters.flatFieldShowIndividual){
 			for (int station=0;station<sensorGrids.length;station++) if (sensorGrids[station]!=null){
 				for (int i=0;i<sensorGrids[station].length;i++) if (sensorGrids[station][i]!=null){
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							sensorGrids[station][i],
 							geometry[0].length,
 							geometry.length,
@@ -1003,7 +1002,7 @@ public class Distortions {
 			String [] titles={"Alpha","Red","Green","Blue","Number of images used"};
 			for (int station=0;station<patternArray.length;station++) if (patternArray[station]!=null){
 				for (int nView=0;nView<patternArray[station].length;nView++) if (patternArray[station][nView]!=null){
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							patternArray[station][nView],
 							geometry[0].length,
 							geometry.length,
@@ -1143,7 +1142,7 @@ public class Distortions {
     			if (rp.showThisCorrection) {
     				int decimate=getDecimateMasks(numChn);
     				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-    				//    		   this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
+    				//    		   ShowDoubleFloatArrays.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
     				showWithRadialTangential(
     						titles,
     						"chn_"+numChn+"_filtered",
@@ -1177,7 +1176,7 @@ public class Distortions {
     		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
 				int decimate=getDecimateMasks(numChn);
 				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-//    		   this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "Cumulative_chn_"+numChn+"_corrections", titles);
+//    		   ShowDoubleFloatArrays.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "Cumulative_chn_"+numChn+"_corrections", titles);
 				showWithRadialTangential(
 						titles,
 						"Cumulative_chn_"+numChn+"_corrections",
@@ -1234,14 +1233,14 @@ public class Distortions {
 			data[indexDt][i]=-dXY.getX()*uR.getY()+dXY.getY()*uR.getX();
 			data[indexDa][i]=dXY.distance(Z);
 		}
-	   this.SDFA_INSTANCE.showArrays(data, width, height,  true, title, titles);
+	   ShowDoubleFloatArrays.showArrays(data, width, height,  true, title, titles);
 	}
 
 
 
 
 
-	public double [][] DXYtoDRT(
+	public static double [][] DXYtoDRT(
 			double [][] dataXY, // [0] - dx, [1] - dy
 			int width,
 			int decimate,
@@ -1543,7 +1542,7 @@ public class Distortions {
 
 		String [] dbg_titles= {"Weight","dR", "dT","Red", "Green", "Blue"};
 		if (showDebugImages) {
-			this.SDFA_INSTANCE.showArrays(data_ortho, width, height,  true, "ortho-"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_ortho, width, height,  true, "ortho-"+title, dbg_titles);
 		}
 		double [][] data_polar = correctionToRadial(
 				data_ortho, // variable number of layers, [0] - weight dRT or RGB
@@ -1556,7 +1555,7 @@ public class Distortions {
 				0); // indexWeight);
 
 		if (showDebugImages) {
-			this.SDFA_INSTANCE.showArrays(data_polar, polar_width, polar_height,  true, "polar-"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_polar, polar_width, polar_height,  true, "polar-"+title, dbg_titles);
 		}
 		double [][] data_polar_blur = new double[data_polar.length][];
 		data_polar_blur[0] = data_polar[0].clone();
@@ -1580,7 +1579,7 @@ public class Distortions {
 
 		}
 		if (showDebugImages) {
-			this.SDFA_INSTANCE.showArrays(data_polar_blur, polar_width, polar_height,  true, "polar-bl-"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_polar_blur, polar_width, polar_height,  true, "polar-bl-"+title, dbg_titles);
 		}
 		double [][] data_polar_diff = new double[data_polar.length][data_polar[0].length];
 		for (int i = 0; i < data_polar_diff.length; i++) {
@@ -1589,7 +1588,7 @@ public class Distortions {
 			}
 		}
 		if (showDebugImages) {
-			this.SDFA_INSTANCE.showArrays(data_polar_diff, polar_width, polar_height,  true, "polar-diff-"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_polar_diff, polar_width, polar_height,  true, "polar-diff-"+title, dbg_titles);
 		}
 
 		double [][] errors_gr = new double[5][data_polar[0].length];
@@ -1625,7 +1624,7 @@ public class Distortions {
 		errors_gr[4] = weight_photo.clone(); // weight
 		if (showDebugImages) {
 			String [] titles_err = {"geom","photo","weight", "weight_geom","weight_photo"};
-			this.SDFA_INSTANCE.showArrays(errors_gr, polar_width, polar_height,  true, "polar-err-"+title, titles_err);
+			ShowDoubleFloatArrays.showArrays(errors_gr, polar_width, polar_height,  true, "polar-err-"+title, titles_err);
 		}
 
 		// geometry
@@ -1669,7 +1668,7 @@ public class Distortions {
 		}
 		data_polar_blur[0] = weight_geom.clone();
 		if (showDebugImages) {
-			this.SDFA_INSTANCE.showArrays(data_polar_blur, polar_width, polar_height,  true, "polar-bl2-"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_polar_blur, polar_width, polar_height,  true, "polar-bl2-"+title, dbg_titles);
 		}
 		data_polar_diff = new double[data_polar.length][polar_length];
 		for (int i = 0; i < data_polar_diff.length; i++) {
@@ -1678,8 +1677,8 @@ public class Distortions {
 			}
 		}
 		if (showDebugImages) {
-			this.SDFA_INSTANCE.showArrays(data_polar_diff, polar_width, polar_height,  true, "polar-diff2-"+title, dbg_titles);
-			this.SDFA_INSTANCE.showArrays(data_ortho, width, height,  true, "ortho-back-pre-"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_polar_diff, polar_width, polar_height,  true, "polar-diff2-"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_ortho, width, height,  true, "ortho-back-pre-"+title, dbg_titles);
 		}
 
 		// put back to ortho (so far no transition, no ortho blur)
@@ -1715,7 +1714,7 @@ public class Distortions {
 		}
 
 //		if (showDebugImages) {
-//			this.SDFA_INSTANCE.showArrays(polar_back, polar_width, polar_height,  true, "polar-back-"+title, dbg_titles);
+//			ShowDoubleFloatArrays.showArrays(polar_back, polar_width, polar_height,  true, "polar-back-"+title, dbg_titles);
 //		}
 
 		correctionToOrtho(
@@ -1729,7 +1728,7 @@ public class Distortions {
 				lines_overlap, // add lines to the bottom (corresponding to the angle)
 				transit_rad); // smooth transition between ortho and polar width
 		if (showDebugImages) {
-			this.SDFA_INSTANCE.showArrays(data_ortho, width, height,  true, "ortho-back"+title, dbg_titles);
+			ShowDoubleFloatArrays.showArrays(data_ortho, width, height,  true, "ortho-back"+title, dbg_titles);
 		}
 
 		double [][] data_rt_back = {data_ortho[1], data_ortho[2]};
@@ -1818,7 +1817,7 @@ public class Distortions {
 						worstImageNumber,
 						savedMask};
 				 Rectangle gridDimensions=patternParameters.getUVDimensions();
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						debugData,
 						gridDimensions.width,
 						gridDimensions.height,
@@ -2135,14 +2134,14 @@ public class Distortions {
    											margin); //mask; // replace with 0.0 .. 1.0 mask
    									if (extraShowDebug) debugMasks2[1]=gridPCorr[sensorNum][alphaIndex].clone();
    									if (extraShowDebug) {
-   										(new ShowDoubleFloatArrays()).showArrays(
+   										ShowDoubleFloatArrays.showArrays(
    												debugMasks1,
    												width1,
    												height1,
    												true,
    												"M1-"+sensorNum,
    												debugMaskTitles);
-   										(new ShowDoubleFloatArrays()).showArrays(
+   										ShowDoubleFloatArrays.showArrays(
    												debugMasks2,
    												width,
    												height,
@@ -2465,7 +2464,7 @@ public class Distortions {
 					extrapolated[4],
 					extrapolated[5],
 					debugMask};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugData,
 					width,
 					height,
@@ -2539,7 +2538,7 @@ public class Distortions {
 				debugLevel);
 		if (showIntermediate){
 			String [] dbgTitles={"dPX","dPY","alpha","R","G","B"};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					additionalCorrection,
 					sensorWidth/decimation,
 					sensorHeight/decimation,
@@ -2677,7 +2676,7 @@ public class Distortions {
 				}
 
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugData,
 					width,
 					height,
@@ -2685,7 +2684,7 @@ public class Distortions {
 					"PRE_EXP-"+imgNum+"-"+chnNum,
 					dbgTitles);
 			String [] dbgTitles1={"R-tar","R-grid","R-corr","R-FF","G-tar","G-grid","G-corr","G-FF","B-tar","B-grid","B-corr","B-FF",};//
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugRGB,
 					width,
 					height,
@@ -2757,7 +2756,7 @@ public class Distortions {
 						debugData[7][i]=     this.mask[i];
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						debugData,
 						this.uv0.width,
 						this.uv0.height,
@@ -3239,7 +3238,7 @@ For each point in the image
 				}
 				index++;
 			}
-			(new ShowDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, "hintGrid", titles);
+			ShowDoubleFloatArrays.showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, "hintGrid", titles);
 
 		}
 
@@ -3741,7 +3740,7 @@ For each point in the image
 			pixels[3][index]=grid.pixelsUV_extra[i][1];
 			pixels[4][index]=1000.0;
 		}
-		(new ShowDoubleFloatArrays()).showArrays(pixels, width, height,  true, "grid-"+numGridImage, titles);
+		ShowDoubleFloatArrays.showArrays(pixels, width, height,  true, "grid-"+numGridImage, titles);
 	}
 
 
@@ -3967,7 +3966,7 @@ For each point in the image
 			}
 			index++;
 		}
-		(new ShowDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, title, titles);
+		ShowDoubleFloatArrays.showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, title, titles);
 	}
 
 	/**
@@ -4262,7 +4261,7 @@ For each point in the image
 				int uv=u+v*result[v].length;
 				debugPixels[5][uv]=(result[v][u]!=null)?3000:-3000; // masked
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugPixels,
 					result[0].length,
 					result.length,
@@ -5733,7 +5732,7 @@ List calibration
 	    String title="RPRJ";
 	    int maxNumInTitle=10;
 	    for (int i=0;(i<imageNumbers.length) && (i<maxNumInTitle); i++) title+="-"+imageNumbers[i];
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				imgData,
 				width,
 				height,
@@ -6722,7 +6721,7 @@ List calibration
     	    		debugData[i]=gridZCorr3d[i];
     	    		debugData[i+gridZCorr3d.length]=gridZCorr3dWeight[i];
     	    	}
-        		this.SDFA_INSTANCE.showArrays(debugData, getGridWidth(), getGridHeight(),  true, "Z corrections", titlesStations);
+        		ShowDoubleFloatArrays.showArrays(debugData, getGridWidth(), getGridHeight(),  true, "Z corrections", titlesStations);
     		}
     	}
 
@@ -6738,7 +6737,7 @@ List calibration
 				2.0); //double ksigma
 
     	if (this.refineParameters.targetShowThisCorrection) {
-    		this.SDFA_INSTANCE.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
+    		ShowDoubleFloatArrays.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
     		if (this.debugLevel>1){
 
     		}
@@ -6817,7 +6816,7 @@ List calibration
 
     	String [] titles={"X-correction(mm)","Y-correction(mm)","Z-correction","Weight"};
     	if (this.refineParameters.targetShowThisCorrection) {
-    		this.SDFA_INSTANCE.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
+    		ShowDoubleFloatArrays.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
     	}
     	if (!this.refineParameters.targetApplyCorrection) return false;
     	patternParameters.applyGridCorrection(gridXYZCorr, this.refineParameters.targetCorrectionScale);
@@ -7795,7 +7794,7 @@ List calibration
     				if ((gridGeometry[v][u]==null) || (gridGeometry[v][u][maskIndex]<=0.0)) gridMask[station][numView][u+v*gridWidth]=0.0;
     			}
     			if (this.debugLevel>2){
-    				this.SDFA_INSTANCE.showArrays(gridMask[station][numView], gridWidth, gridHeight,   "MATCH_MASK"+numView);
+    				ShowDoubleFloatArrays.showArrays(gridMask[station][numView], gridWidth, gridHeight,   "MATCH_MASK"+numView);
     			}
 //    			double [][] scaleIndividual=new double[flatFields[station].length][3]; // scale individual sensor patters before averaging
     			//    		for (int numSensor=0;numSensor<flatFields.length; numSensor++ ) if (flatFields[numSensor]!=null){
@@ -8193,7 +8192,7 @@ List calibration
 	        			}
 	        		}
 	        	}
-	        	(new ShowDoubleFloatArrays()).showArrays(
+	        	ShowDoubleFloatArrays.showArrays(
 	        			debugData,
 	        			width,
 	        			height,
@@ -8211,14 +8210,14 @@ List calibration
 	        			debugLowpassDiffGreen[n]=lowPassDiff[station][nView][1];
 	        		}
 	        	}
-	        	if (this.debugLevel>=(debugThreshold+1)) (new ShowDoubleFloatArrays()).showArrays(
+	        	if (this.debugLevel>=(debugThreshold+1)) ShowDoubleFloatArrays.showArrays(
 	        			debugDiffGreen,
 	        			width,
 	        			height,
 	        			true,
 	        			"DiffGreen"+nIter,
 	        			titles);
-	        	if (this.debugLevel>=(debugThreshold+1)) (new ShowDoubleFloatArrays()).showArrays(
+	        	if (this.debugLevel>=(debugThreshold+1)) ShowDoubleFloatArrays.showArrays(
 	        			debugHighpassDiffGreen,
 	        			width,
 	        			height,
@@ -8226,7 +8225,7 @@ List calibration
 	        			"HighpassGreen"+nIter,
 	        			titles);
 
-	        	(new ShowDoubleFloatArrays()).showArrays(
+	        	ShowDoubleFloatArrays.showArrays(
 	        			debugLowpassDiffGreen,
 	        			width,
 	        			height,
@@ -8235,7 +8234,7 @@ List calibration
 	        			titles);
 
 	        	String [] averageTitles={"Red","Green","Blue","Weight"};
-	        	(new ShowDoubleFloatArrays()).showArrays(
+	        	ShowDoubleFloatArrays.showArrays(
 	        			average,
 	        			width,
 	        			height,
@@ -8686,7 +8685,7 @@ List calibration
 			imgData[5][vu]= this.Y[2*(index+i)];
 			imgData[6][vu]= this.Y[2*(index+i)+1];
 		}
-		this.SDFA_INSTANCE.showArrays(imgData, width, getGridHeight(),  true, title, titles);
+		ShowDoubleFloatArrays.showArrays(imgData, width, getGridHeight(),  true, title, titles);
 	}
 	/**
 	 * Calculates corrections to X and Y coordinates of the grid nodes
@@ -9090,7 +9089,7 @@ D2=
 			double [] tilts=M.solve(B).getRowPackedCopy(); // singular ???
 			if (this.debugLevel>2) {
 				if (this.refineParameters.showThisCorrection) {
-					this.SDFA_INSTANCE.showArrays(gridCorr3d, getGridWidth(), getGridHeight(),  true, "before tilt:", titles);
+					ShowDoubleFloatArrays.showArrays(gridCorr3d, getGridWidth(), getGridHeight(),  true, "before tilt:", titles);
 				}
 			}
 			for (int v=0;v<height;v++) for (int u=0;u<width; u++){
@@ -9103,7 +9102,7 @@ D2=
     			double [][] gridCorr3dClone=new double [4][width*height];
     			for (int c=0;c<gridCorr3dClone.length;c++) for (int i=0;i<gridCorr3dClone[c].length;i++)
     				gridCorr3dClone[c][i]=reliable[i]? gridCorr3d[c][i]:0.0;
-    			this.SDFA_INSTANCE.showArrays(gridCorr3dClone, getGridWidth(), getGridHeight(),  true, "after tilt:", titles);
+    			ShowDoubleFloatArrays.showArrays(gridCorr3dClone, getGridWidth(), getGridHeight(),  true, "after tilt:", titles);
     		}
     	}
     	IJ.showStatus("");
@@ -9302,7 +9301,7 @@ D2=
 						} // end scanning pixels
 						if (showIndividual) {
 							String [] titles={"diff-X","diff-Y","pX","pY","alpha","X-correction(mm)","Y-correction(mm)","Z-correction(mm)"};
-							(new ShowDoubleFloatArrays()).showArrays(imgData, width, height,  true, "Grid"+imgNum, titles);
+							ShowDoubleFloatArrays.showArrays(imgData, width, height,  true, "Grid"+imgNum, titles);
 						}
    						final int numFinished=imageFinishedAtomic.getAndIncrement();
 //						IJ.showProgress(progressValues[numFinished]);
@@ -9505,7 +9504,7 @@ D2=
 			} // end scanning pixels
 			if (showIndividual) {
 		        String [] titles={"diff-X","diff-Y","pX","pY","alpha","X-correction(mm)","Y-correction(mm)","Z-correction(mm)"};
-				this.SDFA_INSTANCE.showArrays(imgData, width, height,  true, "Grid"+imgNum, titles);
+				ShowDoubleFloatArrays.showArrays(imgData, width, height,  true, "Grid"+imgNum, titles);
 			}
 			IJ.showProgress(++numProcessed,numSelected);
 		}
@@ -9758,7 +9757,7 @@ D2=
 			double [] tilts=M.solve(B).getRowPackedCopy();
 			if (this.debugLevel>2) {
 				if (this.refineParameters.showThisCorrection) {
-					this.SDFA_INSTANCE.showArrays(gridCorr3d, getGridWidth(), getGridHeight(),  true, "before tilt:", titles);
+					ShowDoubleFloatArrays.showArrays(gridCorr3d, getGridWidth(), getGridHeight(),  true, "before tilt:", titles);
 				}
 			}
 			for (int v=0;v<height;v++) for (int u=0;u<width; u++){
@@ -9771,7 +9770,7 @@ D2=
     			double [][] gridCorr3dClone=new double [4][width*height];
     			for (int c=0;c<gridCorr3dClone.length;c++) for (int i=0;i<gridCorr3dClone[c].length;i++)
     				gridCorr3dClone[c][i]=reliable[i]? gridCorr3d[c][i]:0.0;
-    			this.SDFA_INSTANCE.showArrays(gridCorr3dClone, getGridWidth(), getGridHeight(),  true, "after tilt:", titles);
+    			ShowDoubleFloatArrays.showArrays(gridCorr3dClone, getGridWidth(), getGridHeight(),  true, "after tilt:", titles);
     		}
     	}
     	IJ.showStatus("");
@@ -10264,7 +10263,7 @@ M * V = B
 
 			if (showIndividual && ((showIndividualNumber<0) || (showIndividualNumber==chnNum))) {
 				String [] titles={"R","G","B","A"};
-				this.SDFA_INSTANCE.showArrays(photometrics, width, height,  true, "Photometrics"+chnNum+"-"+imgNum, titles);
+				ShowDoubleFloatArrays.showArrays(photometrics, width, height,  true, "Photometrics"+chnNum+"-"+imgNum, titles);
 			}
 
 
@@ -10307,7 +10306,7 @@ M * V = B
 			}
 			if (showIndividual && ((showIndividualNumber<0) || (showIndividualNumber==chnNum))) {
 				String [] titles={"dPx","dPy","Px","Py","A","R","G","B"};// dPX, dPY, Px, Py, alpha,R,G,B - rgb - full, not incremental
-				this.SDFA_INSTANCE.showArrays(imgData, width, height,  true, "imgData"+imgNum, titles);
+				ShowDoubleFloatArrays.showArrays(imgData, width, height,  true, "imgData"+imgNum, titles);
 
 			}
 
@@ -10530,7 +10529,7 @@ M * V = B
 
 /*			if (showIndividual) {
 				String [] titles={"dPx","dPy","alpha","Multiple","Red","Green","Blue"};
-				this.SDFA_INSTANCE.showArrays(thisPCorr, sWidth, sHeight,  true, "thisPCorr_pre"+imgNum, titles);
+				ShowDoubleFloatArrays.showArrays(thisPCorr, sWidth, sHeight,  true, "thisPCorr_pre"+imgNum, titles);
 			}
 */
 			// some points may be calculated multiple times
@@ -10545,7 +10544,7 @@ M * V = B
 
 			if (showIndividual && ((showIndividualNumber<0) || (showIndividualNumber==chnNum))) {
 				String [] titles={"dPx","dPy","alpha","Multiple","Red","Green","Blue"};
-				this.SDFA_INSTANCE.showArrays(thisPCorr, sWidth, sHeight,  true, "thisPCorr"+imgNum, titles);
+				ShowDoubleFloatArrays.showArrays(thisPCorr, sWidth, sHeight,  true, "thisPCorr"+imgNum, titles);
 			}
 			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (thisPCorr[2][i]>0){
 				gridPCorr[chnNum][0][i]+=thisPCorr[0][i]*thisPCorr[2][i];
@@ -10562,7 +10561,7 @@ M * V = B
 /*
 		if (showIndividual) {
 			String [] titles={"dPx","dPy","alpha","Multiple","Red","Green","Blue"};
-			for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null) this.SDFA_INSTANCE.showArrays(gridPCorr[chnNum], sWidth, sHeight,  true, "gridPCorr1"+chnNum, titles);
+			for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null) ShowDoubleFloatArrays.showArrays(gridPCorr[chnNum], sWidth, sHeight,  true, "gridPCorr1"+chnNum, titles);
 		}
 */
 		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null){
@@ -10577,7 +10576,7 @@ M * V = B
 /*
 		if (showIndividual) {
 			String [] titles={"dPx","dPy","alpha","Multiple","Red","Green","Blue"};
-			for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null) this.SDFA_INSTANCE.showArrays(gridPCorr[chnNum], sWidth, sHeight,  true, "gridPCorr2"+chnNum, titles);
+			for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null) ShowDoubleFloatArrays.showArrays(gridPCorr[chnNum], sWidth, sHeight,  true, "gridPCorr2"+chnNum, titles);
 		}
 */
 		return gridPCorr;
@@ -10758,7 +10757,7 @@ M * V = B
 				imgData[8][vu]=   d_delta[2*(index+i)+1];
 			}
 		}
-		this.SDFA_INSTANCE.showArrays(imgData, width, getGridHeight(),  true, title, titles);
+		ShowDoubleFloatArrays.showArrays(imgData, width, getGridHeight(),  true, title, titles);
 		return sumDerivatives2;
 	}
 	/**

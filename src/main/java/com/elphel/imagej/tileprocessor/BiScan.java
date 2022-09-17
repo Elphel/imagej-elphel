@@ -359,7 +359,7 @@ public class BiScan {
 		if (this.target_disparity != null) {
 			dbg_data[7] = this.target_disparity.clone();
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_data,
 				biCamDSI.tnImage.getSizeX(),
 				biCamDSI.tnImage.getSizeY(),
@@ -1799,7 +1799,7 @@ public class BiScan {
 										}
 									}
 									if (dbg_this) {
-									(new ShowDoubleFloatArrays()).showArrays(
+									ShowDoubleFloatArrays.showArrays(
 											dbg_data,
 											smpl_side,
 											smpl_side,

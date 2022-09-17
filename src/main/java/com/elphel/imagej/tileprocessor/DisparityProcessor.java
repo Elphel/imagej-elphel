@@ -279,8 +279,6 @@ public class DisparityProcessor {
 	{
 		final double  scale_strength_lma = 5.0; // increase LMA-defined strength during averaging
 		final int dbg_tile = -1; // 28643; // x=131, y=88
-		ShowDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > 0) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final int numThreads = threads.length;
 		if (debugLevel > 0) System.out.println("smoothDisparity(): using "+numThreads+" threads");
@@ -425,7 +423,7 @@ public class DisparityProcessor {
 			double [][] dbg_data = {measured_disparity,disp_data[0],disp_data[1],dbg_pull[0],dbg_pull[1],dbg_pull[2],strength};
 			String [] titles = {"measured","[0]","[1]","avg","meas","pull","strength"};
 			if ((debugLevel> 2) && ((pass ==0) || (pass >= (num_passes-2)))){
-				sdfa_instance.showArrays(dbg_data,tilesX, tilesY, true, "disp_smoothed",titles);
+				ShowDoubleFloatArrays.showArrays(dbg_data,tilesX, tilesY, true, "disp_smoothed",titles);
 			}
 
 			double [] tmp= disp_data[0]; // swap, new data will be in disp_data[0], disp_data[1] to be written to by threads in next run 
@@ -449,14 +447,14 @@ public class DisparityProcessor {
 
 		//		double [][] dbg_data = {measured_disparity,disp_data[0],disp_data[1],strength, disparity, dbgDeriv[0], dbgDeriv[1]};
 		//		String [] titles = {"measured", "[0]", "[1]", "strength", "disp", "deriv0", "deriv1"};
-		//		sdfa_instance.showArrays(dbg_data,tilesX, tilesY, true, "disp_smoothed", titles);
+		//		ShowDoubleFloatArrays.showArrays(dbg_data,tilesX, tilesY, true, "disp_smoothed", titles);
 	}
 
 	/**
 	 * Select tiles where measured disparity is closer/farther than currently approximated by a sufficient margin. Return null
 	 * if none are
 	 */
-	public boolean [] findNearFar(
+	public static boolean [] findNearFar(
 			boolean findFar,
 			double  threshold, // select tiles with non-zero strength that are far/near
 			final double  []  disparity,          // current (approximated) disparity value
@@ -492,8 +490,6 @@ public class DisparityProcessor {
 			final int         threadsMax,      // maximal number of threads to launch                         
 			final int         debugLevel)
 	{
-//		showDoubleFloatArrays sdfa_instance = null;
-//		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		final int dbg_tile = (debugLevel > -1)  ? 27991 : -1; // x = 127, y = 86
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final int numThreads = threads.length;
@@ -727,8 +723,6 @@ public class DisparityProcessor {
 			final int         threadsMax,      // maximal number of threads to launch                         
 			final int         debugLevel)
 	{
-//		showDoubleFloatArrays sdfa_instance = null;
-//		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final int numThreads = threads.length;
 		if (debugLevel > -1) System.out.println("reconnectDisparity(): using "+numThreads+" threads");
@@ -1087,18 +1081,14 @@ public class DisparityProcessor {
 			final int         debugLevel)
 	{
 		final int debugTile = 41631; 
-//		showDoubleFloatArrays sdfa_instance = null;
-//		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final int numThreads = threads.length;
 		if (debugLevel > -1) System.out.println("createOverlapGeometry(): using "+numThreads+" threads");
 		final int len = selected.length;
 		int numTiles = 0;
 		int numTilesAll = 0;
-//		final boolean [] selectedAll = new boolean[len];
 		for (int i = 0; i < len; i++){
 			if ((selected[i] && (neighbors[i] >= 0)) || border[i]) {
-//				selectedAll[i] = true;
 				numTilesAll++;
 				if (!border[i])	numTiles++;
 			}

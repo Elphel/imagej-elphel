@@ -50,9 +50,6 @@ horizontal axis:
 64 - pulses per revolution
 5682.48889 per degree
 	 */
-	private ShowDoubleFloatArrays sdfaInstance = new ShowDoubleFloatArrays(); // just
-																				// for
-																				// debugging
 	public CamerasInterface cameras = null;
 	public LwirReader   lwirReader = null;
 	public Lwir16Reader lwir16Reader = null;
@@ -886,7 +883,7 @@ horizontal axis:
 					double[] test_uv = new double[this.matchSimulatedPatterns[numSensor].UV_INDEX.length];
 					for (int i = 0; i < this.matchSimulatedPatterns[numSensor].UV_INDEX.length; i++)
 						test_uv[i] = this.matchSimulatedPatterns[numSensor].UV_INDEX[i];
-					sdfaInstance.showArrays(test_uv,
+					ShowDoubleFloatArrays.showArrays(test_uv,
 							this.matchSimulatedPatterns[numSensor].getImageWidth(),
 							this.matchSimulatedPatterns[numSensor].getImageHeight(), "UV_INDEX");
 				}

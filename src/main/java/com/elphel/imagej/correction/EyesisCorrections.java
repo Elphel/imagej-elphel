@@ -60,9 +60,6 @@ import loci.formats.FormatException;
 
 public class EyesisCorrections {
 	public JP46_Reader_camera JP4_INSTANCE=   new JP46_Reader_camera(false);
-//	public ImagejJp4Tiff      imagejJp4Tiff = new ImagejJp4Tiff();
-
-	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
 	DebayerScissorsClass debayerScissors=null;
 	public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 	public PixelMapping pixelMapping=null;
@@ -700,7 +697,7 @@ public class EyesisCorrections {
 										}
 									}
 									if (debugLevel>0){
-										SDFA_INSTANCE.showArrays(
+										ShowDoubleFloatArrays.showArrays(
 												channelVignettingCorrection[srcChannel],
 												pixelMapping.sensors[srcChannel].pixelCorrectionWidth,
 												pixelMapping.sensors[srcChannel].pixelCorrectionHeight,
@@ -793,8 +790,8 @@ public class EyesisCorrections {
 			float [] pixels=(float[]) imp.getProcessor().getPixels();
 			double [] pixelsFlat=new double [corrFF.length];
 			for (int i=0;i<corrFF.length;i++) pixelsFlat[i]=pixels[i]*corrFF[i];
-			SDFA_INSTANCE.showArrays(corrFF, imp.getWidth(), imp.getHeight(), srcChannel+"-FF-correction");
-			SDFA_INSTANCE.showArrays(pixelsFlat, imp.getWidth(), imp.getHeight(), srcChannel+"-flat-"+imp.getTitle());
+			ShowDoubleFloatArrays.showArrays(corrFF, imp.getWidth(), imp.getHeight(), srcChannel+"-FF-correction");
+			ShowDoubleFloatArrays.showArrays(pixelsFlat, imp.getWidth(), imp.getHeight(), srcChannel+"-flat-"+imp.getTitle());
 		}
 	}
 
@@ -1218,7 +1215,7 @@ public class EyesisCorrections {
 				debugLevel);
 		if (this.correctionsParameters.saveDebayerEnergy || this.correctionsParameters.showDebayerEnergy) {
 			if (debayerScissors.getDebayerEnergy()!=null) {
-				ImagePlus debayerMask=SDFA_INSTANCE.makeArrays (debayerScissors.getDebayerEnergy(),
+				ImagePlus debayerMask=ShowDoubleFloatArrays.makeArrays (debayerScissors.getDebayerEnergy(),
 						debayerScissors.getDebayerEnergyWidth(),
 						debayerScissors.getDebayerEnergy().length/debayerScissors.getDebayerEnergyWidth(),
 						title+"-DEBAYER-ENERGY");
@@ -1323,7 +1320,7 @@ public class EyesisCorrections {
 						updateStatus, // update status info
 						debugLevel);
 				if (this.correctionsParameters.saveDenoiseMask || this.correctionsParameters.showDenoiseMask) {
-					ImagePlus denoiseMask=SDFA_INSTANCE.makeArrays (
+					ImagePlus denoiseMask=ShowDoubleFloatArrays.makeArrays (
 							correctionDenoise.getDenoiseMask(),
 							correctionDenoise.getDenoiseMaskWidth(),
 							correctionDenoise.getDenoiseMask().length/correctionDenoise.getDenoiseMaskWidth(),
@@ -1445,7 +1442,7 @@ public class EyesisCorrections {
 
 		// Show/save color denoise mask
 		if ((this.correctionsParameters.saveChromaDenoiseMask || this.correctionsParameters.showChromaDenoiseMask) && (correctionColorProc.getDenoiseMaskChroma()!=null)) {
-			ImagePlus chromaDenoiseMask=SDFA_INSTANCE.makeArrays (correctionColorProc.getDenoiseMaskChroma(),
+			ImagePlus chromaDenoiseMask=ShowDoubleFloatArrays.makeArrays (correctionColorProc.getDenoiseMaskChroma(),
 					correctionColorProc.getDenoiseMaskChromaWidth(),
 					correctionColorProc.getDenoiseMaskChroma().length/correctionColorProc.getDenoiseMaskChromaWidth(),
 					title+"-MASK_CHROMA");
@@ -2172,7 +2169,7 @@ public class EyesisCorrections {
 							//						  for (i=0;i<doubleKernel.length;i++) debug_sum+=doubleKernel[i];
 							//						  if (globalDebugLevel>1) System.out.println("kernel sum="+debug_sum);
 
-							//if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
+							//if ((tileY==tilesY/2) && (tileX==tilesX/2))  ShowDoubleFloatArrays.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
 							/* FHT transform of the kernel */
 							fht_instance.swapQuadrants(doubleKernel);
 							fht_instance.transform(    doubleKernel);
@@ -2182,7 +2179,7 @@ public class EyesisCorrections {
 							fht_instance.inverseTransform(outTile);
 							fht_instance.swapQuadrants(outTile);
 							/* accumulate result */
-							//if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(outTile,size,size, "out-"+chn);
+							//if ((tileY==tilesY/2) && (tileX==tilesX/2))  ShowDoubleFloatArrays.showArrays(outTile,size,size, "out-"+chn);
 							/*This is synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixels, but as the accumulation
 							 * takes just small fraction of several FHTs, it should be OK - reasonable number of threads will spread and not "stay in line"
 							 */

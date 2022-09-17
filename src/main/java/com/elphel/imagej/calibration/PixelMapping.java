@@ -1548,7 +1548,7 @@ public class PixelMapping {
         		}
         	}
    			String [] titles0={"Vx","Vy","Vz"};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbgVect,
 					projectionWidth,
 					projectionHeight,
@@ -1565,7 +1565,7 @@ public class PixelMapping {
         		}
         	}
    			String [] titles={"lat","long"};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbgLatLong,
 					projectionWidth,
 					projectionHeight,
@@ -2787,7 +2787,7 @@ public class PixelMapping {
 					}
 				}
 				if (debugLevel>2) {
-        			(new ShowDoubleFloatArrays()).showArrays(
+        			ShowDoubleFloatArrays.showArrays(
         					debugCorr,
         					corrFFTSize,
         					corrFFTSize,
@@ -3880,7 +3880,7 @@ public class PixelMapping {
 				for (int i=0;i<bandIndices.length;i++){
 					debugBandMask[bandIndices[i]]=bandMask[i];
 				}
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						debugBandMask,
 						corrFFTSize,
 						corrFFTSize,
@@ -3898,7 +3898,7 @@ public class PixelMapping {
 						" phase zero="+IJ.d2s(180/Math.PI*phaseAtZero,2)
 
 						);
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						uniform,
 						corrFFTSize,
 						corrFFTSize,
@@ -3916,7 +3916,7 @@ public class PixelMapping {
 					phaseStepCorr,
 					bandMask);
 			if (debugLevel>2){
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						reconstructedFeature,
 						corrFFTSize,
 						corrFFTSize,
@@ -4315,7 +4315,7 @@ public class PixelMapping {
     		normalizeAndWindow(first, window,true);
     		double [] debugWindowed=first.clone();
     		if (debugLevel>2){
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					first,
     					corrFFTSize,
     					corrFFTSize,
@@ -4336,13 +4336,13 @@ public class PixelMapping {
     			doubleFHT.multiplyByReal(first, frequencyFilter);
     			if (debugLevel>2){
     				double [] filteredAmplitude=doubleFHT.calculateAmplitude(first);
-    				(new ShowDoubleFloatArrays()).showArrays(
+    				ShowDoubleFloatArrays.showArrays(
     						filteredAmplitude,
     						corrFFTSize,
     						corrFFTSize,
     						"filteredAmp-Y"+corrXC+"-y"+corrYC+"-PC"+phaseCorrelationFraction);
     				for (int i=0;i<filteredAmplitude.length;i++) filteredAmplitude[i]=Math.log(filteredAmplitude[i]); // NaN OK
-    				(new ShowDoubleFloatArrays()).showArrays(
+    				ShowDoubleFloatArrays.showArrays(
     						filteredAmplitude,
     						corrFFTSize,
     						corrFFTSize,
@@ -4418,7 +4418,7 @@ public class PixelMapping {
 				//debugWindowed
 				double [][] reconstructionComparison={reconstructed, debugWindowed};
 				String [] titles={"reconstructed","windowed original"};
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					reconstructionComparison,
     					corrFFTSize,
     					corrFFTSize,
@@ -4476,7 +4476,7 @@ public class PixelMapping {
     		normalizeAndWindow(first, window,true);
     		double [] debugWindowed=first.clone();
     		if (debugLevel>2){
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					first,
     					corrFFTSize,
     					corrFFTSize,
@@ -4498,7 +4498,7 @@ public class PixelMapping {
     		if (debugLevel>2){
     			double [] unfilteredAmplitude=doubleFHT.calculateAmplitude(first);
     			for (int i=0;i<unfilteredAmplitude.length;i++) unfilteredAmplitude[i]=Math.log(unfilteredAmplitude[i]); // NaN OK
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					unfilteredAmplitude,
     					corrFFTSize,
     					corrFFTSize,
@@ -4509,13 +4509,13 @@ public class PixelMapping {
     			doubleFHT.multiplyByReal(first, frequencyFilter);
     			if (debugLevel>2){
     				double [] filteredAmplitude=doubleFHT.calculateAmplitude(first);
-    				(new ShowDoubleFloatArrays()).showArrays(
+    				ShowDoubleFloatArrays.showArrays(
     						filteredAmplitude,
     						corrFFTSize,
     						corrFFTSize,
     						"filteredAmp-Y"+corrXC+"-y"+corrYC+"-PC"+phaseCorrelationFraction);
     				for (int i=0;i<filteredAmplitude.length;i++) filteredAmplitude[i]=Math.log(filteredAmplitude[i]); // NaN OK
-    				(new ShowDoubleFloatArrays()).showArrays(
+    				ShowDoubleFloatArrays.showArrays(
     						filteredAmplitude,
     						corrFFTSize,
     						corrFFTSize,
@@ -4576,7 +4576,7 @@ public class PixelMapping {
 					dbgMask[1][index]=1.0;
 				}
 
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					dbgMask,
     					corrFFTSize,
     					corrFFTSize/2,
@@ -4642,7 +4642,7 @@ public class PixelMapping {
 				System.out.println("reconstructionComparison[3].length="+reconstructionComparison[3].length);
 				System.out.println("reconstructionComparison[4].length="+reconstructionComparison[4].length);
 				String [] titles={"reconstructed","sharp-reconstructed","simulated","simulated-reconstructed","windowed original"};
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					reconstructionComparison,
     					corrFFTSize,
     					corrFFTSize,
@@ -4753,7 +4753,7 @@ public class PixelMapping {
         			String [] titles={"corr","first","second"};
         			debugCorr[0]=corr[0];
 
-        			(new ShowDoubleFloatArrays()).showArrays(
+        			ShowDoubleFloatArrays.showArrays(
         					debugCorr,
         					corrFFTSize,
         					corrFFTSize,
@@ -4866,7 +4866,7 @@ public class PixelMapping {
     			System.out.println();
 
     	   		if (debugLevel>2){
-    					(new ShowDoubleFloatArrays()).showArrays(
+    					ShowDoubleFloatArrays.showArrays(
     								window,
     								doubleSize,
     								doubleSize,
@@ -4895,7 +4895,7 @@ public class PixelMapping {
     						xc[iImg] , //xc,
     						yc[iImg]); //yc);
     				if (debugLevel>2) {
-    					(new ShowDoubleFloatArrays()).showArrays(
+    					ShowDoubleFloatArrays.showArrays(
 								slice,
 								doubleSize,
 								doubleSize,
@@ -4951,7 +4951,7 @@ public class PixelMapping {
     				titles[i]=img[i%img.length]+channelNames[channels[i/img.length]];
     			}
     			int resultSize=doubleSizeOutput?doubleSize:size;
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 								result,
 								resultSize,
 								resultSize,
@@ -5362,7 +5362,7 @@ public class PixelMapping {
         		this.centerPixelsFatZero=fatZero;
         		this.syntheticPixels=null; // invalidate
         		if (debugLevel>2){
-        			(new ShowDoubleFloatArrays()).showArrays(
+        			ShowDoubleFloatArrays.showArrays(
         					this.centerPixels,
         					this.impDisparity.getWidth(),
         					this.centerPixels.length/this.impDisparity.getWidth(),
@@ -6193,7 +6193,7 @@ public class PixelMapping {
     			}
     			int [] borderMask=zTile.getBorderMask();
     			if (debugLevel>4){
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						borderMask,
 						size,
 						size,
@@ -6260,7 +6260,7 @@ public class PixelMapping {
 							debugTitles[index]=channelNames[i/2+1]+"-"+sImg;
 							debugData[index++]=slices[sIndex][i][1];
 						}
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								debugData,
 								size,
 								size,
@@ -6328,7 +6328,7 @@ public class PixelMapping {
 //    							if (variance[sIndex][1][index]==null) System.out.println("variance["+sIndex+"][1]["+index+"]==null");
     							index++;
     						}
-    						(new ShowDoubleFloatArrays()).showArrays(
+    						ShowDoubleFloatArrays.showArrays(
     								debugData,
     								size,
     								size,
@@ -6465,7 +6465,7 @@ public class PixelMapping {
     				if (debugLevel>3){
 						float [][] debugData={aux2,aux3,aux4,aux5,aux6,aux0};
 						String [] debugTitles={"var","pair","this","occl","dvar","disp"};
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								debugData,
 								paddedSize,
 								paddedSize,
@@ -6576,7 +6576,7 @@ public class PixelMapping {
     				if (debugLevel>3){
 						float [][] debugData={aux1,aux7,aux8,aux9,aux10};
 						String [] debugTitles={"rslt","other","average","first","second"};
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								debugData,
 								paddedSize,
 								paddedSize,
@@ -6853,7 +6853,7 @@ public class PixelMapping {
     						debugData[index++]=slices[i][1];
     					}
     					String title="slice_"+tileX+"-"+tileY+"_"+nImg+"-"+sImg;
-    					(new ShowDoubleFloatArrays()).showArrays(
+    					ShowDoubleFloatArrays.showArrays(
     							debugData,
     							size,
     							size,
@@ -6951,7 +6951,7 @@ public class PixelMapping {
     								debugData[3][i]=((bDiff[i1]/variance[i1])>zMapVarThresholds[chn])?-1.0:1.0;
     								debugData[4][i]=zTile.isEnabledForegroundPixel(i)?-1.0:1.0;
     							}
-    							(new ShowDoubleFloatArrays()).showArrays(
+    							ShowDoubleFloatArrays.showArrays(
     									debugData,
     									size,
     									size,
@@ -6965,7 +6965,7 @@ public class PixelMapping {
     					} else { // aux channel
     						for (int i=0;i<length;i++) 	bDiff[i]=pair[0][i]*pair[1][i];
     						if (debugLevel>3){ // +2 for selected tile
-    							(new ShowDoubleFloatArrays()).showArrays(
+    							ShowDoubleFloatArrays.showArrays(
     									bDiff,
     									size,
     									size,
@@ -7311,7 +7311,7 @@ public class PixelMapping {
         				}
         			}
 					if (debugLevel>2){ // one per thread
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								window,
 								size,
 								size,
@@ -7345,7 +7345,7 @@ public class PixelMapping {
         							filterByDisabled?disparityTolearnce:Double.NaN,
         							debugLevel);
         					if (debugLevel>5){
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								bMask,
         								paddedSize,
         								paddedSize,
@@ -7368,7 +7368,7 @@ public class PixelMapping {
         								0.01);
         					}
         					if (debugLevel>5){
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								thisEnabledMask,
         								size,
         								size,
@@ -7401,7 +7401,7 @@ public class PixelMapping {
         								filterByDisabled?disparityTolearnce:Double.NaN,
         								debugLevel);
             					if (debugLevel>5){
-            						(new ShowDoubleFloatArrays()).showArrays(
+            						ShowDoubleFloatArrays.showArrays(
             								otherNonOccluded,
             								paddedSize,
             								paddedSize,
@@ -7425,7 +7425,7 @@ public class PixelMapping {
         									0.01);
         						}
             					if (debugLevel>5){
-            						(new ShowDoubleFloatArrays()).showArrays(
+            						ShowDoubleFloatArrays.showArrays(
             								pairEnabledMask[sIndex],
             								size,
             								size,
@@ -7469,7 +7469,7 @@ public class PixelMapping {
         							debugTitles[index]=channelNames[i]+"-"+sImg;
         							debugData[index++]=slices[sIndex][i][1];
         						}
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								debugData,
         								size,
         								size,
@@ -7539,7 +7539,7 @@ public class PixelMapping {
         							debugTitles[index]=channelNames[i]+"-"+sImg;
         							debugData[index++]=pairs[i-1][1];
         						}
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								debugData,
         								size,
         								size,
@@ -7589,7 +7589,7 @@ public class PixelMapping {
         							int interpolatedSize=size*refineSubPixel;
         							int interpolatedCenter=(interpolatedSize+1)*interpolatedSize/2;
         							if (debugLevel>3) {
-                						(new ShowDoubleFloatArrays()).showArrays(
+                						ShowDoubleFloatArrays.showArrays(
                 								upsampled,
                 								interpolatedSize,
                 								interpolatedSize,
@@ -7979,7 +7979,7 @@ public class PixelMapping {
         				}
         			}
 					if (debugLevel>2){ // one per thread
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								window,
 								size,
 								size,
@@ -8013,7 +8013,7 @@ public class PixelMapping {
         							filterByDisabled?disparityTolearnce:Double.NaN,
         							debugLevel);
         					if (debugLevel>5){
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								bMask,
         								paddedSize,
         								paddedSize,
@@ -8036,7 +8036,7 @@ public class PixelMapping {
         								0.01);
         					}
         					if (debugLevel>5){
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								thisEnabledMask,
         								size,
         								size,
@@ -8068,7 +8068,7 @@ public class PixelMapping {
         								filterByDisabled?disparityTolearnce:Double.NaN,
         								debugLevel);
             					if (debugLevel>5){
-            						(new ShowDoubleFloatArrays()).showArrays(
+            						ShowDoubleFloatArrays.showArrays(
             								otherNonOccluded,
             								paddedSize,
             								paddedSize,
@@ -8091,7 +8091,7 @@ public class PixelMapping {
         									0.01);
         						}
             					if (debugLevel>5){
-            						(new ShowDoubleFloatArrays()).showArrays(
+            						ShowDoubleFloatArrays.showArrays(
             								pairEnabledMask[sIndex],
             								size,
             								size,
@@ -8133,7 +8133,7 @@ public class PixelMapping {
         							debugTitles[index]=channelNames[i]+"-"+sImg;
         							debugData[index++]=slices[sIndex][i][1];
         						}
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								debugData,
         								size,
         								size,
@@ -8213,7 +8213,7 @@ public class PixelMapping {
         							debugTitles[index]=channelNames[i]+"-"+sImg;
         							debugData[index++]=pairs[i-1][1];
         						}
-        						(new ShowDoubleFloatArrays()).showArrays(
+        						ShowDoubleFloatArrays.showArrays(
         								debugData,
         								size,
         								size,
@@ -8274,7 +8274,7 @@ public class PixelMapping {
             					if (debugLevel>3){ // +2 for selected tile
             						double [][] debugData={linearMatchWeight,linearMatchWeightNorm};
             						String [] debugTitles={"LMW","Norm"};
-            						(new ShowDoubleFloatArrays()).showArrays(
+            						ShowDoubleFloatArrays.showArrays(
             								debugData,
             								size,
             								size,
@@ -8394,7 +8394,7 @@ public class PixelMapping {
             							debugTitles[index]=channelNames[i];
             							debugData[index++]=staging[i];
             						}
-            						(new ShowDoubleFloatArrays()).showArrays( //java.lang.ArrayIndexOutOfBoundsException: 0
+            						ShowDoubleFloatArrays.showArrays( //java.lang.ArrayIndexOutOfBoundsException: 0
             								debugData,
             								this.photometric.subdivAverage,
             								debugData[0].length/this.photometric.subdivAverage,
@@ -8441,7 +8441,7 @@ public class PixelMapping {
             							debugTitles[index]=channelNames[i];
             							debugData[index++]=planeStrengthChn[i];
             						}
-            						(new ShowDoubleFloatArrays()).showArrays(
+            						ShowDoubleFloatArrays.showArrays(
             								debugData,
             								size,
             								size,
@@ -8556,7 +8556,7 @@ public class PixelMapping {
                 				debugData[i+(sIndex+1)*numActivePlanes]=planeStrength[plane][sIndex];
             				}
             			}
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								debugData,
 								size,
 								size,
@@ -8792,7 +8792,7 @@ public class PixelMapping {
     				}
     			}
     			if (debugLevel>5){
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							extraBits,
 							longPaddedSize,
 							longPaddedSize,
@@ -8841,7 +8841,7 @@ public class PixelMapping {
                				disparityTolerance,
                				debugLevel);
     				int dbgSize=(int)Math.sqrt(geno.length);
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							geno,
 							dbgSize,
 							dbgSize,
@@ -8982,7 +8982,7 @@ public class PixelMapping {
         			}
         		}
     			if (debugArray!=null) {
-    				(new ShowDoubleFloatArrays()).showArrays(
+    				ShowDoubleFloatArrays.showArrays(
         					debugArray,
         					numTilesRow*tileSize,
         					numTilesRow*tileSize,
@@ -8992,7 +8992,7 @@ public class PixelMapping {
 /*
         		if (debugArray!=null){
         			String [] dbgTitles={"corr","first","second"};
-        			(new showDoubleFloatArrays()).showArrays(
+        			ShowDoubleFloatArrays.showArrays(
         					debugArray,
         					size*subPixel,
         					size*subPixel,
@@ -9093,7 +9093,7 @@ public class PixelMapping {
         			System.out.print("getShiftedSlices(): channelMask="+channelMask);
 
         	   		if (debugLevel>3){
-        					(new ShowDoubleFloatArrays()).showArrays(
+        					ShowDoubleFloatArrays.showArrays(
         								window,
         								doubleSize,
         								doubleSize,
@@ -9115,7 +9115,7 @@ public class PixelMapping {
         						xc[iImg] , //xc,
         						yc[iImg]); //yc);
         				if (debugLevel>4) {
-        					(new ShowDoubleFloatArrays()).showArrays(
+        					ShowDoubleFloatArrays.showArrays(
     								slice,
     								doubleSize,
     								doubleSize,
@@ -9127,7 +9127,7 @@ public class PixelMapping {
         				if (shiftImage[iImg]){
         					dc=normalizeAndWindowGetDC (slice, window); //windowInterpolation
             				if (debugLevel>4) {
-            					(new ShowDoubleFloatArrays()).showArrays(
+            					ShowDoubleFloatArrays.showArrays(
         								slice,
         								doubleSize,
         								doubleSize,
@@ -9137,7 +9137,7 @@ public class PixelMapping {
 //        					doubleFHT.shift(slice, dx[iImg], dy[iImg]);
         					doubleFHT.shift(slice, -dx[iImg], -dy[iImg]);
             				if (debugLevel>4) {
-            					(new ShowDoubleFloatArrays()).showArrays(
+            					ShowDoubleFloatArrays.showArrays(
         								slice,
         								doubleSize,
         								doubleSize,
@@ -10207,7 +10207,7 @@ public class PixelMapping {
             			}
 
             		}
-        			(new ShowDoubleFloatArrays()).showArrays(
+        			ShowDoubleFloatArrays.showArrays(
         					debugData,
         					this.subdivAverage,
         					subdivDifference,
@@ -10395,7 +10395,7 @@ public class PixelMapping {
 
     		if (debugArray!=null){
     			String [] dbgTitles={"corr","first","second"};
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					debugArray,
     					size*subPixel,
     					size*subPixel,
@@ -10702,7 +10702,7 @@ public class PixelMapping {
     		   									double [][] result_dbg={first_dbg,second_dbg,result.clone()};
     		   									String [] titles_dbg={"first","second","corr"};
 
-    		   									(new ShowDoubleFloatArrays()).showArrays(
+    		   									ShowDoubleFloatArrays.showArrays(
     		   											result_dbg,
     		   											corrFFTSize,
     		   											corrFFTSize,
@@ -10748,7 +10748,7 @@ public class PixelMapping {
 
     		   							}
     		   							String [] titles={"result","data","weight"};
-    		   							(new ShowDoubleFloatArrays()).showArrays(
+    		   							ShowDoubleFloatArrays.showArrays(
     		   									debugStage,
     		   									stage[0].length,
     		   									stage.length,
@@ -10894,7 +10894,7 @@ public class PixelMapping {
     		   									interpolationInput[index]=stage[iiY][iiX][0]; // data, already divided by weight TODO: OOB 272,293,288,325, ...
     		   								}
             		   						if (debugThisTile && (debugLevel>3)){
-            		   							(new ShowDoubleFloatArrays()).showArrays(
+            		   							ShowDoubleFloatArrays.showArrays(
             		   									interpolationInput,
             		   									interpolationSize,
             		   									interpolationSize,
@@ -10904,7 +10904,7 @@ public class PixelMapping {
     		   								// normalize and save DC
     		   								double dc=normalizeAndWindowGetDC (interpolationInput, windowInterpolation);
             		   						if (debugThisTile && (debugLevel>3)){
-            		   							(new ShowDoubleFloatArrays()).showArrays(
+            		   							ShowDoubleFloatArrays.showArrays(
             		   									interpolationInput,
             		   									interpolationSize,
             		   									interpolationSize,
@@ -10915,7 +10915,7 @@ public class PixelMapping {
     		   								if (interpolationFHT==null) interpolationFHT=new DoubleFHT();
     		   								double [] upsampled=interpolationFHT.upsample(interpolationInput,interpolationUpSample); // add scalind to upsample()
             		   						if (debugThisTile && (debugLevel>3)){
-            		   							(new ShowDoubleFloatArrays()).showArrays(
+            		   							ShowDoubleFloatArrays.showArrays(
             		   									upsampled,
             		   									interpolationSize*interpolationUpSample,
             		   									interpolationSize*interpolationUpSample,
@@ -10928,7 +10928,7 @@ public class PixelMapping {
     		   									upsampled[i]=upsampled[i]*iWindowUpSample[i]+dc;
     		   								}
             		   						if (debugThisTile){
-            		   							(new ShowDoubleFloatArrays()).showArrays(
+            		   							ShowDoubleFloatArrays.showArrays(
             		   									upsampled,
             		   									interpolationSize*interpolationUpSample,
             		   									interpolationSize*interpolationUpSample,
@@ -11140,7 +11140,7 @@ public class PixelMapping {
     				for (int i=0;i<titles.length;i++){
     					titles[i]=titles0[i%titles0.length]+(i/titles0.length);
     				}
-    			(new ShowDoubleFloatArrays()).showArrays( // skip if any are zeros?
+    			ShowDoubleFloatArrays.showArrays( // skip if any are zeros?
     					selection,
     					corrFFTSize,
     					corrFFTSize,
@@ -11207,7 +11207,7 @@ public class PixelMapping {
     				if ((debugLevel>2) && (l==1)){
     					double [][] firstSecond={first,second};
     					String [] firstSecondTitles={"first","second"};
-    					(new ShowDoubleFloatArrays()).showArrays(
+    					ShowDoubleFloatArrays.showArrays(
     							firstSecond,
     							corrFFTSize,
     							corrFFTSize,
@@ -11304,7 +11304,7 @@ public class PixelMapping {
 
     		if (debugLevel>1){
     			String [] titles={"Alpha1","Y1","Cb1","Cr1","Alpha2","Y2","Cb2","Cr2"};
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
     					selection,
     					corrFFTSize,
     					corrFFTSize,
@@ -11332,7 +11332,7 @@ public class PixelMapping {
     			double [] second=selection[i+1+numLayers].clone();
     			normalizeAndWindow(first, window[0],true);
         		if ((debugLevel>2) && (i==0)){
-        			(new ShowDoubleFloatArrays()).showArrays(
+        			ShowDoubleFloatArrays.showArrays(
         					first,
         					corrFFTSize,
         					corrFFTSize,
@@ -13325,7 +13325,7 @@ public class PixelMapping {
 					float [] fEdge=new float [length];
 					for (int i=0;i<length;i++) fEdge[i]=stage[i];
 
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							fEdge,
 							imageWidth,
 							length/imageWidth,

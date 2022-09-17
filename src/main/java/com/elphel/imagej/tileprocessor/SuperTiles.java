@@ -183,8 +183,7 @@ public class SuperTiles{
 				dbg_img[2 * i] =     measuredLayers.getDisparity(i);
 				dbg_img[2 * i + 1] = measuredLayers.getStrength(i);
 			}
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-			sdfa_instance.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
 		}
 	}
 	public TileProcessor getTileProcessor(){
@@ -282,8 +281,7 @@ public class SuperTiles{
 					fuse_coeff[5][0],fuse_coeff[5][1],
 					fuse_coeff[6][0],fuse_coeff[6][1],
 					fuse_coeff[7][0],fuse_coeff[7][1]};
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(dbg_img, superTileSize, superTileSize, true, "fuse_coeff",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img, superTileSize, superTileSize, true, "fuse_coeff",titles);
 		}
 	}
 
@@ -1030,10 +1028,9 @@ public class SuperTiles{
 		ImageDtt.startAndJoin(threads);
 		final double [][] bgDispStrength = {bgDisparity, bgStrength};
 		if (globalDebugLevel > 0) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			final int stilesX = (tileProcessor.getTilesX() + superTileSize -1)/superTileSize;
 			final int stilesY = (tileProcessor.getTilesY()  + superTileSize -1)/superTileSize;
-			sdfa_instance.showArrays(bgDispStrength, stilesX, stilesY, true, "bgDispStrength");
+			ShowDoubleFloatArrays.showArrays(bgDispStrength, stilesX, stilesY, true, "bgDispStrength");
 		}
 		return bgDispStrength;
 	}
@@ -1641,10 +1638,9 @@ public class SuperTiles{
 								if (dl>2) {
 									String [] dbg_titles = showSupertileSeparationTitles( plane_disp_strength[nsTile], null);
 									double [][] dbg_img = showSupertileSeparation(false, plane_disp_strength[nsTile], null); // plane_sels);
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_original_disp"+nsTile,dbg_titles);
+									ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_original_disp"+nsTile,dbg_titles);
 									dbg_img = showSupertileSeparation(true, plane_disp_strength[nsTile], null); // plane_sels);
-									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_original_world"+nsTile,dbg_titles);
+									ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_original_world"+nsTile,dbg_titles);
 								}
 								plane_disp_strength[nsTile] = pd0.getDisparityToPlane(
 										world_plane_norm, // double []     world_normal_xyz,
@@ -1655,10 +1651,9 @@ public class SuperTiles{
 								if (dl>2) {
 									String [] dbg_titles = showSupertileSeparationTitles( plane_disp_strength[nsTile], null);
 									double [][] dbg_img = showSupertileSeparation(false, plane_disp_strength[nsTile], null); // plane_sels);
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_disp"+nsTile,dbg_titles);
+									ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_disp"+nsTile,dbg_titles);
 									dbg_img = showSupertileSeparation(true, plane_disp_strength[nsTile], null); // plane_sels);
-									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_world"+nsTile,dbg_titles);
+									ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "plane_separation_world"+nsTile,dbg_titles);
 								}
 							} else {
 								plane_disp_strength[nsTile] = null;
@@ -1819,7 +1814,7 @@ public class SuperTiles{
 										}
 									}
 								}
-								(new ShowDoubleFloatArrays()).showArrays(dbg_img, stSize2, stSize2, true,
+								ShowDoubleFloatArrays.showArrays(dbg_img, stSize2, stSize2, true,
 										"sel-"+nsTile+"-"+suffix,dbg_titles);
 							}
 
@@ -2084,7 +2079,7 @@ public class SuperTiles{
 						disp_str[ml][0],
 						strength,
 						disp_str[ml][1]};
-				(new ShowDoubleFloatArrays()).showArrays(dbg_img, stSize2, stSize2, true, "disp_blured",dbg_titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img, stSize2, stSize2, true, "disp_blured",dbg_titles);
 				System.out.println("getHighestPlaneSelection() done");
 			}
 
@@ -2366,10 +2361,9 @@ public class SuperTiles{
 							if (dl > 3) {
 								String [] dbg_titles = showSupertileSeparationTitles( disp_strength, plane_sels);
 								double [][] dbg_img = showSupertileSeparation(false,disp_strength, plane_sels);
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-								sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "disp_clusterize_disp"+nsTile+"-"+debugLevel,dbg_titles);
+								ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "disp_clusterize_disp"+nsTile+"-"+debugLevel,dbg_titles);
 								dbg_img = showSupertileSeparation(true, disp_strength, plane_sels);
-								sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "disp_clusterize_world"+nsTile+"-"+debugLevel,dbg_titles);
+								ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "disp_clusterize_world"+nsTile+"-"+debugLevel,dbg_titles);
 							}
 							plane_selections[nsTile] = plane_sels;
 						}
@@ -2556,8 +2550,7 @@ public class SuperTiles{
 			for (int i = 0; i < dbg_sel.length; i++){
 				dbg_img[10][i] = ((dbg_sel == null) || dbg_sel[i])? 1.0:0.0;
 			}
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-			sdfa_instance.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
 		}
 
 //		double [] world_hor = {0.0, 1.0, 0.0};
@@ -2618,8 +2611,7 @@ public class SuperTiles{
 			if (show_histograms && (debugLevel > 0)) {
 				int hist_width0 =  showDisparityHistogramWidth();
 				int hist_height0 = dbg_hist[0].length/hist_width0;
-				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-				sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "vert_hor_histograms_"+pass,dbg_hist_titles);
+				ShowDoubleFloatArrays.showArrays(dbg_hist, hist_width0, hist_height0, true, "vert_hor_histograms_"+pass,dbg_hist_titles);
 			}
 			// try to independently (same selections) clusterize both ways
 			if (debugLevel > 0){
@@ -3216,10 +3208,9 @@ public class SuperTiles{
 									if (dl > 2) {
 										String [] dbg_titles = showSupertileSeparationTitles( disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
 										double [][] dbg_img =  showSupertileSeparation(false, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
-										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-										sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "pre_bridge_disp-"+nsTile+"-"+debugLevel,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "pre_bridge_disp-"+nsTile+"-"+debugLevel,dbg_titles);
 										dbg_img =  showSupertileSeparation(true, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
-										sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "pre_bridge_world-"+nsTile+"-"+debugLevel,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "pre_bridge_world-"+nsTile+"-"+debugLevel,dbg_titles);
 									}
 
 									st_planes = pd0.createTilePlanesFromSelections(
@@ -3265,10 +3256,9 @@ public class SuperTiles{
 								if (dl > 3) { // 2) {
 									String [] dbg_titles = showSupertileSeparationTitles( disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
 									double [][] dbg_img =  showSupertileSeparation(false, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_disp-"+nsTile+"-"+debugLevel,dbg_titles);
+									ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_disp-"+nsTile+"-"+debugLevel,dbg_titles);
 									dbg_img =  showSupertileSeparation(true, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
-									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_world-"+nsTile+"-"+debugLevel,dbg_titles);
+									ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_world-"+nsTile+"-"+debugLevel,dbg_titles);
 									System.out.println("createPlanesFromSelections(): disp_strength["+nsTile+"][0][0]:");
 									for (int iy = 0; iy < 2 * superTileSize; iy++){
 										for (int ix = 0; ix < 2 * superTileSize; ix++){
@@ -6533,11 +6523,10 @@ public class SuperTiles{
 										}
 									}
 									if (debug) {
-										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-										sdfa_instance.showArrays(dbg_img, superTileSize, superTileSize, true, "plane_"+nsTile,dbg_titles);
-										sdfa_instance.showArrays(dbg_img3, 3*superTileSize, 3*superTileSize, true, "plane3_"+nsTile,dbg_titles);
-										sdfa_instance.showArrays(dbg_this, superTileSize, superTileSize, true, "weights_this_"+nsTile,dbg_titles);
-										sdfa_instance.showArrays(dbg_other, superTileSize, superTileSize, true, "weights_other_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_img, superTileSize, superTileSize, true, "plane_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_img3, 3*superTileSize, 3*superTileSize, true, "plane3_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_this, superTileSize, superTileSize, true, "weights_this_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_other, superTileSize, superTileSize, true, "weights_other_"+nsTile,dbg_titles);
 									}
 									double [] plane_other = planes[nsTile][np].getSinglePlaneDisparity(false);
 									for (int i = 0; i < weight_this.length; i++){
@@ -6699,11 +6688,10 @@ public class SuperTiles{
 										}
 									}
 									if (debug) {
-										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-										sdfa_instance.showArrays(dbg_img, superTileSize, superTileSize, true, "plane_"+nsTile,dbg_titles);
-										sdfa_instance.showArrays(dbg_img3, 3*superTileSize, 3*superTileSize, true, "plane3_"+nsTile,dbg_titles);
-										sdfa_instance.showArrays(dbg_this, superTileSize, superTileSize, true, "weights_this_"+nsTile,dbg_titles);
-										sdfa_instance.showArrays(dbg_other, superTileSize, superTileSize, true, "weights_other_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_img, superTileSize, superTileSize, true, "plane_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_img3, 3*superTileSize, 3*superTileSize, true, "plane3_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_this, superTileSize, superTileSize, true, "weights_this_"+nsTile,dbg_titles);
+										ShowDoubleFloatArrays.showArrays(dbg_other, superTileSize, superTileSize, true, "weights_other_"+nsTile,dbg_titles);
 									}
 									double [] plane_other = planes[nsTile][np].getSinglePlaneDisparity(false);
 									for (int i = 0; i < weight_this.length; i++){
@@ -7387,8 +7375,7 @@ public class SuperTiles{
 										// actually show the image
 
 										if (debugLevel > -1){
-											ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-											sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2 * superTileSize, true, "replaceBrokenPlanes"+stx+"_y"+sty+"_p"+np, dbg_titles);
+											ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2 * superTileSize, true, "replaceBrokenPlanes"+stx+"_y"+sty+"_p"+np, dbg_titles);
 										}
 									}
 								}
@@ -7702,8 +7689,7 @@ public class SuperTiles{
 													// TODO save gain from splitting to planes
 
 													if (debugLevel > 3){
-														ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-														sdfa_instance.showArrays(dbg_img, 3*superTileSize, 3*superTileSize, true, "breakPlanesToPairs"+stx0+"_y"+sty0+"_p"+np0, titles);
+														ShowDoubleFloatArrays.showArrays(dbg_img, 3*superTileSize, 3*superTileSize, true, "breakPlanesToPairs"+stx0+"_y"+sty0+"_p"+np0, titles);
 													}
 												}
 											}

@@ -141,7 +141,7 @@ public class DenseCorrespondence {
 				}
 			}
 			if (debugLevel>2){ // one per thread
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						window,
 						size,
 						size,
@@ -192,7 +192,7 @@ public class DenseCorrespondence {
 				}
 			}
 			if (debugLevel>5){
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						visibility, // TODO: add slice names
 						paddedSize,
 						paddedSize,
@@ -318,7 +318,7 @@ public class DenseCorrespondence {
 				debugTitles[iChn*imgList.length+nImg]=channelNames[channelIndex[iChn]]+"-"+nImg;
 				debugData[iChn*imgList.length+nImg]=imageTiles[nImg][iChn];
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugData,
 					scaledSize,
 					scaledSize,
@@ -371,7 +371,7 @@ public class DenseCorrespondence {
 				debugTitles[channelIndex.length*imgList.length+nImg]="v-mask-"+nImg;
 				debugData[channelIndex.length*imgList.length+nImg]=visibilityMask[nImg];
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugData,
 					scaledSize,
 					scaledSize,
@@ -460,7 +460,7 @@ public class DenseCorrespondence {
 						debugTitles[iChn+1]=channelNames[channelIndex[iChn]];
 						debugData[iChn+1]=corr[iChn];
 					}
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							debugData,
 							scaledSize,
 							scaledSize,
@@ -488,7 +488,7 @@ public class DenseCorrespondence {
 					int interpolatedSize=scaledSize*refineUpsampleExtra;
 					int interpolatedCenter=(interpolatedSize+1)*interpolatedSize/2;
 					if (debugLevel>3) { // show upsampled combined for all channels) correlation for enabled pairs
-						(new ShowDoubleFloatArrays()).showArrays(
+						ShowDoubleFloatArrays.showArrays(
 								upsampled,
 								interpolatedSize,
 								interpolatedSize,
@@ -861,7 +861,7 @@ public class DenseCorrespondence {
 			System.out.print("getImageTile()");
 
 			if (debugLevel>3){
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						window,
 						size,
 						size,
@@ -886,7 +886,7 @@ public class DenseCorrespondence {
 					ixc , //xc,
 					iyc); //yc);
 			if (debugLevel>4) {
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						sliceTile,
 						size,
 						size,
@@ -897,7 +897,7 @@ public class DenseCorrespondence {
 			if (shift || scale){
 				dc=normalizeAndWindowGetDC (sliceTile, window); //windowInterpolation
 				if (debugLevel>4) {
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							sliceTile,
 							size,
 							size,
@@ -906,7 +906,7 @@ public class DenseCorrespondence {
 
 				result[chn]=doubleFHT.shift(sliceTile, subpixel, -dxc, -dyc);
 				if (debugLevel>4) {
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							sliceTile,
 							size,
 							size,
@@ -1866,7 +1866,7 @@ public class DenseCorrespondence {
 				}
 
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					debugData,
 					this.subdivAverage,
 					subdivDifference,

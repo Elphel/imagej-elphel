@@ -72,7 +72,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
    JP46_Reader_camera JP4_INSTANCE=null;
 
 //   private deBayerScissors debayer_instance;
-   private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
+//   private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
    private DoubleFHT             FHT_INSTANCE;
    static Frame instance;
    static Properties PROPERTIES=new Properties();
@@ -354,7 +354,6 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
 	   GUI.center(this);
 	   setVisible(true);
 	   FHT_INSTANCE=       new DoubleFHT();
-	   SDFA_INSTANCE=      new ShowDoubleFloatArrays();
    }
    void addButton(String label, Panel panel) {
     Button b = new Button(label);
@@ -442,7 +441,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
                                                 THREADS_MAX, // number of image pixels/ sensor pixels (each direction) == 2
                                                 UPDATE_STATUS);// update status info
 	  if (PROCESS_PARAMETERS.showDebayerEnergy) {
-		  SDFA_INSTANCE.showArrays (DEBAYER_ENERGY,DEBAYER_ENERGY_WIDTH,DEBAYER_ENERGY.length/DEBAYER_ENERGY_WIDTH, "Debayer-Energy");
+		  ShowDoubleFloatArrays.showArrays (DEBAYER_ENERGY,DEBAYER_ENERGY_WIDTH,DEBAYER_ENERGY.length/DEBAYER_ENERGY_WIDTH, "Debayer-Energy");
 	  }
 
       ImagePlus imp_debyrStack = new ImagePlus(imp_src.getTitle()+"-DeBayer", imageStack);
@@ -532,7 +531,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
                     							  UPDATE_STATUS); // update status info
                                                   
 	  if (PROCESS_PARAMETERS.showDenoiseMask) {
-		  SDFA_INSTANCE.showArrays (DENOISE_MASK,DENOISE_MASK_WIDTH,DENOISE_MASK.length/DENOISE_MASK_WIDTH, "mask");
+		  ShowDoubleFloatArrays.showArrays (DENOISE_MASK,DENOISE_MASK_WIDTH,DENOISE_MASK.length/DENOISE_MASK_WIDTH, "mask");
 	  }
 
       ImagePlus imp_stack_combo = new ImagePlus(imp_convolved.getTitle()+"combo-rgb", stack_combo);
@@ -581,7 +580,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
       imp_convolved.getProcessor().resetMinAndMax();
       imp_convolved.updateAndDraw();
 
-      SDFA_INSTANCE.showImageStackThree(stack_convolved, imp_convolved.getTitle()+"restored_rgb");
+      ShowDoubleFloatArrays.showImageStackThree(stack_convolved, imp_convolved.getTitle()+"restored_rgb");
       return;
 /* ======================================================================== */
     } else if (label.equals("Test")) {
@@ -627,17 +626,17 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
       for (i=0;i<DEBAYER_PARAMETERS.size;i++) for (j=0;j<DEBAYER_PARAMETERS.size;j++) pixels_debayer[0][i*DEBAYER_PARAMETERS.size+j]=fpixels_debayer[debayer_base+i*debayer_width+j];
       pixels_debayer[1]=pixels_debayer[0].clone();
       pixels_debayer[2]=pixels_debayer[0].clone();
-      SDFA_INSTANCE.showArrays(pixels_debayer[0],  "original");
+      ShowDoubleFloatArrays.showArrays(pixels_debayer[0],  "original");
 
       pixels_debayer= normalizeAndWindow (pixels_debayer, initWindowFunction((int)Math.sqrt(pixels_debayer[1].length)),false);
       pixels_debayer=extendFFTInputTo (pixels_debayer, DEBAYER_PARAMETERS.size);
-      if (DEBUG_LEVEL>2)   SDFA_INSTANCE.showArrays(pixels_debayer[0],  "wnd-orig");
+      if (DEBUG_LEVEL>2)   ShowDoubleFloatArrays.showArrays(pixels_debayer[0],  "wnd-orig");
       for (i=0;i<DEBAYER_PARAMETERS.size;i++) for (j=0;j<DEBAYER_PARAMETERS.size;j++) {
         pixels_debayer[1][i*DEBAYER_PARAMETERS.size+j]*= ((((i % PSF_SUBPIXEL_SHOULD_BE_4)==0) && ((j % PSF_SUBPIXEL_SHOULD_BE_4)==0 )) || (((i % PSF_SUBPIXEL_SHOULD_BE_4)==(PSF_SUBPIXEL_SHOULD_BE_4/2)) && ((j % PSF_SUBPIXEL_SHOULD_BE_4)==(PSF_SUBPIXEL_SHOULD_BE_4/2) )))?1.0:0.0;
         pixels_debayer[0][i*DEBAYER_PARAMETERS.size+j]*=  (((i % PSF_SUBPIXEL_SHOULD_BE_4)==0) && ((j % PSF_SUBPIXEL_SHOULD_BE_4)==(PSF_SUBPIXEL_SHOULD_BE_4/2) ))?1.0:0.0;
         pixels_debayer[2][i*DEBAYER_PARAMETERS.size+j]*=  (((i % PSF_SUBPIXEL_SHOULD_BE_4)==(PSF_SUBPIXEL_SHOULD_BE_4/2)) && ((j % PSF_SUBPIXEL_SHOULD_BE_4)==0 ))?1.0:0.0;
       }
-      if (DEBUG_LEVEL>1)   SDFA_INSTANCE.showArrays(pixels_debayer,  DEBAYER_PARAMETERS.debayerStacks, "mosaic");
+      if (DEBUG_LEVEL>1)   ShowDoubleFloatArrays.showArrays(pixels_debayer,  DEBAYER_PARAMETERS.debayerStacks, "mosaic");
 /* swap quadrants and perform FHT */
       double [][] amps=null;
       if (DEBUG_LEVEL>1)  amps=new double[3][];
@@ -679,14 +678,14 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
       FHT_INSTANCE.inverseTransform(pixels_debayer[2]);
       FHT_INSTANCE.swapQuadrants(pixels_debayer[2]);
 
-      SDFA_INSTANCE.showArrays(pixels_debayer,  DEBAYER_PARAMETERS.debayerStacks, "filtered");
+      ShowDoubleFloatArrays.showArrays(pixels_debayer,  DEBAYER_PARAMETERS.debayerStacks, "filtered");
 
 /* Swap quadrants in masks and display them */
       if (DEBUG_LEVEL>1){
         FHT_INSTANCE.swapQuadrants(green_mask);
         FHT_INSTANCE.swapQuadrants(red_blue_mask);
-        SDFA_INSTANCE.showArrays(green_mask,    "G-mask");
-        SDFA_INSTANCE.showArrays(red_blue_mask, "RB-mask");
+        ShowDoubleFloatArrays.showArrays(green_mask,    "G-mask");
+        ShowDoubleFloatArrays.showArrays(red_blue_mask, "RB-mask");
         if (amps!=null) {
 /**normalize amplitudes, apply gamma */
           double dmax=0.0;
@@ -695,13 +694,13 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
             dmax=1.0/dmax;
             for (j=0;j<amps[i].length;j++) amps[i][j]= Math.pow(amps[i][j]*dmax,DEBAYER_PARAMETERS.debayerGamma);
           }
-          SDFA_INSTANCE.showArrays(amps,  DEBAYER_PARAMETERS.debayerStacks,"PWR");
+          ShowDoubleFloatArrays.showArrays(amps,  DEBAYER_PARAMETERS.debayerStacks,"PWR");
           for(i=0;i<amps[1].length;i++){
              amps[1][i]*=green_mask[i];
              amps[0][i]*=red_blue_mask[i];
              amps[2][i]*=red_blue_mask[i];
           }
-          SDFA_INSTANCE.showArrays(amps,  DEBAYER_PARAMETERS.debayerStacks, "PWR-MSK");
+          ShowDoubleFloatArrays.showArrays(amps,  DEBAYER_PARAMETERS.debayerStacks, "PWR-MSK");
        }
       }
       return;
@@ -1673,7 +1672,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 						  updateStatus);// update status info
 				  if (processParameters.saveDebayerEnergy || processParameters.showDebayerEnergy) {
 					  if (DEBAYER_ENERGY!=null) {
-						  ImagePlus debayerMask=SDFA_INSTANCE.makeArrays (DEBAYER_ENERGY,
+						  ImagePlus debayerMask=ShowDoubleFloatArrays.makeArrays (DEBAYER_ENERGY,
 								  DEBAYER_ENERGY_WIDTH,
 								  DEBAYER_ENERGY.length/DEBAYER_ENERGY_WIDTH,
 								  title+"-DEBAYER-ENERGY");
@@ -1775,7 +1774,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 								  threadsMax,
 								  updateStatus); // update status info
 						  if (processParameters.saveDenoiseMask || processParameters.showDenoiseMask) {
-							  ImagePlus denoiseMask=SDFA_INSTANCE.makeArrays (DENOISE_MASK,
+							  ImagePlus denoiseMask=ShowDoubleFloatArrays.makeArrays (DENOISE_MASK,
 									  DENOISE_MASK_WIDTH,
 									  DENOISE_MASK.length/DENOISE_MASK_WIDTH,
 									  title+"-MASK");
@@ -1865,7 +1864,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 					  }
 					  continue;
 				  }
-      SDFA_INSTANCE.showImageStack(stack, "processColorsWeights-RBG");
+      ShowDoubleFloatArrays.showImageStack(stack, "processColorsWeights-RBG");
 				  //Processing colors - changing stack sequence to r-g-b (was r-b-g)
 				  if (!fixSliceSequence (stack)){
 					  if(!saveResult) {
@@ -1877,8 +1876,8 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 				  }
 				  
 // Debugging				  
-//      SDFA_INSTANCE.showImageStackThree(stack, "processColorsWeights");
-      SDFA_INSTANCE.showImageStack(stack, "processColorsWeights-RGB");
+//      ShowDoubleFloatArrays.showImageStackThree(stack, "processColorsWeights");
+      ShowDoubleFloatArrays.showImageStack(stack, "processColorsWeights-RGB");
 				  
 				  processColorsWeights(stack,
 						  255.0/PSF_SUBPIXEL_SHOULD_BE_4/PSF_SUBPIXEL_SHOULD_BE_4,
@@ -1890,7 +1889,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 				  if (DEBUG_LEVEL>1) System.out.println("Processed colors to YPbPr, total number of slices="+stack.getSize());
 // Show/save color denoise mask				  
 				  if ((processParameters.saveChromaDenoiseMask || processParameters.showChromaDenoiseMask) && (DENOISE_MASK_CHROMA!=null)) {
-					  ImagePlus chromaDenoiseMask=SDFA_INSTANCE.makeArrays (DENOISE_MASK_CHROMA,
+					  ImagePlus chromaDenoiseMask=ShowDoubleFloatArrays.makeArrays (DENOISE_MASK_CHROMA,
 							  DENOISE_MASK_CHROMA_WIDTH,
 							  DENOISE_MASK_CHROMA.length/DENOISE_MASK_CHROMA_WIDTH,
 							  title+"-MASK_CHROMA");
@@ -2303,7 +2302,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 //					  for (i=0;i<doubleKernel.length;i++) debug_sum+=doubleKernel[i];
 //					  if (MASTER_DEBUG_LEVEL>1) System.out.println("kernel sum="+debug_sum);
 					  
-					  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
+					  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  ShowDoubleFloatArrays.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
 					  /* FHT transform of the kernel */
 					  fht_instance.swapQuadrants(doubleKernel);
 					  fht_instance.transform(    doubleKernel);
@@ -2313,7 +2312,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 					  fht_instance.inverseTransform(outTile);
 					  fht_instance.swapQuadrants(outTile);
 					  /* accumulate result */
-					  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(outTile,size,size, "out-"+chn);
+					  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  ShowDoubleFloatArrays.showArrays(outTile,size,size, "out-"+chn);
 					  /*This is synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixels, but as the accumulation
 					   * takes just small fraction of severtal FHTs, it should be OK - reasonable number of threads will spread and not "stay in line"
 					   */
@@ -2518,7 +2517,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 				  int chn,tileY,tileX,i;
 				  for (chn=0;chn<nChn;chn++) pixels[chn]= (float[]) imageStack.getPixels(chn+1);
 				  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
-				  ShowDoubleFloatArrays SDFA_instance=null; // just for debugging?
+//				  ShowDoubleFloatArrays SDFA_instance=null; // just for debugging?
 
 				  DeBayerScissors debayer_instance=new DeBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
 						  debayerParameters.polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
@@ -2549,14 +2548,13 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 					  /* Scale green channel x0.5 as there are twice more pixels there as in red or blue. Or move it somewhere else and multiply to original range ? */
 					  for (i=0;i<tile[greenChn].length;i++) tile[greenChn][i]*=0.5;
 					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) {
-						  if (SDFA_instance==null) SDFA_instance=      new ShowDoubleFloatArrays();
-						  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "x"+(tileX*step)+"_y"+(tileY*step));
+						  ShowDoubleFloatArrays.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "x"+(tileX*step)+"_y"+(tileY*step));
 					  }
 					  for (chn=0;chn<nChn;chn++){
 						  fht_instance.swapQuadrants(tile[chn]);
 						  fht_instance.transform(tile[chn]);
 					  }
-					  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "tile-fht");
+					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) ShowDoubleFloatArrays.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "tile-fht");
 					  both_masks= debayer_instance.aliasScissors(tile[greenChn], // fht array for green, will be masked in-place
 							  debayerParameters.debayerThreshold, // no high frequencies - use default uniform filter
 							  debayerParameters.debayerGamma, // power function applied to the amplitudes before generating spectral masks
@@ -2566,9 +2564,9 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 							  debayerParameters.debayerUseScissors, // use "scissors", if false - just apply "diamond" ands "square" with DEBAYER_PARAMETERS.debayerRelativeWidthGreen and DEBAYER_PARAMETERS.debayerRelativeWidthRedblue
 							  ((tileY==yTileDebug) && (tileX==xTileDebug))?4:1);
 					  //                                               1); // internal debug level ((DEBUG_LEVEL>2) && (yTile==yTile0) && (xTile==xTile0))?3:1;
-					  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) {
-						  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "A00");
-						  SDFA_instance.showArrays (both_masks.clone(),debayerParameters.size,debayerParameters.size, "masks");
+					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) {
+						  ShowDoubleFloatArrays.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "A00");
+						  ShowDoubleFloatArrays.showArrays (both_masks.clone(),debayerParameters.size,debayerParameters.size, "masks");
 					  }
 					  if (DEBAYER_ENERGY!=null) {
 						  DEBAYER_ENERGY[tileY*tilesX+tileX]=debayer_instance.getMidEnergy();
@@ -2588,7 +2586,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 								  tileX*step, // left corner X
 								  tileY*step); // top corner Y
 					  }
-					  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "B00");
+					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) ShowDoubleFloatArrays.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "B00");
 					  
 				  }
 			  }
@@ -2762,7 +2760,6 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 				  double [] tile=        new double[size * size ];
 				  int tileY,tileX;
 				  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
-//				  showDoubleFloatArrays SDFA_instance=null; // just for debugging?
 				  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
 					  tileY = nTile /tilesX;
 					  tileX = nTile % tilesX;
@@ -2913,16 +2910,16 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 //          diffGreens[i]=d*d;
     	  diffGreens[i]=hipassPixels[i]-lopassPixels[i];
       }
-      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-nofilter");
+      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-nofilter");
       if (nonlinParameters.blurSigma>0)	{
 	   	  if (DEBUG_LEVEL>1) System.out.println ( "Applying gaussian blur to difference hi/lo pass, blurSigma="+nonlinParameters.blurSigma);
 		  gb.blurDouble(diffGreens, imgWidth, imgHeight, nonlinParameters.blurSigma, nonlinParameters.blurSigma, 0.01);
 	  }
-      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-blurred");
+      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-blurred");
       for (i=0;i<lopassPixels.length;i++) {
     	  diffGreens[i]=diffGreens[i]*diffGreens[i];
       }
-      if ((DEBUG_LEVEL>2) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(lopassPixels.clone(), imgWidth, imgHeight,"lopassPixels");
+      if ((DEBUG_LEVEL>2) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(lopassPixels.clone(), imgWidth, imgHeight,"lopassPixels");
       
       for (i=0;i<lopassPixels.length;i++) {
     	  if (max<lopassPixels[i]) max=lopassPixels[i];
@@ -2931,12 +2928,12 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 //      max*=((float) NONLIN_PARAMETERS.threshold);
 // Make threshold absolute - when (blured) intensity is below thershold, the divisor is not decreasing
       max=((float) NONLIN_PARAMETERS.threshold);
-      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-squared");
+      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-squared");
       for (i=0;i<lopassPixels.length;i++) {
         diffGreens[i]/=(float) Math.max(max,lopassPixels[i]);
       }
-//      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
-      if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
+//      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
+      if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
       if (nonlinParameters.useRejectBlocksFilter) { // use frequency domain filtering
     	  
     	  double lowpassSigmaFreq=1.0*nonlinParameters.maskFFTSize/(2*Math.PI*nonlinParameters.lowPassSigma); // low pass sigma in frequency domain
@@ -2945,7 +2942,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
     			  nonlinParameters.blockPeriod, // period (pixels) of the block artifacts to reject (32)
     			  nonlinParameters.rejectFreqSigma, // sigma of the rejection spots ( 0.0 - just zero a single point)
     			  lowpassSigmaFreq); // sigma of the low pass filter (frequency units, 0.0 - do not filter)
-    	  if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(filterFHT,"filterFHT");
+    	  if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(filterFHT,"filterFHT");
 // Extend at least by half sliding window in each direction to reduce border effect 	  
     	  diffGreens1=extendDoubleArrayForSlidingWindow(
     			  diffGreens, // input pixel array
@@ -2954,7 +2951,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
     	  int extendedWidth=  extendDimension(imgWidth, (nonlinParameters.maskFFTSize/2));
           int extendedHeight= extendDimension(imgHeight,(nonlinParameters.maskFFTSize/2));
          
-          if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens1.clone(),extendedWidth,  extendedHeight,"diffGreens-extended");
+          if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens1.clone(),extendedWidth,  extendedHeight,"diffGreens-extended");
     	  
 // run block rejection filter
     	  diffGreens1=filterMaskFromBlockArtifacts(
@@ -2965,7 +2962,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
     			  filterFHT, // filter to multiply FHT (created once for the whole filter mask)
     			  threadsMax, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
     			  updateStatus); // update status info
-          if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens1.clone(),extendedWidth,
+          if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens1.clone(),extendedWidth,
         		  extendedHeight,"diffGreens-filtered-extended");/**/
 // cut extra margins, crop to original size
     	  diffGreens1=reducedDoubleArrayAfterSlidingWindow(
@@ -2973,7 +2970,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
     			  imgWidth,  // width of the image
     			  imgHeight,
     			  nonlinParameters.maskFFTSize/2); // size of sliding step (half of the sliding window size)
-          if ((DEBUG_LEVEL>2) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens1.clone(),imgWidth,
+          if ((DEBUG_LEVEL>2) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens1.clone(),imgWidth,
         		  imgHeight,"diffGreens-filtered");
     	  if (nonlinParameters.combineBothModes) {
 //      		DoubleGaussianBlur gb=new DoubleGaussianBlur();
@@ -2989,7 +2986,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 //    		DoubleGaussianBlur gb=new DoubleGaussianBlur();
     		gb.blurDouble(diffGreens, imgWidth, imgHeight, nonlinParameters.lowPassSigma, nonlinParameters.lowPassSigma, 0.01);
       }
-      if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-filtered");
+      if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-filtered");
       
 //      final double [][]       noiseMask, // 2-d array of kernelsNoiseGain (divide mask by it)
 //      final int               noiseStep, // linear pixels per noiseMask pixels (32)
@@ -3005,7 +3002,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
         	  diffGreens[i]/=noiseMask[j][k];
           }    	  
       }
-      if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-noise");
+      if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-noise");
       if (nonlinParameters.useRingFilter) {
     	  diffGreens=ringFilter(diffGreens,            // mask to be filtered
     			  imgWidth,                            // mask width
@@ -3014,7 +3011,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
     			  nonlinParameters.overRingLimit,      // limit for the pixels in the center ring relative to the maximum in a ring
     			  nonlinParameters.ringIR,             // ring inner radius
     			  nonlinParameters.ringOR);            // ring outer radius
-          if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-ring");
+          if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-ring");
       }
    	  if (DEBUG_LEVEL>1) System.out.println ( "filtMax="+filtMax+" filtMin="+filtMin);
       d= (float) ( 1.0/(filtMax-filtMin));
@@ -3026,7 +3023,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
         }
       }
 //      if (nonlinParameters.showMask) {
-//    	  SDFA_INSTANCE.showArrays(diffGreens, imgWidth, imgHeight,"mask");
+//    	  ShowDoubleFloatArrays.showArrays(diffGreens, imgWidth, imgHeight,"mask");
 //      }
      DENOISE_MASK=diffGreens;
      DENOISE_MASK_WIDTH=imgWidth; 
@@ -3917,11 +3914,11 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     	  gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
     	  gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
           if (DEBUG_LEVEL>2) {
-        	  SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");          
+        	  ShowDoubleFloatArrays.showArrays(dmask, width, height,"dmask");          
+        	  ShowDoubleFloatArrays.showArrays(dpixels_pr, width, height,"dpixels_pr");          
+        	  ShowDoubleFloatArrays.showArrays(dpixels_pb, width, height,"dpixels_pb");          
+        	  ShowDoubleFloatArrays.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");          
+        	  ShowDoubleFloatArrays.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");          
           }
           double mp;
           double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);

@@ -45,7 +45,6 @@ public class SimulationPattern {
 	public double barraySigma=0.0;
 	public  int         debugLevel=2;
 	private DoubleGaussianBlur gb = new DoubleGaussianBlur();
-	private ShowDoubleFloatArrays SDFA_INSTANCE= new ShowDoubleFloatArrays(); // just for debugging?
 
 	public SimulationPattern (){
 		this.bPattern=null;
@@ -135,9 +134,9 @@ public class SimulationPattern {
 				}
 			}
 			// apply blur
-			if (this.debugLevel>3) SDFA_INSTANCE.showArrays(bPatternM,sizeM,sizeM, "bPatternM");
+			if (this.debugLevel>3) ShowDoubleFloatArrays.showArrays(bPatternM,sizeM,sizeM, "bPatternM");
 			this.gb.blurDouble(bPatternM,sizeM,sizeM,size*this.bPatternSigma,size*this.bPatternSigma, 0.01);
-			if (this.debugLevel>3) SDFA_INSTANCE.showArrays(bPatternM,sizeM,sizeM, "bPatternM-blured");
+			if (this.debugLevel>3) ShowDoubleFloatArrays.showArrays(bPatternM,sizeM,sizeM, "bPatternM-blured");
 			// remove margins
 			for (i=0;i<size;i++) for (j=0;j<size;j++) {
 				this.bPattern[i*size+j]= bPatternM[(i+margin)*sizeM+(j+margin)];
@@ -267,9 +266,9 @@ public class SimulationPattern {
 		// Blur barray pattern if sigma >0
 		if (this.barraySigma>0) {
 			double sigma=this.barraySigma*subdiv; //*/ 2?
-			if (this.debugLevel>3) SDFA_INSTANCE.showArrays(localBarray, "localBarray");
+			if (this.debugLevel>3) ShowDoubleFloatArrays.showArrays(localBarray, "localBarray");
 			this.gb.blurDouble(localBarray,fullSize,fullSize,sigma,sigma, 0.01);
-			if (this.debugLevel>3) SDFA_INSTANCE.showArrays(localBarray, "localBarray-blured");
+			if (this.debugLevel>3) ShowDoubleFloatArrays.showArrays(localBarray, "localBarray-blured");
 		}
 		return localBarray;
 	}
@@ -626,7 +625,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 		float [][] simArray=new float [2][];
 		simArray[0]=(new SimulationPattern(simulParameters)).combineWithCanvas(0.0,  k*width, k*height, scaledWoi,simArray0[0]);
 		simArray[1]=(new SimulationPattern(simulParameters)).combineWithCanvas(0.0,  k*width, k*height, scaledWoi,simArray0[1]);
-		if (globalDebugLevel>0) SDFA_INSTANCE.showArrays(simArray,width*k,height*k,true, "full-simulation");
+		if (globalDebugLevel>0) ShowDoubleFloatArrays.showArrays(simArray,width*k,height*k,true, "full-simulation");
 		return simArray;
 	}
 
@@ -664,7 +663,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 				threadsMax,
 				updateStatus,
 				debug_level); // debug level
-		if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(simArray,matchSimulatedPattern.getWOI().width*simulParameters.subdiv/2,matchSimulatedPattern.getWOI().height*simulParameters.subdiv/2,true, "a-simulation");
+		if (globalDebugLevel>2) ShowDoubleFloatArrays.showArrays(simArray,matchSimulatedPattern.getWOI().width*simulParameters.subdiv/2,matchSimulatedPattern.getWOI().height*simulParameters.subdiv/2,true, "a-simulation");
 		if (globalDebugLevel>1) System.out.println("Grid simulation is finished at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		return simArray;
 	}
@@ -989,7 +988,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 			}
 		}
 
-		if (this.debugLevel>2) SDFA_INSTANCE.showArrays(simul_pixels,size,size, "SIMUL");
+		if (this.debugLevel>2) ShowDoubleFloatArrays.showArrays(simul_pixels,size,size, "SIMUL");
 
 		return simul_pixels;
 	}
@@ -1071,7 +1070,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 			for (int i=0;i<simul_pixels.length;i++) s+=simul_pixels[i];
 			System.out.println("sum of pixels="+s);
 		}
-		if (this.debugLevel>2) SDFA_INSTANCE.showArrays(simul_pixels,size,size, "SIMUL");
+		if (this.debugLevel>2) ShowDoubleFloatArrays.showArrays(simul_pixels,size,size, "SIMUL");
 		return simul_pixels;
 	}
 

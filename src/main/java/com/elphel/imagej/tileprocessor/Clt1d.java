@@ -136,7 +136,7 @@ public class Clt1d {
 		  //  double dx = (yp-ym)/(2*(ym+yp+2*y0));
 
 		  String [] dbg_titles = {"first", "second", "corr"};
-		  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+		  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 				  dbg_img,
 				  n2,
 				  n2,
@@ -198,7 +198,7 @@ public class Clt1d {
 		
 		
 		if (debug) {
-			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					  new double [][] {sdata},
 					  swidth,
 					  sheight,

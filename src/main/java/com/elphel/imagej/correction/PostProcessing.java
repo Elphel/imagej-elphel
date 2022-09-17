@@ -73,7 +73,6 @@ public class PostProcessing {
 	public PixelMapping                   pixelMapping=new PixelMapping(debugLevel); // just to access PixelMapping.InterSensor
 //	public double [][][] aYCbCr=null;
 	public int [] channels;
-	private ShowDoubleFloatArrays sdfaInstance=new ShowDoubleFloatArrays(); // just for debugging?
 	public PixelMapping.InterSensor       interSensor=null;
 	public void setProperties(String prefix,Properties properties){ // currently prefix ==""
     	this.postProcessingParameters.setProperties(prefix+"POST_PROCESSING_PARAMETERS.", properties);
@@ -130,7 +129,7 @@ public class PostProcessing {
 			for (int i=0;i<titles.length;i++){
 				titles[i]=titles0[i%titles0.length]+(i/titles0.length);
 			}
-			this.sdfaInstance.showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					interSensor.overlapImages,
 					width,
 					height,
@@ -437,7 +436,7 @@ public class PostProcessing {
 			titlesSlices[i]=img[i%img.length]+channelNames[channels[i/img.length]];
 		}
 		if (debugLevel>1){
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					slices,
 					size,
 					size,
@@ -587,7 +586,7 @@ public class PostProcessing {
 			String title="DSH";
 			for (int i=0;i<numImg;i++) titleSlices+="-"+img[i];
 			titleSlices+="_D"+IJ.d2s(dd,2)+"_X"+IJ.d2s(dX,2)+"_Y"+IJ.d2s(dY,2);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					results,
 					size,
 					size,
@@ -753,7 +752,7 @@ public class PostProcessing {
 			}
 		}
 
-		this.sdfaInstance.showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				linearFeatures,
 				interSensor.mapWidth,
 				interSensor.mapHeight,
@@ -815,7 +814,7 @@ public class PostProcessing {
 			}
 		}
 //TODO: just show linearFeatures array and measure time
-		this.sdfaInstance.showArrays(
+			ShowDoubleFloatArrays.showArrays(
 				filteredFeaturesImage,
 				interSensor.mapWidth,
 				interSensor.mapHeight,

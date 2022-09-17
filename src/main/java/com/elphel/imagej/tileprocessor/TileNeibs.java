@@ -87,6 +87,11 @@ public class TileNeibs{
 		int [] xy = {indx % sizeX ,indx / sizeX};
 		return xy;
 	}
+	
+	int getX(int indx) {return indx % sizeX;};
+	
+	int getY(int indx) {return indx / sizeX;};
+	
 	int getSizeX() {
 		return sizeX;
 	}
@@ -140,7 +145,6 @@ public class TileNeibs{
 		if (dir > 8) {
 			System.out.println("getNeibIndex(): indx="+indx+", dir="+dir);
 		}
-//		switch (dir % dirs){
 		switch (dir){
 		case 0: return (y == 0) ?                                    -1 : (indx - sizeX);
 		case 1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1);
@@ -153,6 +157,45 @@ public class TileNeibs{
 		default: return indx;
 		}
 	}
+
+	public static int getDX(int dir)
+	{
+		if (dir > 8) {
+			System.out.println("getDX(): dir="+dir);
+		}
+		switch (dir){
+		case 1:
+		case 2:
+		case 3:
+			return 1;
+		case 5:
+		case 6:
+		case 7:
+			return -1;
+		default:
+			return 0;
+		}
+	}
+	
+	public static int getDY(int dir)
+	{
+		if (dir > 8) {
+			System.out.println("getDY(): dir="+dir);
+		}
+		switch (dir){
+		case 7:
+		case 0:
+		case 1:
+			return -1;
+		case 3:
+		case 4:
+		case 5:
+			return 1;
+		default:
+			return 0;
+		}
+	}
+	
 	
 
 	public static int getNumDirs(int radius) {

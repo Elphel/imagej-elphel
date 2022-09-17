@@ -26,8 +26,8 @@ import ij.process.ImageProcessor;
 
 /* For square arrays */
 
-  public void showArrays(double[][] pixels,  String title) { showArrays(pixels, false, title);}
-  public void showArrays(double[][] pixels,  boolean asStack, String title) {
+  public static void showArrays(double[][] pixels,  String title) { showArrays(pixels, false, title);}
+  public static void showArrays(double[][] pixels,  boolean asStack, String title) {
     int width=0;
     int i;
     if (pixels==null) return;
@@ -38,8 +38,8 @@ import ij.process.ImageProcessor;
     showArrays(pixels, width, width, asStack, title);
   }
 
-  public void showArrays(float[][] pixels,  String title) { showArrays(pixels, false, title);}
-  public void showArrays(float[][] pixels,  boolean asStack, String title) {
+  public static void showArrays(float[][] pixels,  String title) { showArrays(pixels, false, title);}
+  public static void showArrays(float[][] pixels,  boolean asStack, String title) {
     int width=0;
     int i;
     if (pixels==null) return;
@@ -51,7 +51,7 @@ import ij.process.ImageProcessor;
   }
 
 
-  public void showArrays(double[] pixels,  String title) {
+  public static void showArrays(double[] pixels,  String title) {
    int width;
     if (pixels!=null) {
       width=(int) Math.sqrt(pixels.length);
@@ -59,7 +59,7 @@ import ij.process.ImageProcessor;
     }
   }
 
-  public void showArrays(float[] pixels,  String title) {
+  public static void showArrays(float[] pixels,  String title) {
    int width;
     if (pixels!=null) {
       width=(int) Math.sqrt(pixels.length);
@@ -68,7 +68,7 @@ import ij.process.ImageProcessor;
   }
 
 
-  public void showArrays(double[][] pixels, int width, int height,  boolean asStack, String title) {
+  public static void showArrays(double[][] pixels, int width, int height,  boolean asStack, String title) {
     int i,j;
     if (asStack) {
       float [] fpixels;
@@ -91,7 +91,7 @@ import ij.process.ImageProcessor;
       return;
     } else showArrays(pixels, width, height, title);
   }
-  public void showArrays(double[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
+  public static void showArrays(double[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
 	    int i,j;
 	    if (pixels==null) {
 	    	System.out.println("showDoubleFloatArrays.showArrays(): - pixel array is null");
@@ -118,7 +118,7 @@ import ij.process.ImageProcessor;
 	      return;
 	    } else showArrays(pixels, width, height, titles);
 	  }
-  public void showComplex(double[][][] cpixels, String title) {
+  public static void showComplex(double[][][] cpixels, String title) {
 	  int height = cpixels.length;
 	  int width =  cpixels[0].length;
 	  double [][]pixels = new double [height*width][];
@@ -130,7 +130,7 @@ import ij.process.ImageProcessor;
 	  }
 	  showComplex(pixels, width, title);
   }
-  public void showComplex(double[][] cpixels, int width, String title) {
+  public static void showComplex(double[][] cpixels, int width, String title) {
 	  int height = cpixels.length/width;
 	  double [][]pixels = new double [2][cpixels.length];
 	  for (int i = 0; i< cpixels.length; i++) {
@@ -141,9 +141,7 @@ import ij.process.ImageProcessor;
 	  showArrays(pixels, width, height,  true, title, titles);
   }
 
-
-
-  public void showArrays(float[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
+  public static void showArrays(float[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
 	    int i,j;
 	    if (pixels == null) {
 	    	return;
@@ -162,7 +160,7 @@ import ij.process.ImageProcessor;
 	      return;
 	    } else showArrays(pixels, width, height, titles);
 	  }
-  public void showArraysSparse(double[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
+  public static void showArraysSparse(double[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
 	  int i,j;
 	  float [] fpixels;
 	  if (asStack) {
@@ -190,7 +188,7 @@ import ij.process.ImageProcessor;
 	  }
   }
 
-  public void showArraysSparse(float[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
+  public static void showArraysSparse(float[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
 	  int i,j;
 	  float [] fpixels;
 	  if (asStack) {
@@ -217,14 +215,14 @@ import ij.process.ImageProcessor;
 		  }
 	  }
   }
-  public ImageStack makeStack(double[][] pixels, int width, int height) {
+  public static ImageStack makeStack(double[][] pixels, int width, int height) {
 	  return makeStack(pixels, width,height, null);
   }
 
-  public ImageStack makeStack(double[][] pixels, int width, int height, String [] titles) {
+  public static ImageStack makeStack(double[][] pixels, int width, int height, String [] titles) {
 	  return makeStack( pixels, width, height, titles, false);
   }
-  public ImageStack makeStack(double[][] pixels, int width, int height, String [] titles, boolean noNaN) {
+  public static ImageStack makeStack(double[][] pixels, int width, int height, String [] titles, boolean noNaN) {
       float [] fpixels;
       ImageStack array_stack=new ImageStack(width,height);
       for (int i=0;i<pixels.length;i++) if (pixels[i]!=null) {
@@ -247,7 +245,7 @@ import ij.process.ImageProcessor;
       return array_stack;
   }
 
-  public ImageStack makeStack(float[][] pixels, int width, int height, String [] titles, boolean noNaN) {
+  public static ImageStack makeStack(float[][] pixels, int width, int height, String [] titles, boolean noNaN) {
       float [] fpixels;
       ImageStack array_stack=new ImageStack(width,height);
       for (int i=0;i<pixels.length;i++) if (pixels[i]!=null) {
@@ -271,7 +269,7 @@ import ij.process.ImageProcessor;
   }
 
 
-  public ImagePlus [] makeArrays(double[][] pixels, int width, int height, String title) {
+  public static ImagePlus [] makeArrays(double[][] pixels, int width, int height, String title) {
 	  int i,j;
 	  float [] fpixels;
 	  ImageProcessor[] ip= new ImageProcessor[pixels.length];
@@ -286,7 +284,7 @@ import ij.process.ImageProcessor;
 	  } else imp[i]=null;
 	  return imp;
   }
-  public ImagePlus makeArrays(double[][] pixels, int width, int height,  String title, String [] titles) {
+  public static ImagePlus makeArrays(double[][] pixels, int width, int height,  String title, String [] titles) {
 	  int i,j;
 	  if (pixels==null) {
 		  System.out.println("showDoubleFloatArrays.makeArrays(): - pixel array is null");
@@ -309,7 +307,7 @@ import ij.process.ImageProcessor;
 	  return null;
   }
 
-  public ImagePlus [] makeArrays(double[][] pixels, int width, int height, String [] titles) {
+  public static ImagePlus [] makeArrays(double[][] pixels, int width, int height, String [] titles) {
 	  int i,j;
 	  float [] fpixels;
 	  ImageProcessor[] ip= new ImageProcessor[pixels.length];
@@ -324,7 +322,7 @@ import ij.process.ImageProcessor;
 	  } else imp[i]=null;
 	  return imp;
   }
-  public ImagePlus [] makeArrays(float[][] pixels, int width, int height, String [] titles) {
+  public static ImagePlus [] makeArrays(float[][] pixels, int width, int height, String [] titles) {
 	  int i,j;
 	  float [] fpixels;
 	  ImageProcessor[] ip= new ImageProcessor[pixels.length];
@@ -340,7 +338,7 @@ import ij.process.ImageProcessor;
 	  return imp;
   }
 
-  public void showArrays(double[][] pixels, int width, int height, String title) {
+  public static void showArrays(double[][] pixels, int width, int height, String title) {
 	  int i;
 	  ImagePlus[] imp=makeArrays(pixels, width, height, title);
 	  if (imp==null) return;
@@ -349,7 +347,7 @@ import ij.process.ImageProcessor;
 	  }
   }
 
-  public void showArrays(double[][] pixels, int width, int height, String [] titles) {
+  public static void showArrays(double[][] pixels, int width, int height, String [] titles) {
 	  int i;
 	  ImagePlus[] imp=makeArrays(pixels, width, height, titles);
 	  if (imp==null) return;
@@ -358,7 +356,7 @@ import ij.process.ImageProcessor;
 	  }
   }
 
-  public void showArrays(float[][] pixels, int width, int height, String [] titles) {
+  public static void showArrays(float[][] pixels, int width, int height, String [] titles) {
 	  int i;
 	  ImagePlus[] imp=makeArrays(pixels, width, height, titles);
 	  if (imp==null) return;
@@ -368,7 +366,7 @@ import ij.process.ImageProcessor;
   }
 
 
-  public ImagePlus makeArrays(double[] pixels, int width, int height, String title) {
+  public static ImagePlus makeArrays(double[] pixels, int width, int height, String title) {
 	  int j;
 	  float [] fpixels;
 	  if (pixels!=null) {
@@ -383,7 +381,7 @@ import ij.process.ImageProcessor;
 	  return null;
   }
 
-  public ImagePlus makeArrays(int[] pixels, int width, int height, String title) {
+  public static ImagePlus makeArrays(int[] pixels, int width, int height, String title) {
 	  int j;
 	  float [] fpixels;
 	  if (pixels!=null) {
@@ -398,7 +396,7 @@ import ij.process.ImageProcessor;
 	  return null;
   }
 
-  public ImagePlus makeArrays(boolean[] pixels, int width, int height, String title) {
+  public static ImagePlus makeArrays(boolean[] pixels, int width, int height, String title) {
 	  int j;
 	  float [] fpixels;
 	  if (pixels!=null) {
@@ -414,7 +412,7 @@ import ij.process.ImageProcessor;
   }
 
 
-  public ImagePlus makeArrays(float[] pixels, int width, int height, String title) {
+  public static ImagePlus makeArrays(float[] pixels, int width, int height, String title) {
 	  int j;
 	  float [] fpixels;
 	  if (pixels!=null) {
@@ -429,22 +427,22 @@ import ij.process.ImageProcessor;
 	  return null;
   }
 
-  public void showArrays(double[] pixels, int width, int height, String title) {
+  public static void showArrays(double[] pixels, int width, int height, String title) {
 	  ImagePlus imp= makeArrays(pixels, width, height, title);
 	  if (imp!=null) imp.show();
    }
 
-  public void showArrays(int[] pixels, int width, int height, String title) {
+  public static void showArrays(int[] pixels, int width, int height, String title) {
 	  ImagePlus imp= makeArrays(pixels, width, height, title);
 	  if (imp!=null) imp.show();
    }
 
-  public void showArrays(boolean[] pixels, int width, int height, String title) {
+  public static void showArrays(boolean[] pixels, int width, int height, String title) {
 	  ImagePlus imp= makeArrays(pixels, width, height, title);
 	  if (imp!=null) imp.show();
    }
 
-  public void showArrays(float[][] pixels, int width, int height, boolean asStack, String title) {
+  public static void showArrays(float[][] pixels, int width, int height, boolean asStack, String title) {
     int i;
     if (asStack) {
       ImageStack array_stack=new ImageStack(width,height);
@@ -456,7 +454,7 @@ import ij.process.ImageProcessor;
     } else showArrays(pixels, width, height, title);
   }
 
-  public void showArrays(float[][] pixels, int width, int height, String title) {
+  public static void showArrays(float[][] pixels, int width, int height, String title) {
     int i;
     ImageProcessor[] ip= new ImageProcessor[pixels.length];
     ImagePlus[]      imp=new ImagePlus[pixels.length];
@@ -469,7 +467,7 @@ import ij.process.ImageProcessor;
     }
   }
 
-  public void showArrays(float[] pixels, int width, int height, String title) {
+  public static void showArrays(float[] pixels, int width, int height, String title) {
     if (pixels!=null) {
       ImageProcessor ip=new FloatProcessor(width,height);
       ip.setPixels(pixels);
@@ -478,14 +476,14 @@ import ij.process.ImageProcessor;
       imp.show();
     }
   }
-  public ImagePlus showImageStack(ImageStack stack, String title) {
+  public static ImagePlus showImageStack(ImageStack stack, String title) {
 	  if (stack==null) return null;
       ImagePlus imp_stack = new ImagePlus(title, stack);
       imp_stack.getProcessor().resetMinAndMax();
       imp_stack.show();
       return imp_stack;
   }
-  public void showImageStackThree(ImageStack stack, String title) {
+  public static void showImageStackThree(ImageStack stack, String title) {
 	  if (stack==null) return;
       ImageStack stack3=new ImageStack(stack.getWidth(),stack.getHeight());
       float [] fpixels_r= (float[]) stack.getPixels(1);
@@ -516,34 +514,34 @@ import ij.process.ImageProcessor;
 		  throw new IllegalArgumentException (msg);
 	  }
 
-	    GenericDialog gd = new GenericDialog("Select parameters to convert 2 slices (representing a vector field) to color");
-	    gd.addMessage("Maximal values for normalization are calculated inside the selected area (or the full image if there is no selection");
-		gd.addNumericField("Slice number (1.."+imp.getStackSize()+" to convert to R/G", this.sliceRminusG, 0);
-		gd.addNumericField("Slice number (1.."+imp.getStackSize()+" to convert to B/G", this.sliceBminusG, 0);
-		gd.addNumericField("Color span - if positive - absolute value of the source data to get saturated color, -1 - calculate maximum", this.colorSpan, 3);
-		gd.addNumericField("Modulate brightness: 1.0 - use sqrt(x^2+y^2), 0.0 - constant brightness ", this.brightnessModulate, 3);
-		gd.addNumericField("Color conversion coefficient Kr (default =0.299) ", this.Kr, 3);
-		gd.addNumericField("Color conversion coefficient Kb (default =0.114) ", this.Kb, 3);
-		gd.addNumericField("Brightness (0..1.0)", this.brightness, 3);
+	  GenericDialog gd = new GenericDialog("Select parameters to convert 2 slices (representing a vector field) to color");
+	  gd.addMessage("Maximal values for normalization are calculated inside the selected area (or the full image if there is no selection");
+	  gd.addNumericField("Slice number (1.."+imp.getStackSize()+" to convert to R/G", this.sliceRminusG, 0);
+	  gd.addNumericField("Slice number (1.."+imp.getStackSize()+" to convert to B/G", this.sliceBminusG, 0);
+	  gd.addNumericField("Color span - if positive - absolute value of the source data to get saturated color, -1 - calculate maximum", this.colorSpan, 3);
+	  gd.addNumericField("Modulate brightness: 1.0 - use sqrt(x^2+y^2), 0.0 - constant brightness ", this.brightnessModulate, 3);
+	  gd.addNumericField("Color conversion coefficient Kr (default =0.299) ", this.Kr, 3);
+	  gd.addNumericField("Color conversion coefficient Kb (default =0.114) ", this.Kb, 3);
+	  gd.addNumericField("Brightness (0..1.0)", this.brightness, 3);
 
-	    gd.showDialog();
-	    if (gd.wasCanceled()) return null;
-	    this.sliceRminusG=     (int) gd.getNextNumber();
-	    this.sliceBminusG=     (int) gd.getNextNumber();
-	    this.colorSpan=              gd.getNextNumber();
-	    this.brightnessModulate=     gd.getNextNumber();
-	    this.Kr=                     gd.getNextNumber();
-	    this.Kb=                     gd.getNextNumber();
-	    this.brightness=             gd.getNextNumber();
-		  return showFlowFromSlices(
-				  imp,
-				  this.sliceRminusG,
-				  this.sliceBminusG,
-				  this.colorSpan,
-				  this.brightnessModulate,
-				  this.brightness,
-				  this.Kr,
-				  this.Kb);
+	  gd.showDialog();
+	  if (gd.wasCanceled()) return null;
+	  this.sliceRminusG=     (int) gd.getNextNumber();
+	  this.sliceBminusG=     (int) gd.getNextNumber();
+	  this.colorSpan=              gd.getNextNumber();
+	  this.brightnessModulate=     gd.getNextNumber();
+	  this.Kr=                     gd.getNextNumber();
+	  this.Kb=                     gd.getNextNumber();
+	  this.brightness=             gd.getNextNumber();
+	  return showFlowFromSlices(
+			  imp,
+			  this.sliceRminusG,
+			  this.sliceBminusG,
+			  this.colorSpan,
+			  this.brightnessModulate,
+			  this.brightness,
+			  this.Kr,
+			  this.Kb);
   }
 	/**
 	 *
@@ -554,7 +552,7 @@ import ij.process.ImageProcessor;
 	 * @param brightnessModulate when 0 - same brightness, 1.0 - equals to sqrt(slice1^2 + slice2^2), normalized
 	 * @return RGB24 color image
 	 */
-  public ImagePlus showFlowFromSlices(
+  public static ImagePlus showFlowFromSlices(
 		  ImagePlus imp,
 		  int sliceRminusG,
 		  int sliceBminusG,
@@ -568,7 +566,7 @@ import ij.process.ImageProcessor;
 			  brightnessModulate,0.5,0.299,0.114);
 
   }
-  public ImagePlus showFlowFromSlices(
+  public static ImagePlus showFlowFromSlices(
 		  ImagePlus imp,
 		  int sliceRminusG,
 		  int sliceBminusG,

@@ -497,7 +497,7 @@ public class QuadCLT extends QuadCLTCPU {
 	{
 		final double max_disp_diff = 1.00; // no pull from pixels that are this high than average of lowest
 		final int num_bot_avg = 3; // number of lowest neighbors to average
-        final double   diagonal_weight = 0.5 * Math.sqrt(2.0); // relative to ortho
+		final double   diagonal_weight = 0.5 * Math.sqrt(2.0); // relative to ortho
 		double wdiag = 0.25 *diagonal_weight / (diagonal_weight + 1.0);
 		double wortho = 0.25 / (diagonal_weight + 1.0);
 		final double [] neibw = {wortho, wdiag, wortho, wdiag, wortho, wdiag, wortho, wdiag}; 
@@ -507,7 +507,7 @@ public class QuadCLT extends QuadCLTCPU {
 		final double [][] ds = new double [][] {ds0[0].clone(),ds0[1].clone()};
 		final int tiles = ds[0].length;
 		final TileNeibs tn =  new TileNeibs(width, tiles/width);
-		
+
 		final int [] tile_indices = new int [tiles];
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -553,7 +553,7 @@ public class QuadCLT extends QuadCLTCPU {
 							if ((debug_level >0) && (nTile == dbg_tile)) {
 								System.out.println("fillDisparityStrength() nTile="+nTile);
 							}
-							
+
 							if (!fill_all[0] && !Double.isNaN(ds[0][nTile])) {
 								continue; // fill only new
 							}
@@ -578,11 +578,11 @@ public class QuadCLT extends QuadCLTCPU {
 							}
 							double swd_low = 0, sw_low = 0;
 							for (int i = 0; i < num_bot_avg; i++) if (!Double.isNaN(neibs_sorted[i])) {
-								 swd_low += neibs_sorted[i];
-								 sw_low += 1.0;
+								swd_low += neibs_sorted[i];
+								sw_low += 1.0;
 							}
 							double max_d = swd_low / sw_low + max_disp_diff;
-							
+
 							if (!fill_all[0]) {
 								anum_gaps.getAndIncrement();
 							}
@@ -590,7 +590,7 @@ public class QuadCLT extends QuadCLTCPU {
 							if (!(max_disp < max_d)) {
 								max_disp = max_d; // this will reduce number of averaged if tries to pull to high 
 							}
-							
+
 							if (!(swd > max_sym_disparity)){ // here compare to average, not this!
 								max_disp = Double.NaN; // so it will average all
 							}
@@ -615,7 +615,7 @@ public class QuadCLT extends QuadCLTCPU {
 							if ((debug_level >0) && (nTile == dbg_tile)) {
 								System.out.println("fillDisparityStrength() nTile="+nTile+" swd="+swd);
 							}
-							
+
 							disp_new[nTile] = swd;		
 						}
 					}
@@ -637,7 +637,7 @@ public class QuadCLT extends QuadCLTCPU {
 				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
 			}
 		} // for (int npass = 0; npass < num_passes; npass+= fill_all[0]? 1:0 )
-		
+
 		return ds;
 	}
 
@@ -891,7 +891,7 @@ public class QuadCLT extends QuadCLTCPU {
 					"ds0[1]","ds1[1]","ds0f[1]","ds1f[1]","ds0ff[1]","ds1ff[1]",
 					"ds0[0]","ds1[0]","ds0f[0]","ds1f[0]","ds0ff[0]","ds1ff[0]"};
 
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tp.getTilesX(),
 					tp.getTilesY(),
@@ -1057,7 +1057,7 @@ public class QuadCLT extends QuadCLTCPU {
 				dbg_rslt[2*i+1] = pair[1][i];
 			}
 			String title = image_name+"-"+qprev.image_name+"-dt"+dt;
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_rslt,
 					tilesX,
 					tilesY,
@@ -1261,7 +1261,7 @@ public class QuadCLT extends QuadCLTCPU {
 
 		if (debug_level > 1) {
 			String title0 = String.format("%s_DSRBG_ers-only",qprev.image_name); // previous frame, ERS-corrected only, no shift/rot
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dsrbg0,
 					tilesX,
 					tilesY,
@@ -1276,7 +1276,7 @@ public class QuadCLT extends QuadCLTCPU {
 		if (debug_level > 1) {
 			String title = String.format("%s_%f:%f:%f_%f:%f:%f",image_name,
 					camera_xyz0[0],camera_xyz0[1],camera_xyz0[2],camera_atr0[0],camera_atr0[1],camera_atr0[2]);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dsrbg,
 					tilesX,
 					tilesY,
@@ -1306,7 +1306,7 @@ public class QuadCLT extends QuadCLTCPU {
 				dbg_rslt[2*i+1] = pair[1][i];
 			}
 			String title = image_name+"-"+qprev.image_name+"-dt"+dt;
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_rslt,
 					tilesX,
 					tilesY,
@@ -1617,7 +1617,7 @@ public class QuadCLT extends QuadCLTCPU {
 
 			if (debug_level > 1) {
 				String title0 = String.format("%s_ers_only",qprev.image_name); // previous frame, ERS-corrected only, no shift/rot
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_img0,
 						tilesX,
 						tilesY,
@@ -1642,7 +1642,7 @@ public class QuadCLT extends QuadCLTCPU {
 				title += String.format ("_ers_%f:%f:%f_%f:%f:%f",wxyz_center_dt[0],wxyz_center_dt[1],wxyz_center_dt[2],
 						watr_center_dt[0],watr_center_dt[1],watr_center_dt[2]);
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tilesX,
 					tilesY,
@@ -1668,7 +1668,7 @@ public class QuadCLT extends QuadCLTCPU {
 				dbg_img [indx_d1]};// this disparity - ers and shift/rot
 		if (debug_level > 0) {
 			String title = image_name+"-"+qprev.image_name+"-dt"+dt;
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					rslt,
 					tilesX,
 					tilesY,
@@ -2133,7 +2133,7 @@ public class QuadCLT extends QuadCLTCPU {
 		
 		title += String.format ("_ers_%f:%f:%f_%f:%f:%f",wxyz_center_dt[0],wxyz_center_dt[1],wxyz_center_dt[2],
 				watr_center_dt[0],watr_center_dt[1],watr_center_dt[2]);
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				dbg_img,
 				 tilesX,
 				 tilesY,
@@ -2388,7 +2388,7 @@ public class QuadCLT extends QuadCLTCPU {
 							diffs[n][i] = dpixels[n][i] - (scales[n] * avg_pix[i] + offsets[n]);
 						}
 					}
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					ShowDoubleFloatArrays.showArrays( // out of boundary 15
 							diffs,
 							width,
 							height,
@@ -2404,7 +2404,7 @@ public class QuadCLT extends QuadCLTCPU {
 						}
 					}
 
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					ShowDoubleFloatArrays.showArrays( // out of boundary 15
 							corrected,
 							width,
 							height,
@@ -2775,7 +2775,7 @@ public class QuadCLT extends QuadCLTCPU {
 									(poffs * scales_new[n] + poffs*poffs*scales2_new[n]));  
 						}
 					}
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					ShowDoubleFloatArrays.showArrays( // out of boundary 15
 							diffs,
 							width,
 							height,
@@ -2790,7 +2790,7 @@ public class QuadCLT extends QuadCLTCPU {
 						}
 					}
 
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					ShowDoubleFloatArrays.showArrays( // out of boundary 15
 							corrected,
 							width,
 							height,
@@ -2917,7 +2917,7 @@ public class QuadCLT extends QuadCLTCPU {
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					dbg_img,
 					dbg_width,
 					dbg_height,
@@ -3012,7 +3012,312 @@ public class QuadCLT extends QuadCLTCPU {
 		return imp_render;
 	}
 	
+	/**
+	 * Prepare 16x16 texture tiles using GPU from disparity reference. Includes motion blur correction
+	 * Does not use scene.saveQuadClt() to re-load new set of Bayer images to the GPU -- should be done by callaer
+	 * @param clt_parameters processing parameters
+	 * @param disparity_ref disparity scene reference
+	 * @param mb_tau     	thermal constant
+	 * @param mb_max_gain   maximal gain when correcting MB
+	 * @param mb_vectors    motion blur vectors {vx[tiles], vy[tiles]}
+	 * @param scene_xyz     scene offset X,Y,Z in meters
+	 * @param scene_atr     scene azimuth, tilt, roll in radians
+	 * @param scene         scene QuadCLT instance
+	 * @param ref_scene     reference scene QuadCLT instance
+	 * @param filter_bg     remove BG tiles (possibly occluded)
+	 * @param max_distortion maximal neighbor tiles offset as a fraction of tile size (8) 
+	 * @param cluster_index which cluster the tile belongs - to verify tile distortions
+	 * @param border        border tiles, may have neighbors (other border tiles) over discontinuity
+	 * @param debugLevel
+	 * @return
+	 */
+	public static double [][][][] texturesGPUFromDSI(
+			CLTParameters     clt_parameters,
+			double []         disparity_ref,
+			// motion blur compensation 
+			double            mb_tau,      // 0.008; // time constant, sec
+			double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+			double [][]       mb_vectors,  // now [2][ntiles];
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final QuadCLT     scene,
+			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+			final boolean     filter_bg, // remove bg tiles (possibly occluded)
+			final double      max_distortion, // maximal neighbor tiles offset as a fraction of tile size (8) 
+			final int []      cluster_index,  // 
+			final boolean []  border, // border tiles
+			final int         debugLevel){
+		// FIXME: Move to clt_parameters;
+		final double max_overlap =    0.6; 
+		final double min_adisp_cam =  0.2;
+		final double min_rdisp_cam =  0.03;
+
+
+		double [][] pXpYD_prefilter =OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
+				null,          // full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
+				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
+				scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
+				scene,         // final QuadCLT     scene_QuadClt,
+				ref_scene,     // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+				OpticalFlow.THREADS_MAX);   // int               threadsMax)
+		double [][] pXpYD;
+		if (filter_bg) {
+			double [][] scene_ds = OpticalFlow.conditionInitialDS(
+					clt_parameters, // CLTParameters  clt_parameters,
+					scene, // QuadCLT        scene,
+					-1); // int debug_level);
+			if (scene_ds != null) {
+				double [] disparity_cam = scene_ds[0]; // null; // for now
+				pXpYD = OpticalFlow.filterBG (
+						ref_scene.getTileProcessor(), // final TileProcessor tp,
+						pXpYD_prefilter,       // final double [][] pXpYD,
+						max_overlap,           // final double max_overlap,
+						null, // disparity_cam,         // final double [] disparity_cam,
+						min_adisp_cam,         // final double min_adisp_cam,
+						min_rdisp_cam,         // final double min_rdisp_cam,
+						clt_parameters.tileX,  // final int    dbg_tileX,
+						clt_parameters.tileY,  // final int    dbg_tileY,
+						0); // 1); //debug_level);          // final int    debug_level);
+			} else {
+				pXpYD = pXpYD_prefilter;
+			}
+		} else {
+			pXpYD = pXpYD_prefilter;
+		}
+
+		int rendered_width = scene.getErsCorrection().getSensorWH()[0];
+		boolean showPxPyD = false;
+		if (showPxPyD) {
+			int dbg_width = rendered_width/GPUTileProcessor.DTT_SIZE;
+			int dbg_height = pXpYD.length/dbg_width;
+			double [][] dbg_img = new double [3 + ((mb_vectors!=null)? 2:0)][pXpYD.length];
+			String [] dbg_titles = (mb_vectors!=null)?
+					(new String[] {"pX","pY","Disparity","mb_X","mb_Y"}):
+						(new String[] {"pX","pY","Disparity"});
+			for (int i = 0; i < dbg_img.length; i++) {
+				Arrays.fill(dbg_img[i], Double.NaN);
+			}
+			for (int nTile = 0; nTile < pXpYD.length; nTile++){
+				if (pXpYD[nTile] != null) {
+					for (int i = 0; i < pXpYD[nTile].length; i++) {
+						dbg_img[i][nTile] = pXpYD[nTile][i];
+					}
+				}
+				if (mb_vectors!=null) {
+					for (int i = 0; i <2; i++) {
+						dbg_img[3 + i][nTile] =  mb_tau * mb_vectors[i][nTile];
+					}
+				}
+			}
+			ShowDoubleFloatArrays.showArrays( // out of boundary 15
+					dbg_img,
+					dbg_width,
+					dbg_height,
+					true,
+					scene.getImageName()+"-pXpYD",
+					dbg_titles);
+		}
+		TpTask[][] tp_tasks;
+		if (mb_vectors!=null) {
+			tp_tasks = GpuQuad.setInterTasksMotionBlur( // "true" reference, with stereo actual reference will be offset
+					scene.getNumSensors(),
+					rendered_width,           // should match output size, pXpYD.length
+					!scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+					pXpYD,                    // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+					null,                     // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+					// motion blur compensation 
+					mb_tau,                   // final double              mb_tau,      // 0.008; // time constant, sec
+					mb_max_gain,              // final double              mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+					mb_vectors,               //final double [][]         mb_vectors,  //
+					scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+					0.0,                      // final double              disparity_corr,
+					-1, // 0, // margin,      // final int                 margin,      // do not use tiles if their centers are closer to the edges
+					null,                     // final boolean []          valid_tiles,            
+					OpticalFlow.THREADS_MAX); // final int                 threadsMax)  // maximal number of threads to launch
+		} else {
+			tp_tasks = new TpTask[1][];
+			tp_tasks[0] =  GpuQuad.setInterTasks( // "true" reference, with stereo actual reference will be offset
+					scene.getNumSensors(),
+					rendered_width,           // should match output size, pXpYD.length
+					!scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+					pXpYD,                    // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+					null,                     // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+					scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+					0.0,                      // final double              disparity_corr,
+					-1, // 0, // margin,      // final int                 margin,      // do not use tiles if their centers are closer to the edges
+					null,                     // final boolean []          valid_tiles,            
+					OpticalFlow.THREADS_MAX);              // final int                 threadsMax)  // maximal number of threads to launch
+		}
+		if (tp_tasks[0].length == 0) {
+			if (debugLevel > -1) {
+				System.out.println("texturesGPUFromDSI(): no tiles to process");
+				
+			}
+			return null;
+		}
+		
+		///		scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+		ImageDtt image_dtt = new ImageDtt(
+				scene.getNumSensors(),
+				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
+				scene.isAux(),
+				scene.isMonochrome(),
+				scene.isLwir(),
+				clt_parameters.getScaleStrength(scene.isAux()),
+				scene.getGPU());
+		boolean use_reference = false;
+		int                 erase_clt = 0; // show_nan ? 1:0;
+		if (mb_vectors!=null) {// && test1) {
+			image_dtt.setReferenceTDMotionBlur( // change to main?
+					erase_clt, //final int                 erase_clt,
+					null, // wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+					use_reference, // true, // final boolean             use_reference_buffer,
+					tp_tasks,               // final TpTask[]            tp_tasks,
+					clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+					clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+					OpticalFlow.THREADS_MAX,    // final int                 threadsMax,       // maximal number of threads to launch
+					debugLevel);                // final int                 globalDebugLevel);
+		} else {
+			image_dtt.setReferenceTD( // change to main?
+					erase_clt, //final int                 erase_clt,
+					null, // wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+					use_reference, // true, // final boolean             use_reference_buffer,
+					tp_tasks[0],               // final TpTask[]            tp_tasks,
+					clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+					clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+					OpticalFlow.THREADS_MAX,    // final int                 threadsMax,       // maximal number of threads to launch
+					debugLevel);                // final int                 globalDebugLevel);
+		}
+		final double [][][][] texture_tiles =  image_dtt.process_texture_tiles( // from transform domain all sensors to combined texture
+				clt_parameters.corr_red,       // double    corr_red,
+				clt_parameters.corr_blue,      // double    corr_blue,
+				clt_parameters.min_shot,       // double    min_shot,           // 10.0
+				clt_parameters.scale_shot,     // double    scale_shot,         // 3.0
+				clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+				clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				clt_parameters.dust_remove);   // boolean   dust_remove
+
+		if (max_distortion > 0) {//  remove distorted tiles
+			double max_distortion2 = max_distortion * max_distortion; 
+			final int tilesX =           ref_scene.getTileProcessor().getTilesX();
+			final int tilesY =           ref_scene.getTileProcessor().getTilesY();
+			final int tiles =            tilesX*tilesY;
+			int tile_size =              ref_scene.getTileProcessor().getTileSize();
+			final TileNeibs tn =         new TileNeibs(tilesX, tilesY);
+			final boolean [] distorted = new boolean [tiles];
+			final double [][][] tileXY = new double [tilesY][tilesX][];
+			final TpTask[][] ftp_tasks = tp_tasks;
+			final Thread[] threads =     ImageDtt.newThreadArray(OpticalFlow.THREADS_MAX);
+			final AtomicInteger ai =     new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int itile = ai.getAndIncrement(); itile < tp_tasks[0].length; itile = ai.getAndIncrement()) {
+							TpTask task = ftp_tasks[0][itile];
+							if (task != null) {
+								tileXY[task.getTileY()][task.getTileX()] = task.getDoubleCenterXY();
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			ai.set(0);
+			final double [] dbg_distort = (debugLevel>2)? (new double [tiles]):null;
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+							int tileX = nTile % tilesX;
+							int tileY = nTile / tilesX;
+							if (texture_tiles[tileY][tileX] != null) {
+								double [] centerXY =tileXY[tileY][tileX]; 
+								if ((centerXY != null) && (cluster_index[nTile] >= 0)){
+									// see if any tile
+									for (int dir = 0; dir < TileNeibs.DIRS; dir++) {
+										int tile1 = tn.getNeibIndex(nTile, dir);
+										if (tile1 >= 0) {
+											if (cluster_index[tile1] == cluster_index[nTile]) {
+												int tileX1 = tn.getX(tile1);
+												int tileY1 = tn.getY(tile1);
+												double [] thisXY = tileXY[tileY1][tileX1];
+												// border-border neighbor may have discontinuity even belonging to the same cluster
+												// (coming close AGAIN)
+												if ((thisXY != null) && !(border[nTile] && border[tile1])) {
+													double dx = thisXY[0] - centerXY[0] - tile_size * TileNeibs.getDX(dir);
+													double dy = thisXY[1] - centerXY[1] - tile_size * TileNeibs.getDY(dir);
+													double e2 = dx*dx+dy*dy;
+													if (dbg_distort != null) {
+														if (e2 > dbg_distort[nTile]) {
+															dbg_distort[nTile] = Math.sqrt(e2);
+														}
+													} else {
+														if (e2 > max_distortion2) {
+															distorted[nTile] = true;
+															break;
+														}
+													}
+												} else {
+													continue; // check why task is null here for >=0 cluster index 
+												}
+											}
+										}
+									}
+								} else {
+									if (debugLevel > -3) {
+										System.out.println("Non-null texture for no-cluster, nTile="+nTile+
+												", tileX="+tileX+", tileY="+tileY+", cluster_index["+nTile+"]="+cluster_index[nTile]);
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			ai.set(0);
+			if (dbg_distort != null) {
+				ShowDoubleFloatArrays.showArrays( // out of boundary 15
+						dbg_distort,
+						tilesX,
+						tilesY,
+						"test-distort");
+
+			}
+
+
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < distorted.length; nTile = ai.getAndIncrement()) if (distorted[nTile]){
+							int tileX = nTile % tilesX;
+							int tileY = nTile / tilesX;
+							if (texture_tiles[tileY] != null) {
+								texture_tiles[tileY][tileX] = null;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return texture_tiles;
+	}
 	
+	
+	
+	
+	
+	// add similar for textures
 	public ImagePlus renderFromTD (
 			int                 sensor_mask,
 			boolean             merge_channels,
@@ -3040,7 +3345,7 @@ public class QuadCLT extends QuadCLTCPU {
 			nTiles = iclt_fimg[ncam][0].length;
 			nchn++;
 		}
-		if (merge_channels) {
+		if (merge_channels) { // [0] - combo, other sensor channels - nulls
 			final double scale = 1.0 / nchn;
 			final float [][] iclt_fimg_combo = new float [ncol][nTiles];
 			final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
@@ -3125,11 +3430,7 @@ public class QuadCLT extends QuadCLTCPU {
 		int height = imps_RGB[0].getHeight();
 		ImageStack array_stack=new ImageStack(width,height);
 		for (int i = 0; i<slice_seq.length; i++) if (imps_RGB[slice_seq[i]] != null){
-			///				if (imps_RGB[slice_seq[i]] != null) {
 			array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
-			///				} else {
-			///					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
-			///				}
 		}
 		ImagePlus imp_stack = new ImagePlus(image_name+sAux()+suffix, array_stack);
 		imp_stack.getProcessor().resetMinAndMax();
@@ -3331,7 +3632,7 @@ public class QuadCLT extends QuadCLTCPU {
 					System.arraycopy(corr2D[ict], iy * corr_size, corr_img[cpair], dst_offs, corr_size);
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					corr_img,
 					tilesX * sq,
 					tilesY * sq,
@@ -3490,7 +3791,7 @@ public class QuadCLT extends QuadCLTCPU {
 			}
 			// first try just multi-layer, then with palette
 			
-			(new ShowDoubleFloatArrays()).showArrays( // show slices RBGA (colors - 256, A - 1.0)
+			ShowDoubleFloatArrays.showArrays( // show slices RBGA (colors - 256, A - 1.0)
 					rbga,
 					woi.width,
 					woi.height,
@@ -3555,7 +3856,7 @@ public class QuadCLT extends QuadCLTCPU {
 			float [][] extra = gpuQuad.getExtra(); // now 4*numSensors
 			int num_cams = getNumSensors();
 			
-			(new ShowDoubleFloatArrays()).showArrays( // show slices RBGA (colors - 256, A - 1.0)
+			ShowDoubleFloatArrays.showArrays( // show slices RBGA (colors - 256, A - 1.0)
 					extra,
 					gpuQuad.img_width / GPUTileProcessor.DTT_SIZE,
 					gpuQuad.img_height / GPUTileProcessor.DTT_SIZE,
@@ -3633,7 +3934,7 @@ public class QuadCLT extends QuadCLTCPU {
 						}
 						
 					}
-					(new ShowDoubleFloatArrays()).showArrays( // show slices RBGA (colors - 256, A - 1.0)
+					ShowDoubleFloatArrays.showArrays( // show slices RBGA (colors - 256, A - 1.0)
 							dbg_nonoverlap,
 							width,
 							height,
@@ -3982,7 +4283,7 @@ public class QuadCLT extends QuadCLTCPU {
 					}
 				}
 			}
-		    (new ShowDoubleFloatArrays()).showArrays(
+		    ShowDoubleFloatArrays.showArrays(
 		            geom_dbg,
 		            tilesX,
 		            tilesY,
@@ -4019,7 +4320,7 @@ public class QuadCLT extends QuadCLTCPU {
 				}
 			}
 			float [][] extra = quadCLT_main.getGPU().getExtra();
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					extra,
 					tilesX,
 					tilesY,
@@ -4103,7 +4404,7 @@ public class QuadCLT extends QuadCLTCPU {
 					dbg_corr_cross[48]
 			};
 
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_corr,
 					wh[0],
 					wh[1],
@@ -4174,7 +4475,7 @@ public class QuadCLT extends QuadCLTCPU {
 			float [][] rbga = quadCLT_main.getGPU().getRBGA(
 					(is_mono?1:3), // int     num_colors,
 					woi);
-			(new ShowDoubleFloatArrays()).showArrays( // show slices RBGA (colors - 256, A - 1.0)
+			ShowDoubleFloatArrays.showArrays( // show slices RBGA (colors - 256, A - 1.0)
 					rbga,
 					woi.width,
 					woi.height,
@@ -4296,7 +4597,7 @@ public class QuadCLT extends QuadCLTCPU {
     					System.out.println();
     				}
     			}
-    			(new ShowDoubleFloatArrays()).showArrays(
+    			ShowDoubleFloatArrays.showArrays(
 						texture_tile,
 						2 * image_dtt.transform_size,
 						2 * image_dtt.transform_size,
@@ -4554,7 +4855,7 @@ public class QuadCLT extends QuadCLTCPU {
 						  threadsMax,
 						  debugLevel);
 				  // titles.length = 15, corr_rslt_partial.length=16!
-				  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+				  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 						  corr_rslt_partial,
 						  tilesX*(2*image_dtt.transform_size),
 						  tilesY*(2*image_dtt.transform_size),
@@ -4923,7 +5224,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  data[j][i] = ports_xy[i][2 * (j % num_sensors)  + (j / num_sensors)];
 			  }
 		  }
-		  (new ShowDoubleFloatArrays()).showArrays( 
+		  ShowDoubleFloatArrays.showArrays( 
 				  data,
 				  tilesX,
 				  tilesY,
@@ -4943,7 +5244,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  data[0][i] = centers_xy[i][0];
 			  data[1][i] = centers_xy[i][1];
 		  }
-		  (new ShowDoubleFloatArrays()).showArrays( 
+		  ShowDoubleFloatArrays.showArrays( 
 				  data,
 				  tilesX,
 				  tilesY,
@@ -4980,7 +5281,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  }
 			  }
 		  }
-		  (new ShowDoubleFloatArrays()).showArrays( 
+		  ShowDoubleFloatArrays.showArrays( 
 				  data,
 				  tilesX,
 				  tilesY,
@@ -5233,7 +5534,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  dbg_img[2][nt] = dbg_img[1][nt] - Math.round(dbg_img[1][nt]);
 
 			  }
-			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					  dbg_img,
 					  tilesX,
 					  tilesY,
@@ -5519,7 +5820,7 @@ public class QuadCLT extends QuadCLTCPU {
 						  threadsMax);                    // final int               threadsMax)
 
 				  String [] dbg_titles = {"td","td_norm", "pd", "corr"}; 
-				  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+				  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 						  dbg_img,
 						  dbg_wh[0],
 						  dbg_wh[1],
@@ -5630,7 +5931,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  dbg_img[3][i] = fdbg_img[i];
 			  }
 			  String [] dbg_titles = {"td","td_norm", "pd", "corr"}; 
-			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					  dbg_img,
 					  dbg_wh[0],
 					  dbg_wh[1],
@@ -5865,7 +6166,7 @@ public class QuadCLT extends QuadCLTCPU {
 // testing
 //		  float  [][][][]     corr_td = new float[tilesY][tilesX][][];
 //		  float  [][][][]     corr_combo_td = new float [4][tilesY][tilesX][];
-		 (new ShowDoubleFloatArrays()).showArrays(
+		 ShowDoubleFloatArrays.showArrays(
 				 disparity_map,
 				 tilesX,
 				 tilesY,
@@ -5883,7 +6184,7 @@ public class QuadCLT extends QuadCLTCPU {
 					  threadsMax,
 					  debugLevel);
 			  // titles.length = 15, corr_rslt_partial.length=16!
-			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					  corr_rslt_partial,
 					  tilesX*(2*image_dtt.transform_size),
 					  tilesY*(2*image_dtt.transform_size),
@@ -5947,7 +6248,7 @@ public class QuadCLT extends QuadCLTCPU {
 					threadsMax,
 					debugLevel);
 		  
-			 (new ShowDoubleFloatArrays()).showArrays(
+			 ShowDoubleFloatArrays.showArrays(
 					 disparity_map1,
 					 tilesX,
 					 tilesY,
@@ -5967,7 +6268,7 @@ public class QuadCLT extends QuadCLTCPU {
 						  threadsMax,
 						  debugLevel);
 				  // titles.length = 15, corr_rslt_partial.length=16!
-				  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+				  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 						  corr_rslt_partial,
 						  tilesX*(2*image_dtt.transform_size),
 						  tilesY*(2*image_dtt.transform_size),
@@ -6172,7 +6473,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  }
 		  }
 		  scan.setTilesRBGA(tileTones); 
-		  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+		  ShowDoubleFloatArrays.showArrays( // out of boundary 15
 				  tileTones,
 				  tilesX,
 				  tilesY,
@@ -6731,7 +7032,7 @@ if (debugLevel < -100) {
 				  	}
 			  	}
 			  
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_img,
 						tp.getTilesX(),
 						tp.getTilesY(),

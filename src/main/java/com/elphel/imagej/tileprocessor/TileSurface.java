@@ -623,8 +623,7 @@ public class TileSurface {
 											}
 										}
 									}
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-									sdfa_instance.showArrays(dbg_img,  2 * superTileSize, 2 * superTileSize, true, "surf_ds_"+nsTile, titles);
+									ShowDoubleFloatArrays.showArrays(dbg_img,  2 * superTileSize, 2 * superTileSize, true, "surf_ds_"+nsTile, titles);
 								}
 
 							}
@@ -1619,9 +1618,7 @@ public class TileSurface {
 			for (int j = 0; j < surfaces.length; j++){
 				img_data[5 * tds.length][j] =surfaces[j];
 			}
-
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-			sdfa_instance.showArrays(img_data,  wh[0], wh[1], true, title, titles);
+			ShowDoubleFloatArrays.showArrays(img_data,  wh[0], wh[1], true, title, titles);
 		}
 
 		/**
@@ -2025,7 +2022,6 @@ public class TileSurface {
 		public void testSimpleConnected(
 				int nsTile)
 		{
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 			double [][][] data =  new double [tileData[nsTile].length][][];
 			double [][][] dist =  new double [tileData[nsTile].length][][];
 			double [][][] layer = new double [tileData[nsTile].length][][];
@@ -2052,7 +2048,7 @@ public class TileSurface {
 					indx++;
 				}
 			}
-			sdfa_instance.showArrays(img_data,   stilesX * superTileSize,  stilesY * superTileSize, true, "simple_"+nsTile, titles);
+			ShowDoubleFloatArrays.showArrays(img_data,   stilesX * superTileSize,  stilesY * superTileSize, true, "simple_"+nsTile, titles);
 		}
 
 		public void printSurfaceConnections(
@@ -2287,8 +2283,7 @@ public class TileSurface {
 				img_data[num_in+1][nTile] = combo[nTile];
 			}
 			if (debugLevel > -1) {
-				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-				sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, "consensus",titles);
+				ShowDoubleFloatArrays.showArrays(img_data,  imageTilesX, imageTilesY, true, "consensus",titles);
 			}
 		}
 
@@ -2744,8 +2739,7 @@ public class TileSurface {
 						dbg_img[4][nTile] =  conflicts[nTile][1];
 					}
 				}
-				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-				sdfa_instance.showArrays(dbg_img,  imageTilesX, imageTilesY, true, "only_surface_grow",titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img,  imageTilesX, imageTilesY, true, "only_surface_grow",titles);
 			}
 			return stats;
 		}
@@ -2788,7 +2782,7 @@ public class TileSurface {
 		{
 			String [] titles =      getTitlesAssignment(dispStrength);
 			double [][] img_data =  getShowAssignment(dispStrength);
-			(new ShowDoubleFloatArrays()).showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
+			ShowDoubleFloatArrays.showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
 		}
 
 		public double [][] getShowAssignment(
@@ -2872,8 +2866,7 @@ public class TileSurface {
 					}
 				}
 			}
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-			sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
+			ShowDoubleFloatArrays.showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
 		}
 
 
@@ -3855,8 +3848,7 @@ public class TileSurface {
 					}
 				}
 			}
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-			sdfa_instance.showArrays(img_clust,  imageTilesX, imageTilesY, true, title, titles);
+			ShowDoubleFloatArrays.showArrays(img_clust,  imageTilesX, imageTilesY, true, title, titles);
 		}
 
 		public boolean [][] growClusterOnce( // used from inside threads

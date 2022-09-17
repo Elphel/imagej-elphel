@@ -60,7 +60,6 @@ import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 
 public class MatchSimulatedPattern {
-	private ShowDoubleFloatArrays SDFA_INSTANCE = new ShowDoubleFloatArrays(); // just for debugging?
 	public int debugLevel = 2;
 	public int FFT_SIZE = 256;
 	public double[][][][] PATTERN_GRID = null; // global to be used with threads? TODO: Same as DIST_ARRAY - merge?
@@ -259,7 +258,7 @@ public class MatchSimulatedPattern {
 		int iy0 = (int) Math.round(y0);
 		Rectangle selection = new Rectangle(ix0 - fftSize, iy0 - fftSize, fftSize * 2, fftSize * 2);
 		double[][] pixels = splitBayer(imp, selection, true);
-		// SDFA_INSTANCE.showArrays(pixels, fftSize, fftSize, true,"bayer");
+		// ShowDoubleFloatArrays.showArrays(pixels, fftSize, fftSize, true,"bayer");
 		DoubleFHT fht_instance = new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
 		double[] hamming1d = fht_instance.getHamming1d(fftSize);
 		for (int c = 0; c < pixels.length; c++)
@@ -284,7 +283,7 @@ public class MatchSimulatedPattern {
 				gb.blurDouble(pixels[c], fftSize, fftSize, preBlurSigma, preBlurSigma, 0.01);
 
 			}
-		// SDFA_INSTANCE.showArrays(pixels, fftSize, fftSize, true,"bayer-winowed");
+		// ShowDoubleFloatArrays.showArrays(pixels, fftSize, fftSize, true,"bayer-winowed");
 		for (int c = 0; c < pixels.length; c++)
 			if (pixels[c] != null) {
 				fht_instance.swapQuadrants(pixels[c]);
@@ -292,7 +291,7 @@ public class MatchSimulatedPattern {
 				pixels[c] = fht_instance.calculateAmplitude(pixels[c]);
 			}
 		if (debugLevel > 1)
-			SDFA_INSTANCE.showArrays(pixels, fftSize, fftSize, true, "amplitudes");
+			ShowDoubleFloatArrays.showArrays(pixels, fftSize, fftSize, true, "amplitudes");
 		int[][][] spectrumMaximums = new int[pixels.length][][];
 		double[] spectralContrast = new double[pixels.length];
 		int hsize = fftSize / 2;
@@ -460,10 +459,10 @@ public class MatchSimulatedPattern {
 				double averageLength = Math.sqrt(
 						(xy[0][0] * xy[0][0] + xy[0][1] * xy[0][1] + xy[1][0] * xy[1][0] + xy[1][1] * xy[1][1]) / 2);
 				if ((c == 0) && (debugLevel > 1))
-					SDFA_INSTANCE.showArrays(mask, fftSize, fftSize, "mask_color");
+					ShowDoubleFloatArrays.showArrays(mask, fftSize, fftSize, "mask_color");
 				gb.blurDouble(mask, fftSize, fftSize, sigmaScale * averageLength, sigmaScale * averageLength, 0.01);
 				if ((c == 0) && (debugLevel > 1))
-					SDFA_INSTANCE.showArrays(mask, fftSize, fftSize,
+					ShowDoubleFloatArrays.showArrays(mask, fftSize, fftSize,
 							"mask_color_blured" + IJ.d2s(sigmaScale * averageLength, 3));
 				double SFR2 = 0.0, SFP = 0.0;
 				for (int i = 0; i < mask.length; i++) {
@@ -495,7 +494,7 @@ public class MatchSimulatedPattern {
 		int iy0 = (int) Math.round(y0);
 		Rectangle selection = new Rectangle(ix0 - fftSize, iy0 - fftSize, fftSize * 2, fftSize * 2);
 		double[][] pixels = splitBayer(imp, selection, true);
-		// SDFA_INSTANCE.showArrays(pixels, fftSize, fftSize, true,"bayer");
+		// ShowDoubleFloatArrays.showArrays(pixels, fftSize, fftSize, true,"bayer");
 		DoubleFHT fht_instance = new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
 		double[] hamming1d = fht_instance.getHamming1d(fftSize);
 		for (int c = 0; c < pixels.length; c++)
@@ -520,7 +519,7 @@ public class MatchSimulatedPattern {
 				gb.blurDouble(pixels[c], fftSize, fftSize, preBlurSigma, preBlurSigma, 0.01);
 
 			}
-		// SDFA_INSTANCE.showArrays(pixels, fftSize, fftSize, true,"bayer-winowed");
+		// ShowDoubleFloatArrays.showArrays(pixels, fftSize, fftSize, true,"bayer-winowed");
 		for (int c = 0; c < pixels.length; c++)
 			if (pixels[c] != null) {
 				fht_instance.swapQuadrants(pixels[c]);
@@ -528,7 +527,7 @@ public class MatchSimulatedPattern {
 				pixels[c] = fht_instance.calculateAmplitude(pixels[c]);
 			}
 		if (debugLevel > 1)
-			SDFA_INSTANCE.showArrays(pixels, fftSize, fftSize, true, "amplitudes");
+			ShowDoubleFloatArrays.showArrays(pixels, fftSize, fftSize, true, "amplitudes");
 		int[][][] spectrumMaximums = new int[pixels.length][][];
 		double[] spectralContrast = new double[pixels.length];
 		int hsize = fftSize / 2;
@@ -697,15 +696,15 @@ public class MatchSimulatedPattern {
 				double averageLength = Math.sqrt(
 						(xy[0][0] * xy[0][0] + xy[0][1] * xy[0][1] + xy[1][0] * xy[1][0] + xy[1][1] * xy[1][1]) / 2);
 				if ((c == 0) && (debugLevel > 1))
-					SDFA_INSTANCE.showArrays(mask, fftSize, fftSize, "mask_color");
+					ShowDoubleFloatArrays.showArrays(mask, fftSize, fftSize, "mask_color");
 				gb.blurDouble(mask, fftSize, fftSize, sigmaScale * averageLength, sigmaScale * averageLength, 0.01);
 				if ((c == 0) && (debugLevel > 1)) {
-					SDFA_INSTANCE.showArrays(mask, fftSize, fftSize,
+					ShowDoubleFloatArrays.showArrays(mask, fftSize, fftSize,
 							"mask_color_blured" + IJ.d2s(sigmaScale * averageLength, 3));
 					double[] ppixels = new double[fftSize * fftSize];
 					for (int i = 0; i < ppixels.length; i++)
 						ppixels[i] = pixels[c][i] * mask[i];
-					SDFA_INSTANCE.showArrays(ppixels, fftSize, fftSize,
+					ShowDoubleFloatArrays.showArrays(ppixels, fftSize, fftSize,
 							"masked-amplitude" + IJ.d2s(sigmaScale * averageLength, 3));
 				}
 				double SFM = 0.0, SF = 0.0, SM = 0;
@@ -818,7 +817,7 @@ public class MatchSimulatedPattern {
 		int i, j, iq;
 		int index, qindex;
 		if (this.debugLevel > 2)
-			SDFA_INSTANCE.showArrays(bayer_mono_pixels, tile_size, tile_size, title + "-bayer");
+			ShowDoubleFloatArrays.showArrays(bayer_mono_pixels, tile_size, tile_size, title + "-bayer");
 		for (iq = 0; iq < 9; iq++) {
 			index = quarterIndex[iq];
 			qindex = 0;
@@ -850,7 +849,7 @@ public class MatchSimulatedPattern {
 
 			quarter_pixels[iq] = normalizeAndWindow(quarter_pixels[iq], quarterHamming);
 			if (this.debugLevel > 2)
-				SDFA_INSTANCE.showArrays(quarter_pixels[iq], hsize, hsize, title + "-new" + iq);
+				ShowDoubleFloatArrays.showArrays(quarter_pixels[iq], hsize, hsize, title + "-new" + iq);
 			// findPattern - see MSP 3290:
 			quarter_patterns[iq] = findPattern(null, // DoubleFHT doubleFHT,
 					quarter_pixels[iq], hsize, patternDetectParameters, min_half_period, max_half_period, greens,
@@ -1015,7 +1014,7 @@ public class MatchSimulatedPattern {
 			}
 			double[][] dbgPixels = { pixels, maskedPixels, u_value, v_value };
 			String[] titles = { "all", "masked", "u", "v" };
-			(new ShowDoubleFloatArrays()).showArrays(dbgPixels, size, size, true, title + "_CORR_MASK", titles);
+			ShowDoubleFloatArrays.showArrays(dbgPixels, size, size, true, title + "_CORR_MASK", titles);
 		}
 		return contrast;
 	}
@@ -1117,7 +1116,7 @@ public class MatchSimulatedPattern {
 			System.out.println("Correlation contrast is: relative=" + rContrast + " absolute=" + aContrast);
 			double[][] dbgPixels = { pixels, dbgMask };
 			String[] titles = { "all", "mask" };
-			(new ShowDoubleFloatArrays()).showArrays(dbgPixels, size, size, true, title + "_MASK", titles);
+			ShowDoubleFloatArrays.showArrays(dbgPixels, size, size, true, title + "_MASK", titles);
 		}
 		return contrasts;
 	}
@@ -1217,7 +1216,7 @@ public class MatchSimulatedPattern {
 			System.out.println("Correlation contrast is " + contrast);
 			double[][] dbgPixels = { pixels, dbgMask };
 			String[] titles = { "all", "mask" };
-			(new ShowDoubleFloatArrays()).showArrays(dbgPixels, size, size, true, title + "_CORR_MASK", titles);
+			ShowDoubleFloatArrays.showArrays(dbgPixels, size, size, true, title + "_CORR_MASK", titles);
 		}
 		return contrast;
 	}
@@ -1601,7 +1600,7 @@ public class MatchSimulatedPattern {
 		// get to frequency domain
 		fht.transform();
 		if (local_debug_level > 5)
-			(new ShowDoubleFloatArrays()).showArrays((float[]) fht.getPixels(), size, size, title + "_FHT");
+			ShowDoubleFloatArrays.showArrays((float[]) fht.getPixels(), size, size, title + "_FHT");
 
 		// Convert from FHT to complex FFT
 		fft_complex = FHT2FFTHalf(fht, size);
@@ -1707,7 +1706,7 @@ public class MatchSimulatedPattern {
 			if (local_debug_level > 2) {
 				System.out.println("findPattern() 1: Failed to find a pattern");
 				if (local_debug_level > 2) {
-					SDFA_INSTANCE.showArrays(input_pixels, "failed-findPattern-1-");
+					ShowDoubleFloatArrays.showArrays(input_pixels, "failed-findPattern-1-");
 				}
 			}
 			return null;
@@ -1753,7 +1752,7 @@ public class MatchSimulatedPattern {
 			if (local_debug_level > 2) {
 				System.out.println("findPattern() 2: Failed to find a pattern");
 				if (local_debug_level > 2) {
-					SDFA_INSTANCE.showArrays(input_pixels, "failed-findPattern-2-");
+					ShowDoubleFloatArrays.showArrays(input_pixels, "failed-findPattern-2-");
 				}
 
 			}
@@ -1903,7 +1902,7 @@ public class MatchSimulatedPattern {
 		if (this.debugLevel > (debug_threshold + 1)) {
 			double[][] src_corr = { input_pixels, cpixels };
 			String[] titles = { "source", "corr" };
-			(new ShowDoubleFloatArrays()).showArrays(src_corr, size, size, true,
+			ShowDoubleFloatArrays.showArrays(src_corr, size, size, true,
 					"fft_corr-" + patternDetectParameters.phaseCoeff, titles);
 		}
 
@@ -1968,7 +1967,7 @@ public class MatchSimulatedPattern {
 
 		double[][][] fft_cmplx = doubleFHT.FHT2FFTHalf(dfht, size);
 		if (this.debugLevel > (debug_threshold + 2)) {
-			(new ShowDoubleFloatArrays()).showComplex(fft_cmplx, "fft_cmplx");
+			ShowDoubleFloatArrays.showComplex(fft_cmplx, "fft_cmplx");
 		}
 
 		/*
@@ -3459,7 +3458,7 @@ public class MatchSimulatedPattern {
 		// create diagonal green selection around xc,yc
 		double[][] input_bayer = splitBayer(imp, initialPatternCell, equalizeGreens);
 		if (debugLevel > 2)
-			SDFA_INSTANCE.showArrays(input_bayer, true, "selection-bayer-distortionsTest");
+			ShowDoubleFloatArrays.showArrays(input_bayer, true, "selection-bayer-distortionsTest");
 		double[] windowFunction = initWindowFunction(distortionParameters.FFTSize, distortionParameters.fftGaussWidth);
 		final double[] windowFunctionCorr = initWindowFunction(distortionParameters.getCorrelationSize(sensor_type),
 				distortionParameters.correlationGaussWidth, distortionParameters.zeros);
@@ -3528,16 +3527,16 @@ public class MatchSimulatedPattern {
 			System.out.println("+++ Initial center x=" + IJ.d2s(centerXY0[0], 3) + " y=" + IJ.d2s(centerXY0[1], 3));
 
 		// debug mode - scan correlation around center point, show result and exit:
-		SDFA_INSTANCE.showArrays(simulationPattern.bPattern, "bPattern");
+		ShowDoubleFloatArrays.showArrays(simulationPattern.bPattern, "bPattern");
 		// double [] barray= new double
 		// [simulationPattern.barray.length*simulationPattern.barray[0].length];
 		// for (i=0;i<barray.length;i++) {
 		// barray[i]=simulationPattern.barray[i/simulationPattern.barray[0].length][i %
 		// simulationPattern.barray[0].length];
 		// }
-		// SDFA_INSTANCE.showArrays(barray, simulationPattern.barray[0].length,
+		// ShowDoubleFloatArrays.showArrays(barray, simulationPattern.barray[0].length,
 		// simulationPattern.barray.length,"barray");
-		SDFA_INSTANCE.showArrays(simulationPattern.barray, "barray");
+		ShowDoubleFloatArrays.showArrays(simulationPattern.barray, "barray");
 
 		double[][][] scanXY = scanPatternCrossLocation(distortionParameters.correlationDx, // range
 				(int) Math.round(distortionParameters.correlationDx / distortionParameters.correlationDy) + 1,
@@ -3556,8 +3555,8 @@ public class MatchSimulatedPattern {
 			scanImg[2][i] = scanXY[i / scanXY[0].length][i % scanXY[0].length][2];
 			scanImg[3][i] = scanXY[i / scanXY[0].length][i % scanXY[0].length][3];
 		}
-		SDFA_INSTANCE.showArrays(scanImg, true, "scan_correlation");
-		SDFA_INSTANCE.showArrays(scanImg, false, "scan_correlation");
+		ShowDoubleFloatArrays.showArrays(scanImg, true, "scan_correlation");
+		ShowDoubleFloatArrays.showArrays(scanImg, false, "scan_correlation");
 		return;
 	}
 
@@ -3633,7 +3632,7 @@ public class MatchSimulatedPattern {
 			normalizeAndWindow(dpixels, windowFunction);
 			if (debugLevel > (debug_threshold + 0)) {
 				double[][] dbg_img = { dbg_dpixels, dpixels };
-				SDFA_INSTANCE.showArrays(dbg_img, true,
+				ShowDoubleFloatArrays.showArrays(dbg_img, true,
 						"selection-input" + (initialPatternCell.x + initialPatternCell.width / 2) + ":"
 								+ (initialPatternCell.y + initialPatternCell.height / 2));
 			}
@@ -3645,7 +3644,7 @@ public class MatchSimulatedPattern {
 			// create diagonal green selection around xc,yc
 			double[][] input_bayer = splitBayer(imp, initialPatternCell, equalizeGreens);
 			if (debugLevel > (debug_threshold + 0)) {
-				SDFA_INSTANCE.showArrays(input_bayer, true, "selection--bayer");
+				ShowDoubleFloatArrays.showArrays(input_bayer, true, "selection--bayer");
 			}
 			double[] greens = normalizeAndWindow(input_bayer[4], windowFunction);
 			pattern = matchSimulatedPattern.findPattern(doubleFHT, greens, fft_size, patternDetectParameters,
@@ -5559,14 +5558,14 @@ public class MatchSimulatedPattern {
 			for (int v = 0; v < gridIntensity.length; v++)
 				for (int u = 0; u < gridIntensity[0].length; u++)
 					testGI[index++] = gridIntensity[v][u];
-			this.SDFA_INSTANCE.showArrays(testGI, gridIntensity[0].length, gridIntensity.length,
+			ShowDoubleFloatArrays.showArrays(testGI, gridIntensity[0].length, gridIntensity.length,
 					imp.getTitle() + "-GI");
 		}
 		double[] fffg = calcFlatFieldForGrid(gridIntensity, patternGrid, imp.getWidth(), imp.getHeight());
 
 		double averageGridPeriod = averageGridPeriod(patternGrid);
 //		if (debugLevel > (dbgThreshold + 2)) {
-//			this.SDFA_INSTANCE.showArrays(fffg, imp.getWidth(), imp.getHeight(),
+//			ShowDoubleFloatArrays.showArrays(fffg, imp.getWidth(), imp.getHeight(),
 //					imp.getTitle() + "-fftg");
 //		}
 
@@ -5575,7 +5574,7 @@ public class MatchSimulatedPattern {
 		double extrapolateSigma = averageGridPeriod * distortionParameters.flatFieldSigmaRadius;
 		double extrapolateKSigma = distortionParameters.flatFieldExtraRadius;
 		if (debugLevel >= (dbgThreshold + 2)) {
-			this.SDFA_INSTANCE.showArrays(fffg.clone(), imp.getWidth(), imp.getHeight(), imp.getTitle() + "-fffg");
+			ShowDoubleFloatArrays.showArrays(fffg.clone(), imp.getWidth(), imp.getHeight(), imp.getTitle() + "-fffg");
 		}
 		extrapolatePatternFlatFieldCorrection(fffg, // fieldXY,
 				imp.getWidth(), preShrink, expand, extrapolateSigma, extrapolateKSigma, threadsMax, // 100; // testing
@@ -5585,7 +5584,7 @@ public class MatchSimulatedPattern {
 				updateStatus);
 
 		if (debugLevel > (dbgThreshold + 2)) {
-			this.SDFA_INSTANCE.showArrays(fffg.clone(), imp.getWidth(), imp.getHeight(),
+			ShowDoubleFloatArrays.showArrays(fffg.clone(), imp.getWidth(), imp.getHeight(),
 					imp.getTitle() + "-extrapolated");
 		}
 		if (distortionParameters.flatFieldBlur > 0.0) {
@@ -5610,7 +5609,7 @@ public class MatchSimulatedPattern {
 			System.out.println("averageGridPeriod=" + averageGridPeriod);
 
 		if (debugLevel > (dbgThreshold + 1)) {
-			this.SDFA_INSTANCE.showArrays(fffg, imp.getWidth(), imp.getHeight(), imp.getTitle() + "-blured");
+			ShowDoubleFloatArrays.showArrays(fffg, imp.getWidth(), imp.getHeight(), imp.getTitle() + "-blured");
 		}
 
 		this.flatFieldForGrid = fffg;
@@ -5815,7 +5814,7 @@ public class MatchSimulatedPattern {
 		// // "2" - sensor pixels, befor split to components
 		double[][] input_bayer = splitBayer(imp, centerCross, equalizeGreens);
 		if (debug)
-			this.SDFA_INSTANCE.showArrays(input_bayer, size, size, true, imp.getTitle() + "-bayer");
+			ShowDoubleFloatArrays.showArrays(input_bayer, size, size, true, imp.getTitle() + "-bayer");
 
 		double[] bayer4 = input_bayer[4];
 		for (int dv = -range; dv <= range; dv++)
@@ -6189,7 +6188,7 @@ public class MatchSimulatedPattern {
 				if (!fMask[i])
 					data[i] = 0.0;
 
-			this.SDFA_INSTANCE.showArrays(data, sWidth, sHeight, "shrank");
+			ShowDoubleFloatArrays.showArrays(data, sWidth, sHeight, "shrank");
 		}
 
 		// repeat with the wave until there is place to move, but not more than "expand"
@@ -7344,16 +7343,16 @@ public class MatchSimulatedPattern {
 		if (debugLevel > 3)
 			System.out.println("findClusterOnPSF: cluster size is " + clusterSize);
 		if (debugLevel > 3) {
-			SDFA_INSTANCE.showArrays(psf, size, size, title + "-psf");
+			ShowDoubleFloatArrays.showArrays(psf, size, size, title + "-psf");
 		}
 		if (debugLevel > 2) {
-			SDFA_INSTANCE.showArrays(clusterMap, size, size, title + "-clusterMap");
+			ShowDoubleFloatArrays.showArrays(clusterMap, size, size, title + "-clusterMap");
 		}
 		if (blurSigma > 0.0) {
 			DoubleGaussianBlur gb = new DoubleGaussianBlur();
 			gb.blurDouble(clusterMap, size, size, blurSigma, blurSigma, 0.01);
 			if (debugLevel > 2) {
-				SDFA_INSTANCE.showArrays(clusterMap, size, size, title + "-clusterMap-blured");
+				ShowDoubleFloatArrays.showArrays(clusterMap, size, size, title + "-clusterMap-blured");
 			}
 		}
 		return clusterMap;
@@ -7558,13 +7557,13 @@ public class MatchSimulatedPattern {
 	/* ======================================================================== */
 	public void showFlatFieldForGrid() {
 		if (this.flatFieldForGrid != null)
-			this.SDFA_INSTANCE.showArrays(this.flatFieldForGrid, getImageWidth(), getImageHeight(),
+			ShowDoubleFloatArrays.showArrays(this.flatFieldForGrid, getImageWidth(), getImageHeight(),
 					"Flat_field_for_grid");
 	}
 
 	public void showFFCorrectedGrid() {
 		if (this.gridFFCorr != null)
-			this.SDFA_INSTANCE.showArrays(this.gridFFCorr, getImageWidth(), getImageHeight(),
+			ShowDoubleFloatArrays.showArrays(this.gridFFCorr, getImageWidth(), getImageHeight(),
 					"Flat_field_corrected_grid");
 	}
 
@@ -7573,7 +7572,7 @@ public class MatchSimulatedPattern {
 			double[] dfm = new double[this.focusMask.length];
 			for (int i = 0; i < dfm.length; i++)
 				dfm[i] = this.focusMask[i] ? 1.0 : 0.0;
-			this.SDFA_INSTANCE.showArrays(dfm, getImageWidth(), getImageHeight(), "Focus_mask");
+			ShowDoubleFloatArrays.showArrays(dfm, getImageWidth(), getImageHeight(), "Focus_mask");
 		}
 	}
 
@@ -7582,7 +7581,7 @@ public class MatchSimulatedPattern {
 			double[] uv = new double[this.UV_INDEX.length];
 			for (int i = 0; i < uv.length; i++)
 				uv[i] = this.UV_INDEX[i];
-			this.SDFA_INSTANCE.showArrays(uv, getImageWidth(), getImageHeight(), "UV_INDEX");
+			ShowDoubleFloatArrays.showArrays(uv, getImageWidth(), getImageHeight(), "UV_INDEX");
 		}
 	}
 
@@ -7744,7 +7743,7 @@ public class MatchSimulatedPattern {
 					}
 					index++;
 				}
-			(new ShowDoubleFloatArrays()).showArrays(pixels, measuredUV[0].length, measuredUV.length, true,
+			ShowDoubleFloatArrays.showArrays(pixels, measuredUV[0].length, measuredUV.length, true,
 					"measuredUV", titles);
 
 		}
@@ -8322,9 +8321,9 @@ public class MatchSimulatedPattern {
 				((imp == null) ? (getWOI().width) : imp.getWidth()),
 				((imp == null) ? (getWOI().height) : imp.getHeight()), getWOI(), UV_float0);
 		if (global_debug_level > 3)
-			SDFA_INSTANCE.showArrays(UV_float0, getWOI().width, getWOI().height, "UV_float0"); // all -1
+			ShowDoubleFloatArrays.showArrays(UV_float0, getWOI().width, getWOI().height, "UV_float0"); // all -1
 		if (global_debug_level > 2)
-			SDFA_INSTANCE.showArrays(UV_float, ((imp == null) ? (getWOI().width) : imp.getWidth()),
+			ShowDoubleFloatArrays.showArrays(UV_float, ((imp == null) ? (getWOI().width) : imp.getWidth()),
 					((imp == null) ? (getWOI().height) : imp.getHeight()), "UV_float");
 
 		this.UV_INDEX = new int[UV_float.length];
@@ -8610,7 +8609,7 @@ public class MatchSimulatedPattern {
 						}
 					}
 				}
-			SDFA_INSTANCE.showArrays(debugReplace, this.PATTERN_GRID[0].length, this.PATTERN_GRID.length, true,
+			ShowDoubleFloatArrays.showArrays(debugReplace, this.PATTERN_GRID[0].length, this.PATTERN_GRID.length, true,
 					"replaceGridXYWithProjected-" + debugTitle, debugTiltes);
 		}
 
@@ -10027,9 +10026,9 @@ public class MatchSimulatedPattern {
 		double[][] input_bayer = splitBayer(imp, centerCross, equalizeGreens);
 
 		if (debug_level > 3)
-			SDFA_INSTANCE.showArrays(input_bayer, true, "centered");
+			ShowDoubleFloatArrays.showArrays(input_bayer, true, "centered");
 		if (debug_level > 2)
-			SDFA_INSTANCE.showArrays(input_bayer[4], "greens");
+			ShowDoubleFloatArrays.showArrays(input_bayer[4], "greens");
 		if (debug_level > 2)
 			System.out.println("ixc=" + ixc + " iyc=" + iyc);
 		double[] greens = normalizeAndWindow(input_bayer[4], thisWindow);
@@ -10067,7 +10066,7 @@ public class MatchSimulatedPattern {
 				if ((debug_level > 2) && (numNeib == 0)) {
 					// if (debug_level>2){
 					System.out.println("==========Showing simul" + ixc + ":" + iyc);
-					SDFA_INSTANCE.showArrays(sim_pix[4].clone(), "simul" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(sim_pix[4].clone(), "simul" + ixc + ":" + iyc);
 				}
 
 				simGreensCentered = normalizeAndWindow(sim_pix[4], thisWindow);
@@ -10075,8 +10074,8 @@ public class MatchSimulatedPattern {
 				if (debug_level > 2) {
 					System.out.println("==========Showing simGreensCentered" + ixc + ":" + iyc);
 
-					SDFA_INSTANCE.showArrays(simGreensCentered.clone(), "simGreensCentered" + ixc + ":" + iyc);
-					SDFA_INSTANCE.showArrays(greens.clone(), "greensWidowed" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(simGreensCentered.clone(), "simGreensCentered" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(greens.clone(), "greensWidowed" + ixc + ":" + iyc);
 					// System.out.println("debug_level="+debug_level+" *** Remove next line ***");
 					// sim_pix[14]=null; // make it crash here
 				}
@@ -10090,7 +10089,7 @@ public class MatchSimulatedPattern {
 				// if ((debug_level>2) && (numNeib==0)){
 				if (debug_level > 2) {
 					System.out.println("==========Showing modelCorr" + ixc + ":" + iyc);
-					SDFA_INSTANCE.showArrays(modelCorr, "modelCorr" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(modelCorr, "modelCorr" + ixc + ":" + iyc);
 				}
 				// xyCorr=new double[2]; //????????????????????
 				// Use fast, but less precise method here ?
@@ -10361,7 +10360,7 @@ public class MatchSimulatedPattern {
 		if (sensor_type == 1) {
 			greens_mono = getNoBayer(imp, centerCross);
 			if (debug_level > (debug_threshold + 0))
-				SDFA_INSTANCE.showArrays(greens_mono, "greens_mono");
+				ShowDoubleFloatArrays.showArrays(greens_mono, "greens_mono");
 			if (debug_level > (debug_threshold + 0))
 				System.out.println("ixc=" + ixc + " iyc=" + iyc);
 			normalizeAndWindow(greens_mono, thisWindow);
@@ -10373,15 +10372,15 @@ public class MatchSimulatedPattern {
 		} else {
 			double[][] input_bayer = splitBayer(imp, centerCross, equalizeGreens);
 			if (debug_level > (debug_threshold + 1))
-				SDFA_INSTANCE.showArrays(input_bayer, true, "centered");
+				ShowDoubleFloatArrays.showArrays(input_bayer, true, "centered");
 			if (debug_level > (debug_threshold + 0))
-				SDFA_INSTANCE.showArrays(input_bayer[4], "greens");
+				ShowDoubleFloatArrays.showArrays(input_bayer[4], "greens");
 			if (debug_level > (debug_threshold + 0))
 				System.out.println("ixc=" + ixc + " iyc=" + iyc);
 			greens_mono = normalizeAndWindow(input_bayer[4], thisWindow);
 		}
 		if (debug_level > (debug_threshold + 0))
-			SDFA_INSTANCE.showArrays(greens_mono, "greens_mono_Windowed");
+			ShowDoubleFloatArrays.showArrays(greens_mono, "greens_mono_Windowed");
 		// average is not zero - probably
 		if (debug_level > (debug_threshold + 0)) {
 			System.out.println(" wv0x=" + IJ.d2s(wv0x, 5) + " wv0y=" + IJ.d2s(wv0y, 5));
@@ -10472,7 +10471,7 @@ public class MatchSimulatedPattern {
 							true);// boolean mono
 					double[][] dbg_barray = { barray0, barray1, barray2 };
 					System.out.println(">=========Showing barray01" + ixc + ":" + iyc);
-					SDFA_INSTANCE.showArrays(dbg_barray, true, "barray" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(dbg_barray, true, "barray" + ixc + ":" + iyc);
 					double[] sim_pix0 = simulationPattern.extractSimulMono(barray0, thisSimulParameters, 1, // subdivide
 																											// output
 																											// pixels
@@ -10493,7 +10492,7 @@ public class MatchSimulatedPattern {
 							0, 0);
 					double[][] dbg_sim_pix = { sim_pix0, sim_pix1, sim_pix2 };
 					System.out.println(">=========Showing barray01" + ixc + ":" + iyc);
-					SDFA_INSTANCE.showArrays(dbg_sim_pix, true, "sim_pix" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(dbg_sim_pix, true, "sim_pix" + ixc + ":" + iyc);
 
 				}
 
@@ -10508,7 +10507,7 @@ public class MatchSimulatedPattern {
 						true);// boolean mono
 				if (debug_level > (debug_threshold + 0)) {
 					System.out.println(">=========Showing barray" + ixc + ":" + iyc);
-					SDFA_INSTANCE.showArrays(barray, "barray" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(barray, "barray" + ixc + ":" + iyc);
 				}
 				// barray for dUV=={0,0} is symmetrical around center pixel,
 				// sim_pix - around {center - 0.5, center - 0.5}
@@ -10546,7 +10545,7 @@ public class MatchSimulatedPattern {
 						false);// boolean mono
 				if (debug_level > (debug_threshold + 0)) {
 					System.out.println(">=========Showing barray" + ixc + ":" + iyc);
-					SDFA_INSTANCE.showArrays(barray, "barray" + ixc + ":" + iyc);
+					ShowDoubleFloatArrays.showArrays(barray, "barray" + ixc + ":" + iyc);
 				}
 //		double[][] sim_pix;
 				double[][] sim_pix = null;
@@ -10606,11 +10605,11 @@ public class MatchSimulatedPattern {
 		}
 		if (debug_level > (debug_threshold + 0)) {
 			System.out.println(">=========Showing simCentered" + ixc + ":" + iyc);
-			SDFA_INSTANCE.showArrays(debugGreens, true, "simCentered" + ixc + ":" + iyc);
+			ShowDoubleFloatArrays.showArrays(debugGreens, true, "simCentered" + ixc + ":" + iyc);
 		}
 		if (debug_level > (debug_threshold + 0)) {
 			System.out.println(">=========Showing modelCorrs, passNumber=" + passNumber);
-			SDFA_INSTANCE.showArrays(modelCorrs, true, "modelCorrs:" + numOfNeib);
+			ShowDoubleFloatArrays.showArrays(modelCorrs, true, "modelCorrs:" + numOfNeib);
 		}
 
 		// combine 4 correlations into the double resolution, same output size (so half
@@ -10643,7 +10642,7 @@ public class MatchSimulatedPattern {
 
 		if (debug_level > (debug_threshold + 0)) {
 			System.out.println(">==========Showing modelCorr");
-			SDFA_INSTANCE.showArrays(modelCorr, thisCorrelationSize, thisCorrelationSize, "modelCorr");
+			ShowDoubleFloatArrays.showArrays(modelCorr, thisCorrelationSize, thisCorrelationSize, "modelCorr");
 		}
 
 		if (fast)
@@ -10884,14 +10883,14 @@ public class MatchSimulatedPattern {
 		double[][] input_bayer = splitBayer(imp, centerCross, equalizeGreens);
 
 		if (debug_level > (debug_threshold + 1))
-			SDFA_INSTANCE.showArrays(input_bayer, true, "centered");
+			ShowDoubleFloatArrays.showArrays(input_bayer, true, "centered");
 		if (debug_level > (debug_threshold + 0))
-			SDFA_INSTANCE.showArrays(input_bayer[4], "greens");
+			ShowDoubleFloatArrays.showArrays(input_bayer[4], "greens");
 		if (debug_level > (debug_threshold + 0))
 			System.out.println("ixc=" + ixc + " iyc=" + iyc);
 		double[] greens = normalizeAndWindow(input_bayer[4], thisWindow);
 		if (debug_level > (debug_threshold + 0))
-			SDFA_INSTANCE.showArrays(greens, "greensWindowed");
+			ShowDoubleFloatArrays.showArrays(greens, "greensWindowed");
 		// average is not zero - probably
 
 		if (debug_level > (debug_threshold + 0)) {
@@ -11001,13 +11000,13 @@ public class MatchSimulatedPattern {
 		}
 		if (debug_level > (debug_threshold + 0)) {
 			System.out.println(">=========Showing simGreensCentered" + ixc + ":" + iyc);
-			SDFA_INSTANCE.showArrays(debugGreens, true, "simGreensCentered" + ixc + ":" + iyc);
+			ShowDoubleFloatArrays.showArrays(debugGreens, true, "simGreensCentered" + ixc + ":" + iyc);
 		}
 
 		if (debug_level > (debug_threshold + 0)) {
 			System.out.println(">=========Showing modelCorrs, passNumber=" + passNumber);
-			SDFA_INSTANCE.showArrays(modelCorrs, true, "modelCorrs:" + numOfNeib);
-			SDFA_INSTANCE.showArrays(modelCorrs_new, true, "modelCorrs_new:" + numOfNeib);
+			ShowDoubleFloatArrays.showArrays(modelCorrs, true, "modelCorrs:" + numOfNeib);
+			ShowDoubleFloatArrays.showArrays(modelCorrs_new, true, "modelCorrs_new:" + numOfNeib);
 		}
 
 		// combine 4 correlations into the double resolution, same output size (so half
@@ -11048,7 +11047,7 @@ public class MatchSimulatedPattern {
 
 		if (debug_level > (debug_threshold + 0)) {
 			System.out.println(">==========Showing modelCorr");
-			SDFA_INSTANCE.showArrays(modelCorr, thisCorrelationSize, thisCorrelationSize, "modelCorr");
+			ShowDoubleFloatArrays.showArrays(modelCorr, thisCorrelationSize, thisCorrelationSize, "modelCorr");
 		}
 
 		double[] centerXY_new;
@@ -11230,7 +11229,7 @@ public class MatchSimulatedPattern {
 				}
 
 			}
-			SDFA_INSTANCE.showArrays(maskFull, "filter");
+			ShowDoubleFloatArrays.showArrays(maskFull, "filter");
 		}
 
 		for (int i = 0; i < size; i++)
@@ -11257,7 +11256,7 @@ public class MatchSimulatedPattern {
 				 * 
 				 */
 				if (debugLevel > 3)
-					SDFA_INSTANCE.showArrays(input_bayer, true, "centered");
+					ShowDoubleFloatArrays.showArrays(input_bayer, true, "centered");
 				if (debugLevel > 1)
 					System.out.println(i + "/" + j + ": ixc=" + ixc + " iyc=" + iyc);
 				// alternative way to generate shifted pattern
@@ -11282,16 +11281,16 @@ public class MatchSimulatedPattern {
 
 				double[] simGreensCentered = normalizeAndWindow(sim_pix[4], window);
 				if (debugLevel > 2)
-					SDFA_INSTANCE.showArrays(greens.clone(), "greens-i" + i + "-j" + j);
+					ShowDoubleFloatArrays.showArrays(greens.clone(), "greens-i" + i + "-j" + j);
 				if (debugLevel > 2)
-					SDFA_INSTANCE.showArrays(simGreensCentered.clone(), "simGreensCentered-i" + i + "-j" + j);
+					ShowDoubleFloatArrays.showArrays(simGreensCentered.clone(), "simGreensCentered-i" + i + "-j" + j);
 
 				double[] modelCorr = fht_instance.correlate(greens, // measured pixel array
 						simGreensCentered, // simulated (model) pixel array)
 						// distortionParameters.correlationHighPassSigma);
 						filter);
 				if (debugLevel > 2)
-					SDFA_INSTANCE.showArrays(modelCorr.clone(), "modelCorr-i" + i + "-j" + j);
+					ShowDoubleFloatArrays.showArrays(modelCorr.clone(), "modelCorr-i" + i + "-j" + j);
 				double[] xyCorr = new double[2];
 				double[] centerXY;
 				// if (distortionParameters.correlationRadiusScale>=0.0) centerXY=
@@ -11585,7 +11584,7 @@ public class MatchSimulatedPattern {
 			both[0] = corr;
 			both[1] = approx;
 			// corr
-			SDFA_INSTANCE.showArrays(both, true, "corr-approx"); // stack
+			ShowDoubleFloatArrays.showArrays(both, true, "corr-approx"); // stack
 		}
 		// if (debugLevel>2) System.out.println("correlationMaximum: ix="+ix+" iy="+iy);
 		// if (debugLevel>2) System.out.println("correlationMaximum: maxInHor[0]
@@ -11663,12 +11662,12 @@ public class MatchSimulatedPattern {
 							* hammingMod[i] * hammingMod[j] + borderAverage;
 				}
 			if (showDebug)
-				SDFA_INSTANCE.showArrays(corr1.clone(), "decimatedForFFT");
+				ShowDoubleFloatArrays.showArrays(corr1.clone(), "decimatedForFFT");
 			fht_instance.swapQuadrants(corr1);
 			if (!fht_instance.transform(corr1, false))
 				return null; // direct FHT
 			if (showDebug)
-				SDFA_INSTANCE.showArrays(corr1.clone(), "FFT");
+				ShowDoubleFloatArrays.showArrays(corr1.clone(), "FFT");
 			// zero out aliases
 			for (i = 0; i <= size1 / 2; i++)
 				for (j = size1 / 2 + 1; j < size - (size1 / 2); j++)
@@ -11687,7 +11686,7 @@ public class MatchSimulatedPattern {
 			/*
 			 * if (showDebug) { for (i=0;i<hamming.length;i++)
 			 * System.out.println("hamming["+i+"]="+hamming[i]); } if (showDebug)
-			 * SDFA_INSTANCE.showArrays(corr1.clone(), "NO_ALIAS"); // Combine with low-pass
+			 * ShowDoubleFloatArrays.showArrays(corr1.clone(), "NO_ALIAS"); // Combine with low-pass
 			 * Gaussian (if it is >0) if (lowpass>0){ double []
 			 * gaussian1d=fht_instance.getGaussian1d(lowpass,size1); // no need to divide by
 			 * /decimateFFT as we use size1, not size for (i=0;i<hammingMod.length;i++)
@@ -11706,12 +11705,12 @@ public class MatchSimulatedPattern {
 				}
 
 			if (showDebug)
-				SDFA_INSTANCE.showArrays(corr1.clone(), "FFT-masked");
+				ShowDoubleFloatArrays.showArrays(corr1.clone(), "FFT-masked");
 			if (!fht_instance.transform(corr1, true))
 				return null; // inverse FHT
 			fht_instance.swapQuadrants(corr1);
 			if (showDebug)
-				SDFA_INSTANCE.showArrays(corr1.clone(), "decimatedAfterFFT");
+				ShowDoubleFloatArrays.showArrays(corr1.clone(), "decimatedAfterFFT");
 			dist *= decimateFFT;
 			maxOffset *= decimateFFT;
 			decimate /= decimateFFT;
@@ -11859,7 +11858,7 @@ public class MatchSimulatedPattern {
 					decimatedMasked[i] = limit;
 			}
 			double[][] both = { interpCorr, decimatedMasked };
-			SDFA_INSTANCE.showArrays(both, true, "centerCorr");
+			ShowDoubleFloatArrays.showArrays(both, true, "centerCorr");
 		}
 		if (decimateFFT > 1) {
 			corrXY[0] /= decimateFFT;
@@ -13777,7 +13776,7 @@ public class MatchSimulatedPattern {
 			}
 		}
 		if (debug_this) {
-			(new ShowDoubleFloatArrays()).showArrays(rgb, width, height, true,imp.getTitle()+"split");
+			ShowDoubleFloatArrays.showArrays(rgb, width, height, true,imp.getTitle()+"split");
 		}
 		if (debug_this) { // remove
 			System.out.println("sg="+sg[0]+", "+sg[1]+", g_av="+g_av);
@@ -13847,7 +13846,7 @@ public class MatchSimulatedPattern {
 			}
 		}
 		if (debug_this) {
-			(new ShowDoubleFloatArrays()).showArrays(rgb, width, height, true,imp.getTitle()+"bilinear");
+			ShowDoubleFloatArrays.showArrays(rgb, width, height, true,imp.getTitle()+"bilinear");
 		}
 		if (saturation != 1.0) {
 			for (int i = 0; i < rgb[0].length; i++) {
@@ -13886,7 +13885,7 @@ public class MatchSimulatedPattern {
 			}
 		}
 		if (debug_this) {
-			(new ShowDoubleFloatArrays()).showArrays(rgb, width, height, true,imp.getTitle()+"gamma");
+			ShowDoubleFloatArrays.showArrays(rgb, width, height, true,imp.getTitle()+"gamma");
 		}
 		
 		return rgb;

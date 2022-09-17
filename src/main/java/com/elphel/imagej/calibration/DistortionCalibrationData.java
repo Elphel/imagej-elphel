@@ -91,7 +91,7 @@ import ij.text.TextWindow;
     	//pixelsXY, pixelsUV should match, second dimension is variable
     	public boolean updateStatus=true;
     	public int     debugLevel=2;
-    	private ShowDoubleFloatArrays SDFA_INSTANCE=null; // just for debugging
+//    	private ShowDoubleFloatArrays ShowDoubleFloatArrays=null; // just for debugging
     	
     	public static int pathToChannel(String path) {
     		int last_dash = path.lastIndexOf('-');
@@ -438,7 +438,7 @@ import ij.text.TextWindow;
             			}
         			}
         		}
-        		(new ShowDoubleFloatArrays()).showArrays(
+        		ShowDoubleFloatArrays.showArrays(
         				dbg_img,
         				width,
         				height,
@@ -4264,7 +4264,7 @@ import ij.text.TextWindow;
 				dbgData[0]=diffs2.clone();
 				dbgData[2]=dbgData[0].clone();
 				for (int i=0;i< dbgData[2].length;i++) if (!localWorst[i]) dbgData[2][i]=-1.0;
-//				(new showDoubleFloatArrays()).showArrays(diffs2, width, height,  "diffs2");
+//				ShowDoubleFloatArrays.showArrays(diffs2, width, height,  "diffs2");
 			}
 
 			if (replaceBad) {
@@ -4449,7 +4449,7 @@ import ij.text.TextWindow;
 			    }
 
 				String [] dbgTitles={"diff20","diff2Mod","localWorst", "old-X", "old-Y", "new-X", "new-Y","old-new-X","old-new-Y"};
-				if (dbgTitle!=null) (new ShowDoubleFloatArrays()).showArrays(dbgData, width, height, true,  dbgTitle, dbgTitles);
+				if (dbgTitle!=null) ShowDoubleFloatArrays.showArrays(dbgData, width, height, true,  dbgTitle, dbgTitles);
 			}
 			int [] nums = {numWorst, numBad};
         	return nums;
@@ -5201,7 +5201,6 @@ import ij.text.TextWindow;
         	int numChannels=getNumChannels();
         	this.sensorMasks=new double [numChannels][];
         	DoubleGaussianBlur gb=new DoubleGaussianBlur();
-        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
 			if (this.debugLevel>2)System.out.println("calculateSensorMasks("+width+","+height+","+shrinkGridForMask+","+sigmaUV+")");
         	for (int chNum=0;chNum<numChannels; chNum++){
         		this.sensorMasks[chNum]=new double[dWidth*dHeight];
@@ -5233,7 +5232,6 @@ import ij.text.TextWindow;
         	int numChannels=getNumChannels();
         	this.sensorMasks=new double [numChannels][];
         	DoubleGaussianBlur gb=new DoubleGaussianBlur();
-        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
 			if (this.debugLevel>2)System.out.println("calculateSensorMasks("+shrinkGridForMask+","+sigmaUV+")");
         	for (int chNum=0;chNum<numChannels; chNum++){
         		int decimate = eyesisCameraParameters.getDecimateMasks(chNum);
@@ -5259,7 +5257,7 @@ import ij.text.TextWindow;
         		if(sigma<0) sigma*=-rAverage;
         		gb.blurDouble(this.sensorMasks[chNum], dWidth, dHeight, sigma/decimate, sigma/decimate, 0.01);
             	if (this.debugLevel >1) {
-            		(new ShowDoubleFloatArrays()).showArrays(
+            		ShowDoubleFloatArrays.showArrays(
             				this.sensorMasks[chNum],
             				dWidth,
             				dHeight,
@@ -5271,7 +5269,6 @@ import ij.text.TextWindow;
 
         public double [] calculateSensorMasks(int chNum, int shrinkGridForMask, double sigmaUV) {
         	DoubleGaussianBlur gb=new DoubleGaussianBlur();
-        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
         	if (this.debugLevel>2)System.out.println("calculateSensorMasks("+shrinkGridForMask+","+sigmaUV+")");
         	int decimate = eyesisCameraParameters.getDecimateMasks(chNum);
         	int width = eyesisCameraParameters.getSensorWidth(chNum);
@@ -5375,7 +5372,6 @@ import ij.text.TextWindow;
         	int dWidth=  (width -1)/decimate+1;
         	int dHeight= (height-1)/decimate+1;
         	DoubleGaussianBlur gb=new DoubleGaussianBlur();
-        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
         	if (this.debugLevel>2)System.out.println("calculateSensorMasks("+width+","+height+","+shrinkGridForMask+","+sigmaUV+")");
         	double [][] preMask=preCalculateSingleImageMask(imgNum, decimate, width, height, shrinkGridForMask);
         	if (preMask==null) return null; //nothing in this channel
@@ -5465,7 +5461,7 @@ import ij.text.TextWindow;
 
         		}
         		String [] dbgTitles={"X","Y","iMask"};
-        		this.SDFA_INSTANCE.showArrays(testArray, pXY[0].length, pXY.length,  true, "original", dbgTitles);
+        		ShowDoubleFloatArrays.showArrays(testArray, pXY[0].length, pXY.length,  true, "original", dbgTitles);
 
         	}
         	// shrink the grid
@@ -5491,7 +5487,7 @@ import ij.text.TextWindow;
 
         		}
         		String [] dbgTitles={"X","Y","iMask"};
-        		this.SDFA_INSTANCE.showArrays(testArray1, pXY[0].length, pXY.length,  true, "shrank", dbgTitles);
+        		ShowDoubleFloatArrays.showArrays(testArray1, pXY[0].length, pXY.length,  true, "shrank", dbgTitles);
         	}
 
         	// now in remaining grid nodes iMask[v][u]>0 (0 and negative - no grid)
@@ -5717,8 +5713,8 @@ import ij.text.TextWindow;
         		}
         	}
         	if (bdebug) {
-        		(new ShowDoubleFloatArrays()).showArrays(base_contrast, base_width, base_height, "base_sigma-"+sigma);
-        		(new ShowDoubleFloatArrays()).showArrays(test_contrast, test_width, test_height, "test_sigma-"+sigma);
+        		ShowDoubleFloatArrays.showArrays(base_contrast, base_width, base_height, "base_sigma-"+sigma);
+        		ShowDoubleFloatArrays.showArrays(test_contrast, test_width, test_height, "test_sigma-"+sigma);
         	}
 
         	for (int dy = -search_rad; dy <= search_rad; dy++) {
@@ -5740,7 +5736,7 @@ import ij.text.TextWindow;
             	}
         	}
            	if (bdebug) {
-        		(new ShowDoubleFloatArrays()).showArrays(corr, "corr_sigma-"+sigma);
+        		ShowDoubleFloatArrays.showArrays(corr, "corr_sigma-"+sigma);
            	}
         	int [] indx_max_even_odd = {-1,-1};
         	for (int i = 1; i < corr.length; i++) {

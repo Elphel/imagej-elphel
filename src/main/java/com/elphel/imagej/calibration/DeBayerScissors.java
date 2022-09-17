@@ -37,7 +37,7 @@ public class DeBayerScissors {
 	private double [][][]         lopass=null;
 	private int                   size;
 	private double                lastMidEnergy; // last midrange spectral energy
-	private ShowDoubleFloatArrays SDFA_instance; // just for debugging?
+//	private ShowDoubleFloatArrays SDFA_instance; // just for debugging?
 	private DoubleFHT             fht_instance;
 	private int [][] aliasMapRedBlue={
 			{-2,-2},{-2,-1},{-2,0},{-2,1},
@@ -56,7 +56,6 @@ public class DeBayerScissors {
 			double debayer_width_redblue_clones){// green mask when applied to red/blue, clones 
 		size=isize;
 		fht_instance=       new DoubleFHT();
-		SDFA_instance=      new ShowDoubleFloatArrays();
 		pol_instace=new PolarSpectrums(size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
 				Math.PI,
 				size/2-2, // width of the polar array - should be <= size/2-2
@@ -118,7 +117,7 @@ public class DeBayerScissors {
 		for (i=0;i<green_amp.length;i++) if (green_amp[i]>dmax) dmax=green_amp[i];
 		dmax=1.0/dmax;
 		for (i=0;i<green_amp.length;i++) green_amp[i]= Math.pow(green_amp[i]*dmax,debayer_gamma);
-		if (this_debug>2)   SDFA_instance.showArrays(green_amp,  "DT-gam"); // only top half+1 will be used
+		if (this_debug>2)   ShowDoubleFloatArrays.showArrays(green_amp,  "DT-gam"); // only top half+1 will be used
 		double midRangeSpectral=pol_instace.maxAmpInRing (green_amp);
 		boolean useFancyDebayer=(midRangeSpectral>=debayer_threshold);
 
@@ -130,10 +129,10 @@ public class DeBayerScissors {
 					debayer_bonus, // hack - here it is "bonus"
 					this_debug);//
 
-			if (this_debug>3) SDFA_instance.showArrays(green_mask,  "G-raw");
+			if (this_debug>3) ShowDoubleFloatArrays.showArrays(green_mask,  "G-raw");
 			if (debayer_mask_blur>0) {
 				blurDouble(green_mask,   size, debayer_mask_blur, debayer_mask_blur, 0.01);
-				if (this_debug>3) SDFA_instance.showArrays(green_mask,  "G-blurred");
+				if (this_debug>3) ShowDoubleFloatArrays.showArrays(green_mask,  "G-blurred");
 			}
 			double [] green_mask_for_redblue_main=  green_mask.clone();
 			double [] green_mask_for_redblue_clones=green_mask.clone();
@@ -143,8 +142,8 @@ public class DeBayerScissors {
 			}
 
 			if (this_debug>2) {
-				SDFA_instance.showArrays(green_mask_for_redblue_main,  "MAIN");
-				SDFA_instance.showArrays(green_mask_for_redblue_main,  "CLONES");
+				ShowDoubleFloatArrays.showArrays(green_mask_for_redblue_main,  "MAIN");
+				ShowDoubleFloatArrays.showArrays(green_mask_for_redblue_main,  "CLONES");
 			}
 
 			/* Maybe here we need to unmasked (wide bandwidth) green_amp? */
@@ -159,10 +158,10 @@ public class DeBayerScissors {
 
 			/* add    double mainToAlias){// relative main/alias amplitudes to enable pixels (i.e. 0.5 means that if alias is >0.5*main, the pixel will be masked out) */
 
-			if (this_debug>3) SDFA_instance.showArrays(red_blue_mask,  "RB-raw");
+			if (this_debug>3) ShowDoubleFloatArrays.showArrays(red_blue_mask,  "RB-raw");
 			if (debayer_mask_blur>0) {
 				blurDouble(red_blue_mask, size,debayer_mask_blur, debayer_mask_blur, 0.01);
-				if (this_debug>3) SDFA_instance.showArrays(red_blue_mask,  "RB-blurred");
+				if (this_debug>3) ShowDoubleFloatArrays.showArrays(red_blue_mask,  "RB-blurred");
 			}
 			for (i=0;i<red_blue_mask.length;i++) red_blue_mask[i]*=lopass[1][1][i]; //  scaled, red-blue - was red_blue_lopass[i];
 		} else { // debayer_mask_blur<0 : use default masks
@@ -180,7 +179,7 @@ public class DeBayerScissors {
 		double [][] result =new double [2][];
 		result[0]= green_mask;
 		result[1]= red_blue_mask;
-		//    if (this_debug>3) SDFA_instance.showArrays(result,  "before_norm_masks");
+		//    if (this_debug>3) ShowDoubleFloatArrays.showArrays(result,  "before_norm_masks");
 
 
 		/* normalize masks to have exactly 1.0 at 0:0 - it can be reduced by blurring */
@@ -188,7 +187,7 @@ public class DeBayerScissors {
 			dmax=1.0/result[i][0];
 			for (j=0;j<result[i].length;j++) result[i][j]*=dmax;
 		}
-		//    if (this_debug>3) SDFA_instance.showArrays(result,  "masks");
+		//    if (this_debug>3) ShowDoubleFloatArrays.showArrays(result,  "masks");
 		return result;
 	}
 
@@ -224,8 +223,8 @@ public class DeBayerScissors {
 				{ 1,-2},{ 1,-1},{ 1,0},{ 1,1}};
 
 		// First step - mask out all the pixels where at least one of the alias amplitude is above the main one
-		if (this_debug>2) SDFA_instance.showArrays(amp.clone(),  "amp");
-		if (this_debug>2) SDFA_instance.showArrays(amp_clones,  "amp_clones");
+		if (this_debug>2) ShowDoubleFloatArrays.showArrays(amp.clone(),  "amp");
+		if (this_debug>2) ShowDoubleFloatArrays.showArrays(amp_clones,  "amp_clones");
 
 		for (i=0;i<=hsize;i++) for (j=0;j<size;j++) {
 			index=i*size+j;
@@ -275,8 +274,8 @@ public class DeBayerScissors {
 		*/
 
 		// First step - mask out all the pixels where at least one of the alias amplitude is above the main one
-		if (this_debug>2) SDFA_instance.showArrays(amp.clone(),  "amp");
-		if (this_debug>2) SDFA_instance.showArrays(amp_clones,  "amp_clones");
+		if (this_debug>2) ShowDoubleFloatArrays.showArrays(amp.clone(),  "amp");
+		if (this_debug>2) ShowDoubleFloatArrays.showArrays(amp_clones,  "amp_clones");
 
 		for (i=0;i<=hsize;i++) for (j=0;j<size;j++) {
 			index =      speedTable[i][j][0][0]; // i*size+j;
@@ -297,30 +296,30 @@ public class DeBayerScissors {
 		
 // End of replacement code
 		
-		if (this_debug>2)  SDFA_instance.showArrays(mask,  "mask");
+		if (this_debug>2)  ShowDoubleFloatArrays.showArrays(mask,  "mask");
 
 		if (pol_instace==null) return mask;
 		/* Now apply mask to amplitudes and use ray processing (same as with greens)*/
 		for (i=0;i<amp.length;i++) amp[i]*=mask[i];
-		if (this_debug>2) SDFA_instance.showArrays(amp,  "amp-mask");
+		if (this_debug>2) ShowDoubleFloatArrays.showArrays(amp,  "amp-mask");
 		double [] polar_amp=pol_instace.cartesianToPolar(amp);
 		int width = pol_instace.getWidth();
 		int height = pol_instace.getHeight();
-		if (this_debug>2)   SDFA_instance.showArrays(polar_amp.clone(),width, height,  "RB-polar-amp");
+		if (this_debug>2)   ShowDoubleFloatArrays.showArrays(polar_amp.clone(),width, height,  "RB-polar-amp");
 		double k= bonus/width;
 		for (i=0;i<pol_instace.getHeight();i++) for (j = 0; j < width; j++) polar_amp[i * width + j]*=1.0+k*j;
 		double [] polar_mask_pixels=pol_instace.genPolarRedBlueMask(polar_amp,0); // 0 - just 1.0/0.0, 1 - "analog"
 		double [] cart_mask_pixels= pol_instace.polarToCartesian (polar_mask_pixels,size,0.0);
 		if (this_debug>2) {
-			SDFA_instance.showArrays(polar_amp,         width, height,     "RB-amp-bonus");
-			SDFA_instance.showArrays(polar_mask_pixels, width, height, "pRBm");
-			SDFA_instance.showArrays(cart_mask_pixels,  size,  size,   "cRBm");
+			ShowDoubleFloatArrays.showArrays(polar_amp,         width, height,     "RB-amp-bonus");
+			ShowDoubleFloatArrays.showArrays(polar_mask_pixels, width, height, "pRBm");
+			ShowDoubleFloatArrays.showArrays(cart_mask_pixels,  size,  size,   "cRBm");
 		}
 		if (this_debug>2) {
 			double [] polar_mask_pixels1=pol_instace.genPolarRedBlueMask(polar_amp,1);
 			double [] cart_mask_pixels1= pol_instace.polarToCartesian (polar_mask_pixels1,size,0.0);
-			SDFA_instance.showArrays(polar_mask_pixels1, width, height, "pRBm1");
-			SDFA_instance.showArrays(cart_mask_pixels1,  size,  size,   "cRBm1");
+			ShowDoubleFloatArrays.showArrays(polar_mask_pixels1, width, height, "pRBm1");
+			ShowDoubleFloatArrays.showArrays(cart_mask_pixels1,  size,  size,   "cRBm1");
 		}
 		return cart_mask_pixels;
 
@@ -334,23 +333,23 @@ public class DeBayerScissors {
 		int length=amp_pixels.length;
 		int size = (int) Math.sqrt(length);
 		double [] polar_amp_pixels=pol_instace.cartesianToPolar(amp_pixels);
-		if (this_debug>2)   SDFA_instance.showArrays(polar_amp_pixels.clone(),pol_instace.getWidth(),pol_instace.getHeight(),  "polar-amp");
+		if (this_debug>2)   ShowDoubleFloatArrays.showArrays(polar_amp_pixels.clone(),pol_instace.getWidth(),pol_instace.getHeight(),  "polar-amp");
 
 		double k= bonus/pol_instace.getWidth();
 		for (int i=0;i<pol_instace.getHeight();i++) for (int j=0;j<pol_instace.getWidth();j++) polar_amp_pixels[i*pol_instace.getWidth()+j]*=1.0+k*j;
 		double [] polar_green_mask_pixels=pol_instace.genPolarGreenMask(polar_amp_pixels,0); // 0 - just 1.0/0.0, 1 - "analog"
 		double [] cart_green_mask_pixels= pol_instace.polarToCartesian (polar_green_mask_pixels,size,0.0);
 		if (this_debug>2) {
-			SDFA_instance.showArrays(polar_amp_pixels,  pol_instace.getWidth(),pol_instace.getHeight(),     "amp-bonus");
-			SDFA_instance.showArrays(polar_green_mask_pixels,pol_instace.getWidth(),pol_instace.getHeight(), "pgm");
-			SDFA_instance.showArrays(cart_green_mask_pixels,size,size,   "cgm");
+			ShowDoubleFloatArrays.showArrays(polar_amp_pixels,  pol_instace.getWidth(),pol_instace.getHeight(),     "amp-bonus");
+			ShowDoubleFloatArrays.showArrays(polar_green_mask_pixels,pol_instace.getWidth(),pol_instace.getHeight(), "pgm");
+			ShowDoubleFloatArrays.showArrays(cart_green_mask_pixels,size,size,   "cgm");
 		}
 
 		if (this_debug>2) {
 			double [] polar_green_mask_pixels1=pol_instace.genPolarGreenMask(polar_amp_pixels,1);
 			double [] cart_green_mask_pixels1= pol_instace.polarToCartesian (polar_green_mask_pixels1,size,0.0);
-			SDFA_instance.showArrays(polar_green_mask_pixels1,pol_instace.getWidth(),pol_instace.getHeight(), "PGM1");
-			SDFA_instance.showArrays(cart_green_mask_pixels1,size,size,   "CGM1");
+			ShowDoubleFloatArrays.showArrays(polar_green_mask_pixels1,pol_instace.getWidth(),pol_instace.getHeight(), "PGM1");
+			ShowDoubleFloatArrays.showArrays(cart_green_mask_pixels1,size,size,   "CGM1");
 		}
 		return cart_green_mask_pixels;
 

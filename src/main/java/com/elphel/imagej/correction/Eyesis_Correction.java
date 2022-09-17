@@ -146,7 +146,6 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 	JP46_Reader_camera JP4_INSTANCE = null;
 
 //   private deBayerScissors debayer_instance;
-	private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
 	private DoubleFHT FHT_INSTANCE;
 	static Frame instance;
 	static Properties PROPERTIES = new Properties();
@@ -822,7 +821,6 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		GUI.center(plugInFrame);
 		plugInFrame.setVisible(true);
 		FHT_INSTANCE = new DoubleFHT();
-		SDFA_INSTANCE = new ShowDoubleFloatArrays();
 		// main loop
 		while (true) {
 			synchronized (this.SYNC_COMMAND) {
@@ -1209,7 +1207,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 																							// direction) == 2
 					UPDATE_STATUS);// update status info
 			if (PROCESS_PARAMETERS.showDebayerEnergy) {
-				SDFA_INSTANCE.showArrays(DEBAYER_ENERGY, DEBAYER_ENERGY_WIDTH,
+				ShowDoubleFloatArrays.showArrays(DEBAYER_ENERGY, DEBAYER_ENERGY_WIDTH,
 						DEBAYER_ENERGY.length / DEBAYER_ENERGY_WIDTH, "Debayer-Energy");
 			}
 
@@ -1311,7 +1309,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					THREADS_MAX, UPDATE_STATUS); // update status info
 
 			if (PROCESS_PARAMETERS.showDenoiseMask) {
-				SDFA_INSTANCE.showArrays(DENOISE_MASK, DENOISE_MASK_WIDTH, DENOISE_MASK.length / DENOISE_MASK_WIDTH,
+				ShowDoubleFloatArrays.showArrays(DENOISE_MASK, DENOISE_MASK_WIDTH, DENOISE_MASK.length / DENOISE_MASK_WIDTH,
 						"mask");
 			}
 
@@ -1361,7 +1359,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			imp_convolved.getProcessor().resetMinAndMax();
 			imp_convolved.updateAndDraw();
 
-			SDFA_INSTANCE.showImageStackThree(stack_convolved, imp_convolved.getTitle() + "restored_rgb");
+			ShowDoubleFloatArrays.showImageStackThree(stack_convolved, imp_convolved.getTitle() + "restored_rgb");
 			return;
 			/* ======================================================================== */
 		} else if (label.equals("Test")) {
@@ -1417,13 +1415,13 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 							+ i * debayer_width + j];
 			pixels_debayer[1] = pixels_debayer[0].clone();
 			pixels_debayer[2] = pixels_debayer[0].clone();
-			SDFA_INSTANCE.showArrays(pixels_debayer[0], "original");
+			ShowDoubleFloatArrays.showArrays(pixels_debayer[0], "original");
 
 			pixels_debayer = normalizeAndWindow(pixels_debayer,
 					initWindowFunction((int) Math.sqrt(pixels_debayer[1].length)), false);
 			pixels_debayer = extendFFTInputTo(pixels_debayer, DEBAYER_PARAMETERS.size);
 			if (DEBUG_LEVEL > 2)
-				SDFA_INSTANCE.showArrays(pixels_debayer[0], "wnd-orig");
+				ShowDoubleFloatArrays.showArrays(pixels_debayer[0], "wnd-orig");
 			for (i = 0; i < DEBAYER_PARAMETERS.size; i++)
 				for (j = 0; j < DEBAYER_PARAMETERS.size; j++) {
 					pixels_debayer[1][i * DEBAYER_PARAMETERS.size
@@ -1439,7 +1437,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 									&& ((j % PSF_SUBPIXEL_SHOULD_BE_4) == 0)) ? 1.0 : 0.0;
 				}
 			if (DEBUG_LEVEL > 1)
-				SDFA_INSTANCE.showArrays(pixels_debayer, DEBAYER_PARAMETERS.debayerStacks, "mosaic");
+				ShowDoubleFloatArrays.showArrays(pixels_debayer, DEBAYER_PARAMETERS.debayerStacks, "mosaic");
 			/* swap quadrants and perform FHT */
 			double[][] amps = null;
 			if (DEBUG_LEVEL > 1)
@@ -1498,14 +1496,14 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			FHT_INSTANCE.inverseTransform(pixels_debayer[2]);
 			FHT_INSTANCE.swapQuadrants(pixels_debayer[2]);
 
-			SDFA_INSTANCE.showArrays(pixels_debayer, DEBAYER_PARAMETERS.debayerStacks, "filtered");
+			ShowDoubleFloatArrays.showArrays(pixels_debayer, DEBAYER_PARAMETERS.debayerStacks, "filtered");
 
 			/* Swap quadrants in masks and display them */
 			if (DEBUG_LEVEL > 1) {
 				FHT_INSTANCE.swapQuadrants(green_mask);
 				FHT_INSTANCE.swapQuadrants(red_blue_mask);
-				SDFA_INSTANCE.showArrays(green_mask, "G-mask");
-				SDFA_INSTANCE.showArrays(red_blue_mask, "RB-mask");
+				ShowDoubleFloatArrays.showArrays(green_mask, "G-mask");
+				ShowDoubleFloatArrays.showArrays(red_blue_mask, "RB-mask");
 				if (amps != null) {
 					/** normalize amplitudes, apply gamma */
 					double dmax = 0.0;
@@ -1517,13 +1515,13 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						for (j = 0; j < amps[i].length; j++)
 							amps[i][j] = Math.pow(amps[i][j] * dmax, DEBAYER_PARAMETERS.debayerGamma);
 					}
-					SDFA_INSTANCE.showArrays(amps, DEBAYER_PARAMETERS.debayerStacks, "PWR");
+					ShowDoubleFloatArrays.showArrays(amps, DEBAYER_PARAMETERS.debayerStacks, "PWR");
 					for (i = 0; i < amps[1].length; i++) {
 						amps[1][i] *= green_mask[i];
 						amps[0][i] *= red_blue_mask[i];
 						amps[2][i] *= red_blue_mask[i];
 					}
-					SDFA_INSTANCE.showArrays(amps, DEBAYER_PARAMETERS.debayerStacks, "PWR-MSK");
+					ShowDoubleFloatArrays.showArrays(amps, DEBAYER_PARAMETERS.debayerStacks, "PWR-MSK");
 				}
 			}
 			return;
@@ -1824,7 +1822,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				}
 
 			}
-			this.SDFA_INSTANCE.showArrays(correlation, POST_PROCESSING.disparityCorrelationParameters.corrFFTSize,
+			ShowDoubleFloatArrays.showArrays(correlation, POST_PROCESSING.disparityCorrelationParameters.corrFFTSize,
 					POST_PROCESSING.disparityCorrelationParameters.corrFFTSize, true,
 					"corr-x" + POST_PROCESSING.disparityCorrelationParameters.corrXC + "-y"
 							+ POST_PROCESSING.disparityCorrelationParameters.corrYC + "-SHFT"
@@ -1848,7 +1846,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 							: 0.0;
 				}
 			}
-			this.SDFA_INSTANCE.showArrays(corr_products, POST_PROCESSING.disparityCorrelationParameters.corrFFTSize,
+			ShowDoubleFloatArrays.showArrays(corr_products, POST_PROCESSING.disparityCorrelationParameters.corrFFTSize,
 					POST_PROCESSING.disparityCorrelationParameters.corrFFTSize, true,
 					"Prod" + numLayers + "-x" + POST_PROCESSING.disparityCorrelationParameters.corrXC + "-y"
 							+ POST_PROCESSING.disparityCorrelationParameters.corrYC + "-SHFT"
@@ -1868,7 +1866,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					corr_products[numLayer][index] /= numLayers;
 				}
 			}
-			this.SDFA_INSTANCE.showArrays(corr_products, POST_PROCESSING.disparityCorrelationParameters.corrFFTSize,
+			ShowDoubleFloatArrays.showArrays(corr_products, POST_PROCESSING.disparityCorrelationParameters.corrFFTSize,
 					POST_PROCESSING.disparityCorrelationParameters.corrFFTSize, true,
 					"Average" + numLayers + "-x" + POST_PROCESSING.disparityCorrelationParameters.corrXC + "-y"
 							+ POST_PROCESSING.disparityCorrelationParameters.corrYC + "-SHFT"
@@ -2097,7 +2095,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				index++;
 			}
 
-			this.SDFA_INSTANCE
+			ShowDoubleFloatArrays
 					.showArrays(
 							pixels, resultWidth, resultHeight, true, "sect-" + (horizontal ? "HOR" : "VERT") + "-"
 									+ section + "_" + DISPARITY_TILES.corrFFTSize + "-" + DISPARITY_TILES.overlapStep,
@@ -2140,7 +2138,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			String[] zMapTitles = new String[pixels.length];
 			for (int nImg = 0; nImg < zMapTitles.length; nImg++)
 				zMapTitles[nImg] = "img-" + nImg;
-			this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+			ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 					POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 					"zMap-A" + POST_PROCESSING.disparityCorrelationParameters.zMapMinAbsolute + "-R"
 							+ POST_PROCESSING.disparityCorrelationParameters.zMapMinRelative + "-F"
@@ -2212,7 +2210,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			String[] zMapTitles = new String[pixels.length];
 			for (int nImg = 0; nImg < zMapTitles.length; nImg++)
 				zMapTitles[nImg] = "img-" + nImg;
-			this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+			ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 					POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 					"zMap-A" + POST_PROCESSING.disparityCorrelationParameters.zMapMinAbsolute + "-R"
 							+ POST_PROCESSING.disparityCorrelationParameters.zMapMinRelative + "-F"
@@ -2347,7 +2345,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			String[] zMapTitles = new String[pixels.length];
 			for (int nImg = 0; nImg < zMapTitles.length; nImg++)
 				zMapTitles[nImg] = "img-" + nImg;
-			this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+			ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 					POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 					"zF-MV" + POST_PROCESSING.disparityCorrelationParameters.zMapVarMask + "-VY"
 							+ POST_PROCESSING.disparityCorrelationParameters.zMapVarThresholds[0] + "-VCb"
@@ -2486,7 +2484,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				String[] zMapTitles = new String[pixels.length];
 				for (int nImg = 0; nImg < zMapTitles.length; nImg++)
 					zMapTitles[nImg] = "img-" + nImg;
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"DISPAR-OF-Bg" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-VS"
 								+ POST_PROCESSING.disparityCorrelationParameters.blurVarianceSigma + "-MV"
@@ -2507,7 +2505,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				String[] zMapTitles = new String[pixels.length];
 				for (int nImg = 0; nImg < zMapTitles.length; nImg++)
 					zMapTitles[nImg] = "img-" + nImg;
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"OF-Bg" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-VS"
 								+ POST_PROCESSING.disparityCorrelationParameters.blurVarianceSigma + "-MV"
@@ -2523,7 +2521,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						zMapTitles);
 // debug
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 3, false);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"VAR-OF-Bg" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-VS"
 								+ POST_PROCESSING.disparityCorrelationParameters.blurVarianceSigma + "-MV"
@@ -2539,7 +2537,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						zMapTitles);
 
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 4, false);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"PAIR-OF-Bg" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-VS"
 								+ POST_PROCESSING.disparityCorrelationParameters.blurVarianceSigma + "-MV"
@@ -2555,7 +2553,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						zMapTitles);
 
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 5, false);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"THIS-OF-Bg" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-VS"
 								+ POST_PROCESSING.disparityCorrelationParameters.blurVarianceSigma + "-MV"
@@ -2571,7 +2569,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						zMapTitles);
 
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 6, false);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"D-VAR-Bg" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-VS"
 								+ POST_PROCESSING.disparityCorrelationParameters.blurVarianceSigma + "-MV"
@@ -2599,7 +2597,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				String[] zMapTitles = new String[pixels.length];
 				for (int nImg = 0; nImg < zMapTitles.length; nImg++)
 					zMapTitles[nImg] = "img-" + nImg;
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"OF-Bg" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-MC"
 								+ POST_PROCESSING.disparityCorrelationParameters.zMapCorrMask + "-CY"
@@ -2615,7 +2613,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 
 				// debug
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 7, true);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"COR-PAIR" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-MC"
 								+ POST_PROCESSING.disparityCorrelationParameters.zMapCorrMask + "-CY"
@@ -2630,7 +2628,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						zMapTitles);
 
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 8, true);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"COR-AVER" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-MC"
 								+ POST_PROCESSING.disparityCorrelationParameters.zMapCorrMask + "-CY"
@@ -2645,7 +2643,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						zMapTitles);
 
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 9, true);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"COR-FIRST" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-MC"
 								+ POST_PROCESSING.disparityCorrelationParameters.zMapCorrMask + "-CY"
@@ -2660,7 +2658,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						zMapTitles);
 
 				pixels = DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI, 10, true);
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true,
 						"COR-SECOND" + POST_PROCESSING.disparityCorrelationParameters.bgFraction + "-MC"
 								+ POST_PROCESSING.disparityCorrelationParameters.zMapCorrMask + "-CY"
@@ -3043,7 +3041,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				String[] zMapTitles = new String[pixels.length];
 				for (int nImg = 0; nImg < zMapTitles.length; nImg++)
 					zMapTitles[nImg] = "img-" + nImg;
-				this.SDFA_INSTANCE.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
+				ShowDoubleFloatArrays.showArrays(pixels, POST_PROCESSING.disparityCorrelationParameters.zMapWOI.width,
 						POST_PROCESSING.disparityCorrelationParameters.zMapWOI.height, true, "Likely" +
 						// "OF-Bg"+POST_PROCESSING.disparityCorrelationParameters.bgFraction+
 						// "-VS"+POST_PROCESSING.disparityCorrelationParameters.blurVarianceSigma+
@@ -3237,7 +3235,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			}
 //           System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
 			if (DEBUG_LEVEL > 0) {
-				SDFA_INSTANCE.showArrays(dct, tilesX * DCT_PARAMETERS.dct_size, tilesY * DCT_PARAMETERS.dct_size, true,
+				ShowDoubleFloatArrays.showArrays(dct, tilesX * DCT_PARAMETERS.dct_size, tilesY * DCT_PARAMETERS.dct_size, true,
 						DBG_IMP.getTitle() + "-DCT");
 			}
 			double[][] idct_data = new double[dctdc_data.length][];
@@ -3249,7 +3247,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						THREADS_MAX, // maximal number of threads to launch
 						DEBUG_LEVEL); // globalDebugLevel)
 			}
-			SDFA_INSTANCE.showArrays(idct_data, (tilesX + 1) * DCT_PARAMETERS.dct_size,
+			ShowDoubleFloatArrays.showArrays(idct_data, (tilesX + 1) * DCT_PARAMETERS.dct_size,
 					(tilesY + 1) * DCT_PARAMETERS.dct_size, true, DBG_IMP.getTitle() + "-IDCTDC");
 			return;
 
@@ -3311,7 +3309,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			}
 //        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
 			if (DEBUG_LEVEL > 0) {
-				SDFA_INSTANCE.showArrays(dct, tilesX * DCT_PARAMETERS.dct_size, tilesY * DCT_PARAMETERS.dct_size, true,
+				ShowDoubleFloatArrays.showArrays(dct, tilesX * DCT_PARAMETERS.dct_size, tilesY * DCT_PARAMETERS.dct_size, true,
 						DBG_IMP.getTitle() + "-DCT");
 			}
 			double[][] idct_data = new double[dctdc_data.length][];
@@ -3323,7 +3321,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						THREADS_MAX, // maximal number of threads to launch
 						DEBUG_LEVEL); // globalDebugLevel)
 			}
-			SDFA_INSTANCE.showArrays(idct_data, (tilesX + 1) * DCT_PARAMETERS.dct_size,
+			ShowDoubleFloatArrays.showArrays(idct_data, (tilesX + 1) * DCT_PARAMETERS.dct_size,
 					(tilesY + 1) * DCT_PARAMETERS.dct_size, true, DBG_IMP.getTitle() + "-IDCTDC");
 			return;
 			/* ======================================================================== */
@@ -3421,9 +3419,9 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			if (blurSigma > 0) {
 				gb.blurDouble(p, n, n, blurSigma, blurSigma, 0.01);
 			}
-			SDFA_INSTANCE.showArrays(p, n, n, "p " + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(p, n, n, "p " + n + "x" + n);
 			double[] Fciip = dtt.dttt_ii(p, n);
-			SDFA_INSTANCE.showArrays(Fciip, n, n, "p " + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(Fciip, n, n, "p " + n + "x" + n);
 
 			double[] x = new double[n * n];
 			for (int ii = 0; ii < x.length; ii++)
@@ -3457,17 +3455,17 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				sin_shift_y[ii] = Math.sin(Math.PI * (ii + 0.5) * shiftXY[1] / n);
 			}
 
-			SDFA_INSTANCE.showArrays(x, n, n, "x " + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(x, n, n, "x " + n + "x" + n);
 			double[][] yy = new double[4][];
 			double[][] yr = new double[3][];
 			yy[0] = dtt.dttt_iv(x, 0, n);
 			yy[1] = dtt.dttt_iv(x, 1, n);
 			yy[2] = dtt.dttt_iv(x, 2, n);
 			yy[3] = dtt.dttt_iv(x, 3, n);
-			SDFA_INSTANCE.showArrays(yy, n, n, true, "y " + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(yy, n, n, true, "y " + n + "x" + n);
 
 //        double [] y = dtt.dttt_iv(x, 0, n);
-//        SDFA_INSTANCE.showArrays(y, n, n, "y "+n+"x"+n);
+//        ShowDoubleFloatArrays.showArrays(y, n, n, "y "+n+"x"+n);
 			yr[0] = dtt.dttt_iv(yy[0], 0, n);
 //        System.out.println("cos_shift_x.length="+cos_shift_x.length+" sin_shift_x.length="+sin_shift_x.length);
 //        System.out.println("yy[0].length="+yy[0].length+" yy[1].length="+yy[0].length);
@@ -3486,7 +3484,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			}
 			yr[2] = dtt.dttt_iv(yconv, 0, n);
 
-			SDFA_INSTANCE.showArrays(yr, n, n, true, "yr " + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(yr, n, n, true, "yr " + n + "x" + n);
 
 			if (n < 64)
 				return;
@@ -3536,7 +3534,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			for (int ii = 0; ii < mx.length; ii++) {
 //    		if ((((ii % iw) ^ (ii / iw)) & 1) !=0) mx[ii] = 0;
 			}
-			SDFA_INSTANCE.showArrays(mx, iw, ih, "mx " + iw + "x" + ih);
+			ShowDoubleFloatArrays.showArrays(mx, iw, ih, "mx " + iw + "x" + ih);
 
 			for (int tileY = 0; tileY < tilesY; tileY++) {
 				for (int tileX = 0; tileX < tilesX; tileX++) {
@@ -3575,15 +3573,15 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					}
 				}
 			}
-			SDFA_INSTANCE.showArrays(mxt, n2, n2, true, "mxt " + n2 + "x" + n2);
-			SDFA_INSTANCE.showArrays(mxtf, n, n, true, "mxtf " + n + "x" + n);
-			SDFA_INSTANCE.showArrays(mxtfu, n2, n2, true, "mxtfu " + n2 + "x" + n2);
-			SDFA_INSTANCE.showArrays(mycc, n, n, true, "mycc" + n + "x" + n);
-			SDFA_INSTANCE.showArrays(mysc, n, n, true, "mysc" + n + "x" + n);
-			SDFA_INSTANCE.showArrays(myccx, n, n, true, "myccx" + n + "x" + n);
-			SDFA_INSTANCE.showArrays(myt, n, n, true, "myt " + n + "x" + n);
-			SDFA_INSTANCE.showArrays(imyt, n2, n2, true, "imyt " + n2 + "x" + n2);
-			SDFA_INSTANCE.showArrays(imy, iw, ih, "imy " + iw + "x" + ih);
+			ShowDoubleFloatArrays.showArrays(mxt, n2, n2, true, "mxt " + n2 + "x" + n2);
+			ShowDoubleFloatArrays.showArrays(mxtf, n, n, true, "mxtf " + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(mxtfu, n2, n2, true, "mxtfu " + n2 + "x" + n2);
+			ShowDoubleFloatArrays.showArrays(mycc, n, n, true, "mycc" + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(mysc, n, n, true, "mysc" + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(myccx, n, n, true, "myccx" + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(myt, n, n, true, "myt " + n + "x" + n);
+			ShowDoubleFloatArrays.showArrays(imyt, n2, n2, true, "imyt " + n2 + "x" + n2);
+			ShowDoubleFloatArrays.showArrays(imy, iw, ih, "imy " + iw + "x" + ih);
 
 			return;
 		} else if (label.equals("Test Kernel Factorization")) {
@@ -3673,7 +3671,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					gb = new DoubleGaussianBlur();
 				if (blurSigma > 0)
 					gb.blurDouble(target_kernel, target_kernel_size, target_kernel_size, blurSigma, blurSigma, 0.01);
-				// SDFA_INSTANCE.showArrays(target_kernel, target_kernel_size,
+				// ShowDoubleFloatArrays.showArrays(target_kernel, target_kernel_size,
 				// target_kernel_size, "target_kernel");
 
 				if ((DCT_PARAMETERS.dbg_x == 0.0) && (DCT_PARAMETERS.dbg_x1 == 0.0) && (DCT_PARAMETERS.dbg_y == 0.0)
@@ -3697,8 +3695,8 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 								+ (jj + left_top_margin)] = target_kernel[ii * target_kernel_size + jj];
 					}
 				}
-				SDFA_INSTANCE.showArrays(target_kernel, target_kernel_size, target_kernel_size, "target_kernel");
-				SDFA_INSTANCE.showArrays(target_expanded, target_expanded_size, target_expanded_size,
+				ShowDoubleFloatArrays.showArrays(target_kernel, target_kernel_size, target_kernel_size, "target_kernel");
+				ShowDoubleFloatArrays.showArrays(target_expanded, target_expanded_size, target_expanded_size,
 						"target_expanded");
 
 			}
@@ -3706,7 +3704,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				EYESIS_DCT = new EyesisDCT(PROPERTIES, EYESIS_CORRECTIONS, CORRECTION_PARAMETERS, DCT_PARAMETERS);
 			}
 			target_antiperiodic = EYESIS_DCT.makeAntiperiodic(DCT_PARAMETERS.dct_size, target_expanded);
-			SDFA_INSTANCE.showArrays(target_antiperiodic, target_antiperiodic_size, target_antiperiodic_size,
+			ShowDoubleFloatArrays.showArrays(target_antiperiodic, target_antiperiodic_size, target_antiperiodic_size,
 					"target_antiperiodic");
 
 			boolean[] mask = null;
@@ -3747,13 +3745,13 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				System.out.println("asym_kernel.length=" + asym_kernel.length);
 				System.out.println("convolved.length=" + convolved.length);
 			}
-			SDFA_INSTANCE.showArrays(sym_kernel, DCT_PARAMETERS.dct_size, DCT_PARAMETERS.dct_size, "sym_kernel");
-			SDFA_INSTANCE.showArrays(asym_kernel, DCT_PARAMETERS.asym_size, DCT_PARAMETERS.asym_size, "asym_kernel");
-//        SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
-			SDFA_INSTANCE.showArrays(compare_kernels, target_antiperiodic_size, target_antiperiodic_size, true,
+			ShowDoubleFloatArrays.showArrays(sym_kernel, DCT_PARAMETERS.dct_size, DCT_PARAMETERS.dct_size, "sym_kernel");
+			ShowDoubleFloatArrays.showArrays(asym_kernel, DCT_PARAMETERS.asym_size, DCT_PARAMETERS.asym_size, "asym_kernel");
+//        ShowDoubleFloatArrays.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
+			ShowDoubleFloatArrays.showArrays(compare_kernels, target_antiperiodic_size, target_antiperiodic_size, true,
 					"compare_kernels");
 //
-//        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
+//        ShowDoubleFloatArrays.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
 			return;
 		} else if (label.equals("Min Kernel Factorization")) {
 			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
@@ -3916,14 +3914,14 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			double[] sym_dct_iii_ii = dtt.dttt_ii(sym_dct_iii);
 			double[][] sym_kernels = { sym_kernel, sym_dct_iii, sym_dct_iii_ii };
 
-			SDFA_INSTANCE.showArrays(sym_kernels, DCT_PARAMETERS.dct_size, DCT_PARAMETERS.dct_size, true,
+			ShowDoubleFloatArrays.showArrays(sym_kernels, DCT_PARAMETERS.dct_size, DCT_PARAMETERS.dct_size, true,
 					"sym_kernel_iii_ii");
 
-////        SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
-			SDFA_INSTANCE.showArrays(asym_kernel, DCT_PARAMETERS.asym_size, DCT_PARAMETERS.asym_size, "asym_kernel");
-			SDFA_INSTANCE.showArrays(compare_kernels, target_antiperiodic_size, target_antiperiodic_size, true,
+////        ShowDoubleFloatArrays.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
+			ShowDoubleFloatArrays.showArrays(asym_kernel, DCT_PARAMETERS.asym_size, DCT_PARAMETERS.asym_size, "asym_kernel");
+			ShowDoubleFloatArrays.showArrays(compare_kernels, target_antiperiodic_size, target_antiperiodic_size, true,
 					"compare_kernels");
-//        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
+//        ShowDoubleFloatArrays.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
 			return;
 
 		} else if (label.equals("DCT test 4")) {
@@ -5693,7 +5691,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		}
 		String[] rslt_titles = split_fg_bg ? QuadCLT.FGBG_TITLES_AUX : QuadCLT.FGBG_TITLES_ADJ; // last 2 will be 0;
 
-		(new ShowDoubleFloatArrays()).showArrays(ds, width, height, true, title, QuadCLT.FGBG_TITLES_ADJ);
+		ShowDoubleFloatArrays.showArrays(ds, width, height, true, title, QuadCLT.FGBG_TITLES_ADJ);
 
 		int tile_size = CLT_PARAMETERS.transform_size;
 		int[] wh_aux = QUAD_CLT_AUX.getGeometryCorrection().getSensorWH();
@@ -5706,7 +5704,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				QUAD_CLT.getGeometryCorrection(), // GeometryCorrection geometryCorrection_main,
 				QUAD_CLT_AUX.getGeometryCorrection(), // GeometryCorrection geometryCorrection_aux,
 				CLT_PARAMETERS, split_fg_bg, for_adjust, DEBUG_LEVEL); // int debug_level
-		(new ShowDoubleFloatArrays()).showArrays(ds_aux, tilesX_aux, tilesY_aux, true, title + "_TOAUX", rslt_titles);
+		ShowDoubleFloatArrays.showArrays(ds_aux, tilesX_aux, tilesY_aux, true, title + "_TOAUX", rslt_titles);
 		if (ds_aux.length == 2) {
 			QUAD_CLT_AUX.ds_from_main = ds_aux;
 		} else {
@@ -7764,7 +7762,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		}
 
 		System.out.println("mn=" + mn + ", mx=" + mx);
-//		(new ShowDoubleFloatArrays()) .showArrays(dpixels,  width, height, "test_depth_mn="+mn+"_mx="+mx);
+//		ShowDoubleFloatArrays .showArrays(dpixels,  width, height, "test_depth_mn="+mn+"_mx="+mx);
 
 		double[][] pseudo_pixels = new double[3][dpixels.length];
 		ThermalColor tc = new ThermalColor(palette, // public int lwir_palette = 0; // 0 - white - hot, 1 - black - hot,
@@ -7778,7 +7776,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		}
 		String[] rgb_titles = { "red", "green", "blue" };
 
-		ImageStack stack = (new ShowDoubleFloatArrays()).makeStack(pseudo_pixels, // iclt_data,
+		ImageStack stack = ShowDoubleFloatArrays.makeStack(pseudo_pixels, // iclt_data,
 				width, // (tilesX + 0) * clt_parameters.transform_size,
 				height, // (tilesY + 0) * clt_parameters.transform_size,
 				rgb_titles, // or use null to get chn-nn slice names
@@ -8334,7 +8332,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		// System.out.println("dct_dc.length="+dct_dc.length+"
 		// dct_ac.length="+dct_ac.length);
 		if (DEBUG_LEVEL > 0) {
-			SDFA_INSTANCE.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
+			ShowDoubleFloatArrays.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
 					tilesY * CLT_PARAMETERS.transform_size, true,
 					DBG_IMP.getTitle() + "-CLT+" + CLT_PARAMETERS.iclt_mask);
 		}
@@ -8363,7 +8361,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					THREADS_MAX, // maximal number of threads to launch
 					DEBUG_LEVEL); // globalDebugLevel)
 		}
-		SDFA_INSTANCE.showArrays(iclt_data, (tilesX + 1) * CLT_PARAMETERS.transform_size,
+		ShowDoubleFloatArrays.showArrays(iclt_data, (tilesX + 1) * CLT_PARAMETERS.transform_size,
 				(tilesY + 1) * CLT_PARAMETERS.transform_size, true,
 				DBG_IMP.getTitle() + "-ICLT-" + CLT_PARAMETERS.iclt_mask);
 		return;
@@ -8458,7 +8456,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		}
 //        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
 		if (DEBUG_LEVEL > 0) {
-			SDFA_INSTANCE.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
+			ShowDoubleFloatArrays.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
 					tilesY * CLT_PARAMETERS.transform_size, true, DBG_IMP.getTitle() + "-CLT+" + suffix, titles);
 		}
 		// convert second image (should be the same size)
@@ -8501,7 +8499,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		}
 //        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
 		if (DEBUG_LEVEL > 0) {
-			SDFA_INSTANCE.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
+			ShowDoubleFloatArrays.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
 					tilesY * CLT_PARAMETERS.transform_size, true, DBG_IMP.getTitle() + "-CLT2+" + suffix, titles);
 		}
 
@@ -8528,7 +8526,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				clt[chn * 4 + ii] = clt_set[ii];
 		}
 		if (DEBUG_LEVEL > 0) {
-			SDFA_INSTANCE.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
+			ShowDoubleFloatArrays.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
 					tilesY * CLT_PARAMETERS.transform_size, true, DBG_IMP.getTitle() + "-CORR+" + suffix, titles);
 		}
 
@@ -8548,7 +8546,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					clt[chn * 4 + ii] = clt_set[ii];
 			}
 			if (DEBUG_LEVEL > 0) {
-				SDFA_INSTANCE.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
+				ShowDoubleFloatArrays.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
 						tilesY * CLT_PARAMETERS.transform_size, true, DBG_IMP.getTitle() + "-LPF_CORR+" + suffix,
 						titles);
 			}
@@ -8569,7 +8567,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				clt[chn * 4 + ii] = clt_set[ii];
 		}
 		if (DEBUG_LEVEL > -1) {
-			SDFA_INSTANCE.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
+			ShowDoubleFloatArrays.showArrays(clt, tilesX * CLT_PARAMETERS.transform_size,
 					tilesY * CLT_PARAMETERS.transform_size, true, DBG_IMP.getTitle() + "-ICORR+" + suffix, titles);
 		}
 
@@ -8585,7 +8583,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 
 			}
 			String[] titles_rbg = { "red", "blue", "green" };
-			SDFA_INSTANCE.showArrays(corr_rslt, tilesX * (2 * CLT_PARAMETERS.transform_size),
+			ShowDoubleFloatArrays.showArrays(corr_rslt, tilesX * (2 * CLT_PARAMETERS.transform_size),
 					tilesY * (2 * CLT_PARAMETERS.transform_size), true, DBG_IMP.getTitle() + "-C" + suffix, titles_rbg);
 		}
 	}
@@ -8738,12 +8736,12 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				}
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(data, size_x, size_y, true, "pre-gauss", titles);
+		ShowDoubleFloatArrays.showArrays(data, size_x, size_y, true, "pre-gauss", titles);
 		if (sigma > 0.0) {
 			for (int i = 0; i < steps; i++) {
 				gb.blurDouble(data[i], size_x, size_y, sigma, sigma, 0.01);
 			}
-			(new ShowDoubleFloatArrays()).showArrays(data, size_x, size_y, true, "blured", titles);
+			ShowDoubleFloatArrays.showArrays(data, size_x, size_y, true, "blured", titles);
 		}
 
 		double[] cm_x = new double[steps];
@@ -9869,7 +9867,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 											updateStatus);// update status info
 									if (processParameters.saveDebayerEnergy || processParameters.showDebayerEnergy) {
 										if (DEBAYER_ENERGY != null) {
-											ImagePlus debayerMask = SDFA_INSTANCE.makeArrays(DEBAYER_ENERGY,
+											ImagePlus debayerMask = ShowDoubleFloatArrays.makeArrays(DEBAYER_ENERGY,
 													DEBAYER_ENERGY_WIDTH, DEBAYER_ENERGY.length / DEBAYER_ENERGY_WIDTH,
 													title + "-DEBAYER-ENERGY");
 											saveAndShow(debayerMask, filesParameters,
@@ -9986,7 +9984,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 													threadsMax, updateStatus); // update status info
 											if (processParameters.saveDenoiseMask
 													|| processParameters.showDenoiseMask) {
-												ImagePlus denoiseMask = SDFA_INSTANCE.makeArrays(DENOISE_MASK,
+												ImagePlus denoiseMask = ShowDoubleFloatArrays.makeArrays(DENOISE_MASK,
 														DENOISE_MASK_WIDTH, DENOISE_MASK.length / DENOISE_MASK_WIDTH,
 														title + "-MASK");
 												if (processParameters.jpeg) {
@@ -10105,7 +10103,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 									if ((processParameters.saveChromaDenoiseMask
 											|| processParameters.showChromaDenoiseMask)
 											&& (DENOISE_MASK_CHROMA != null)) {
-										ImagePlus chromaDenoiseMask = SDFA_INSTANCE.makeArrays(DENOISE_MASK_CHROMA,
+										ImagePlus chromaDenoiseMask = ShowDoubleFloatArrays.makeArrays(DENOISE_MASK_CHROMA,
 												DENOISE_MASK_CHROMA_WIDTH,
 												DENOISE_MASK_CHROMA.length / DENOISE_MASK_CHROMA_WIDTH,
 												title + "-MASK_CHROMA");
@@ -10544,7 +10542,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 //					  if (MASTER_DEBUG_LEVEL>1) System.out.println("kernel sum="+debug_sum);
 
 						// if ((tileY==tilesY/2) && (tileX==tilesX/2))
-						// SDFA_INSTANCE.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
+						// ShowDoubleFloatArrays.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
 						/* FHT transform of the kernel */
 						fht_instance.swapQuadrants(doubleKernel);
 						fht_instance.transform(doubleKernel);
@@ -10555,7 +10553,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						fht_instance.swapQuadrants(outTile);
 						/* accumulate result */
 						// if ((tileY==tilesY/2) && (tileX==tilesX/2))
-						// SDFA_INSTANCE.showArrays(outTile,size,size, "out-"+chn);
+						// ShowDoubleFloatArrays.showArrays(outTile,size,size, "out-"+chn);
 						/*
 						 * This is synchronized method. It is possible to make threads to write to
 						 * non-overlapping regions of the outPixels, but as the accumulation takes just
@@ -10660,7 +10658,6 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						pixels[chn] = (float[]) imageStack.getPixels(chn + 1);
 					DoubleFHT fht_instance = new DoubleFHT(); // provide DoubleFHT instance to save on initializations
 																// (or null)
-					ShowDoubleFloatArrays SDFA_instance = null; // just for debugging?
 
 					DeBayerScissors debayer_instance = new DeBayerScissors(debayerParameters.size, // size of the square
 																									// array, centar is
@@ -10710,17 +10707,15 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 						for (i = 0; i < tile[greenChn].length; i++)
 							tile[greenChn][i] *= 0.5;
 						if ((tileY == yTileDebug) && (tileX == xTileDebug)) {
-							if (SDFA_instance == null)
-								SDFA_instance = new ShowDoubleFloatArrays();
-							SDFA_instance.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
+							ShowDoubleFloatArrays.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
 									"x" + (tileX * step) + "_y" + (tileY * step));
 						}
 						for (chn = 0; chn < nChn; chn++) {
 							fht_instance.swapQuadrants(tile[chn]);
 							fht_instance.transform(tile[chn]);
 						}
-						if ((tileY == yTileDebug) && (tileX == xTileDebug) && (SDFA_instance != null))
-							SDFA_instance.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
+						if ((tileY == yTileDebug) && (tileX == xTileDebug) )
+							ShowDoubleFloatArrays.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
 									"tile-fht");
 						both_masks = debayer_instance.aliasScissors(tile[greenChn], // fht array for green, will be
 																					// masked in-place
@@ -10741,10 +10736,10 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 								((tileY == yTileDebug) && (tileX == xTileDebug)) ? 4 : 1);
 						// 1); // internal debug level ((DEBUG_LEVEL>2) && (yTile==yTile0) &&
 						// (xTile==xTile0))?3:1;
-						if ((tileY == yTileDebug) && (tileX == xTileDebug) && (SDFA_instance != null)) {
-							SDFA_instance.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
+						if ((tileY == yTileDebug) && (tileX == xTileDebug)) {
+							ShowDoubleFloatArrays.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
 									"A00");
-							SDFA_instance.showArrays(both_masks.clone(), debayerParameters.size, debayerParameters.size,
+							ShowDoubleFloatArrays.showArrays(both_masks.clone(), debayerParameters.size, debayerParameters.size,
 									"masks");
 						}
 						if (DEBAYER_ENERGY != null) {
@@ -10768,8 +10763,8 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 									tileX * step, // left corner X
 									tileY * step); // top corner Y
 						}
-						if ((tileY == yTileDebug) && (tileX == xTileDebug) && (SDFA_instance != null))
-							SDFA_instance.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
+						if ((tileY == yTileDebug) && (tileX == xTileDebug))
+							ShowDoubleFloatArrays.showArrays(tile.clone(), debayerParameters.size, debayerParameters.size,
 									"B00");
 
 					}
@@ -10785,7 +10780,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		}
 		DEBAYER_ENERGY_WIDTH = (DEBAYER_ENERGY != null) ? tilesX : 0; // for the image to be displayed externally
 //	  if (debayerParameters.showEnergy) {
-//		  SDFA_INSTANCE.showArrays (DEBAYER_ENERGY,tilesX,tilesY, "Debayer-Energy");
+//		  ShowDoubleFloatArrays.showArrays (DEBAYER_ENERGY,tilesX,tilesY, "Debayer-Energy");
 //	  }
 
 		return outStack;
@@ -10961,7 +10956,6 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					int tileY, tileX;
 					DoubleFHT fht_instance = new DoubleFHT(); // provide DoubleFHT instance to save on initializations
 																// (or null)
-//				  showDoubleFloatArrays SDFA_instance=null; // just for debugging?
 					for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
 						tileY = nTile / tilesX;
 						tileX = nTile % tilesX;
@@ -11139,7 +11133,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			diffGreens[i] = hipassPixels[i] - lopassPixels[i];
 		}
 		if ((DEBUG_LEVEL > 3) && nonlinParameters.showMask)
-			SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-nofilter");
+			ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-nofilter");
 		if (nonlinParameters.blurSigma > 0) {
 			if (DEBUG_LEVEL > 1)
 				System.out.println(
@@ -11148,12 +11142,12 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					0.01);
 		}
 		if ((DEBUG_LEVEL > 3) && nonlinParameters.showMask)
-			SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-blurred");
+			ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-blurred");
 		for (i = 0; i < lopassPixels.length; i++) {
 			diffGreens[i] = diffGreens[i] * diffGreens[i];
 		}
 		if ((DEBUG_LEVEL > 2) && nonlinParameters.showMask)
-			SDFA_INSTANCE.showArrays(lopassPixels.clone(), imgWidth, imgHeight, "lopassPixels");
+			ShowDoubleFloatArrays.showArrays(lopassPixels.clone(), imgWidth, imgHeight, "lopassPixels");
 
 		for (i = 0; i < lopassPixels.length; i++) {
 			if (max < lopassPixels[i])
@@ -11165,13 +11159,12 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 // Make threshold absolute - when (blured) intensity is below thershold, the divisor is not decreasing
 		max = ((float) NONLIN_PARAMETERS.threshold);
 		if ((DEBUG_LEVEL > 3) && nonlinParameters.showMask)
-			SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-squared");
+			ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-squared");
 		for (i = 0; i < lopassPixels.length; i++) {
 			diffGreens[i] /= (float) Math.max(max, lopassPixels[i]);
 		}
-//      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
 		if ((DEBUG_LEVEL > 1) && nonlinParameters.showMask)
-			SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffG-norm-limited");
+			ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffG-norm-limited");
 		if (nonlinParameters.useRejectBlocksFilter) { // use frequency domain filtering
 
 			double lowpassSigmaFreq = 1.0 * nonlinParameters.maskFFTSize
@@ -11181,7 +11174,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					nonlinParameters.rejectFreqSigma, // sigma of the rejection spots ( 0.0 - just zero a single point)
 					lowpassSigmaFreq); // sigma of the low pass filter (frequency units, 0.0 - do not filter)
 			if ((DEBUG_LEVEL > 3) && nonlinParameters.showMask)
-				SDFA_INSTANCE.showArrays(filterFHT, "filterFHT");
+				ShowDoubleFloatArrays.showArrays(filterFHT, "filterFHT");
 // Extend at least by half sliding window in each direction to reduce border effect
 			diffGreens1 = extendDoubleArrayForSlidingWindow(diffGreens, // input pixel array
 					imgWidth, // width of the image
@@ -11190,7 +11183,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			int extendedHeight = extendDimension(imgHeight, (nonlinParameters.maskFFTSize / 2));
 
 			if ((DEBUG_LEVEL > 3) && nonlinParameters.showMask)
-				SDFA_INSTANCE.showArrays(diffGreens1.clone(), extendedWidth, extendedHeight, "diffGreens-extended");
+				ShowDoubleFloatArrays.showArrays(diffGreens1.clone(), extendedWidth, extendedHeight, "diffGreens-extended");
 
 // run block rejection filter
 			diffGreens1 = filterMaskFromBlockArtifacts(diffGreens1, // input pixel array
@@ -11201,7 +11194,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					threadsMax, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
 					updateStatus); // update status info
 			if ((DEBUG_LEVEL > 3) && nonlinParameters.showMask)
-				SDFA_INSTANCE.showArrays(diffGreens1.clone(), extendedWidth, extendedHeight,
+				ShowDoubleFloatArrays.showArrays(diffGreens1.clone(), extendedWidth, extendedHeight,
 						"diffGreens-filtered-extended");/**/
 // cut extra margins, crop to original size
 			diffGreens1 = reducedDoubleArrayAfterSlidingWindow(diffGreens1, // input pixel array
@@ -11209,7 +11202,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					imgHeight, nonlinParameters.maskFFTSize / 2); // size of sliding step (half of the sliding window
 																	// size)
 			if ((DEBUG_LEVEL > 2) && nonlinParameters.showMask)
-				SDFA_INSTANCE.showArrays(diffGreens1.clone(), imgWidth, imgHeight, "diffGreens-filtered");
+				ShowDoubleFloatArrays.showArrays(diffGreens1.clone(), imgWidth, imgHeight, "diffGreens-filtered");
 			if (nonlinParameters.combineBothModes) {
 //      		DoubleGaussianBlur gb=new DoubleGaussianBlur();
 				gb.blurDouble(diffGreens, imgWidth, imgHeight, nonlinParameters.lowPassSigma,
@@ -11227,7 +11220,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					0.01);
 		}
 		if ((DEBUG_LEVEL > 1) && nonlinParameters.showMask)
-			SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-filtered");
+			ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-filtered");
 
 //      final double [][]       noiseMask, // 2-d array of kernelsNoiseGain (divide mask by it)
 //      final int               noiseStep, // linear pixels per noiseMask pixels (32)
@@ -11248,7 +11241,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			}
 		}
 		if ((DEBUG_LEVEL > 1) && nonlinParameters.showMask)
-			SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-noise");
+			ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-noise");
 		if (nonlinParameters.useRingFilter) {
 			diffGreens = ringFilter(diffGreens, // mask to be filtered
 					imgWidth, // mask width
@@ -11261,7 +11254,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 					nonlinParameters.ringIR, // ring inner radius
 					nonlinParameters.ringOR); // ring outer radius
 			if ((DEBUG_LEVEL > 1) && nonlinParameters.showMask)
-				SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-ring");
+				ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight, "diffGreens-ring");
 		}
 		if (DEBUG_LEVEL > 1)
 			System.out.println("filtMax=" + filtMax + " filtMin=" + filtMin);
@@ -11277,7 +11270,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			}
 		}
 //      if (nonlinParameters.showMask) {
-//    	  SDFA_INSTANCE.showArrays(diffGreens, imgWidth, imgHeight,"mask");
+//    	  ShowDoubleFloatArrays.showArrays(diffGreens, imgWidth, imgHeight,"mask");
 //      }
 		DENOISE_MASK = diffGreens;
 		DENOISE_MASK_WIDTH = imgWidth;
@@ -12210,7 +12203,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			blueLeakRgb[1][px] = fpixels_g[px] * gain_green;
 			blueLeakRgb[2][px] = fpixels_b[px] * gain_blue;
 		}
-		BlueLeak blueLeak = new BlueLeak(colorProcParameters, blueLeakRgb, width, SDFA_INSTANCE, null, // "blue_corr",
+		BlueLeak blueLeak = new BlueLeak(colorProcParameters, blueLeakRgb, width, null, // "blue_corr",
 				DEBUG_LEVEL + 1);
 		double[][] blueRemovedRGB = blueLeak.process(); // will later return corrected RGB to use
 		/*
@@ -12331,11 +12324,11 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma,
 					colorProcParameters.chromaDarkSigma, 0.01);
 			if (DEBUG_LEVEL > 3) {
-				SDFA_INSTANCE.showArrays(dmask, width, height, "dmask");
-				SDFA_INSTANCE.showArrays(dpixels_pr, width, height, "dpixels_pr");
-				SDFA_INSTANCE.showArrays(dpixels_pb, width, height, "dpixels_pb");
-				SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height, "dpixels_pr_dark");
-				SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height, "dpixels_pb_dark");
+				ShowDoubleFloatArrays.showArrays(dmask, width, height, "dmask");
+				ShowDoubleFloatArrays.showArrays(dpixels_pr, width, height, "dpixels_pr");
+				ShowDoubleFloatArrays.showArrays(dpixels_pb, width, height, "dpixels_pb");
+				ShowDoubleFloatArrays.showArrays(dpixels_pr_dark, width, height, "dpixels_pr_dark");
+				ShowDoubleFloatArrays.showArrays(dpixels_pb_dark, width, height, "dpixels_pb_dark");
 			}
 			double mp;
 			double k = 1.0 / (colorProcParameters.maskMax - colorProcParameters.maskMin);

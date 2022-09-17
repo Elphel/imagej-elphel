@@ -100,7 +100,7 @@ public class MacroCorrelation {
 			for (int i=0; i < 12;i++) {
 				dbg_img[i] =  input_data[i /3][i%3];
 			}
-			(new ShowDoubleFloatArrays()).showArrays(dbg_img,  mTilesX*tileSize, mTilesY*tileSize, true, "input_data",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img,  mTilesX*tileSize, mTilesY*tileSize, true, "input_data",titles);
 		}
 		mtp.resetCLTPasses();
 		for (double mdisp = macro_disparity_low; mdisp < (macro_disparity_high - macro_disparity_step); mdisp +=macro_disparity_step){
@@ -363,7 +363,7 @@ public class MacroCorrelation {
 			for (int i = 0; i < input_data.length; i++) {
 				dbg_img[i] = input_data[i][0];
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tp.getTilesX(),
 					tp.getTilesY(),
@@ -389,7 +389,7 @@ public class MacroCorrelation {
 					clt_parameters.corr_border_contrast,
 					mtp.getThreadsMax(),
 					debugLevel);
-			(new ShowDoubleFloatArrays()) .showArrays(
+			ShowDoubleFloatArrays .showArrays(
 					corr_rslt_partial,
 					mTilesX*(2*clt_parameters.transform_size),
 					mTilesY*(2*clt_parameters.transform_size),
@@ -410,7 +410,7 @@ public class MacroCorrelation {
 						debugLevel);
 			}
 
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					corr_rslt,
 					mTilesX*(2*clt_parameters.transform_size),
 					mTilesY*(2*clt_parameters.transform_size),

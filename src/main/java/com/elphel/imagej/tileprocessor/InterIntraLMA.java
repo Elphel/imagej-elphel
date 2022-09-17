@@ -734,7 +734,7 @@ public class InterIntraLMA {
 				}
 			}
 			String [] dbg_ratio_titles = {"0/0","1/0","2/0", "3/0", "4/0","5/4","6/4","7/4"};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_ratio,
 					tilesX,
 					noise_thresh.length/ tilesX,
@@ -829,7 +829,7 @@ public class InterIntraLMA {
 			}
 		}
 		if (dbg_img  != null) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					tilesX,
 					noise_thresh.length/ tilesX,
@@ -1387,14 +1387,14 @@ public class InterIntraLMA {
 			
 			if (dbg_img) {
 				double [][] dbg_Y =  getYDbg();
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_Y,
 						dbgTilesX,
 						dbgTilesY,
 						true,
 						"dbg_Y");
 				double [][] dbg_Fx = getFxDbg();
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_Fx,
 						dbgTilesX,
 						dbgTilesY,
@@ -1402,14 +1402,14 @@ public class InterIntraLMA {
 						"dbg_Fx");
 				
 				double [][] dbg_Nm =  getNmDbg(); // for linear - extract sqrt
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_Nm,
 						dbgTilesX,
 						dbgTilesY,
 						true,
 						"dbg_Nm");
 				double [][] dbg_Nv =  getNvDbg(); // for linear - extract sqrt
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_Nv,
 						dbgTilesX,
 						dbgTilesY,
@@ -1446,14 +1446,14 @@ public class InterIntraLMA {
 			good_or_bad_rms = last_rms;
 			if (dbg_img) {
 				double [][] dbg_Y =  getYDbg();
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_Y,
 						dbgTilesX,
 						dbgTilesY,
 						true,
 						"dbg_Y");
 				double [][] dbg_Fx = getFxDbg();
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_Fx,
 						dbgTilesX,
 						dbgTilesY,

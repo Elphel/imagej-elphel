@@ -38,7 +38,6 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 
 public class CorrectionDenoise {
-	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
     double [] denoiseMask;
     int       denoiseMaskWidth;
@@ -104,16 +103,16 @@ public class CorrectionDenoise {
 //	          diffGreens[i]=d*d;
 	    	  diffGreens[i]=hipassPixels[i]-lopassPixels[i];
 	      }
-	      if ((debugLevel>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-nofilter");
+	      if ((debugLevel>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-nofilter");
 	      if (nonlinParameters.blurSigma>0)	{
 		   	  if (debugLevel>1) System.out.println ( "Applying gaussian blur to difference hi/lo pass, blurSigma="+nonlinParameters.blurSigma);
 			  gb.blurDouble(diffGreens, imgWidth, imgHeight, nonlinParameters.blurSigma, nonlinParameters.blurSigma, 0.01);
 		  }
-	      if ((debugLevel>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-blurred");
+	      if ((debugLevel>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-blurred");
 	      for (i=0;i<lopassPixels.length;i++) {
 	    	  diffGreens[i]=diffGreens[i]*diffGreens[i];
 	      }
-	      if ((debugLevel>2) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(lopassPixels.clone(), imgWidth, imgHeight,"lopassPixels");
+	      if ((debugLevel>2) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(lopassPixels.clone(), imgWidth, imgHeight,"lopassPixels");
 	      
 	      for (i=0;i<lopassPixels.length;i++) {
 	    	  if (max<lopassPixels[i]) max=lopassPixels[i];
@@ -122,12 +121,12 @@ public class CorrectionDenoise {
 //	      max*=((float) NONLIN_PARAMETERS.threshold);
 	// Make threshold absolute - when (blured) intensity is below thershold, the divisor is not decreasing
 	      max=((float) nonlinParameters.threshold);
-	      if ((debugLevel>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-squared");
+	      if ((debugLevel>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-squared");
 	      for (i=0;i<lopassPixels.length;i++) {
 	        diffGreens[i]/=(float) Math.max(max,lopassPixels[i]);
 	      }
-//	      if ((debugLevel>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
-	      if ((debugLevel>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
+//	      if ((debugLevel>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
+	      if ((debugLevel>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
 	      if (nonlinParameters.useRejectBlocksFilter) { // use frequency domain filtering
 	    	  
 	    	  double lowpassSigmaFreq=1.0*nonlinParameters.maskFFTSize/(2*Math.PI*nonlinParameters.lowPassSigma); // low pass sigma in frequency domain
@@ -136,7 +135,7 @@ public class CorrectionDenoise {
 	    			  nonlinParameters.blockPeriod, // period (pixels) of the block artifacts to reject (32)
 	    			  nonlinParameters.rejectFreqSigma, // sigma of the rejection spots ( 0.0 - just zero a single point)
 	    			  lowpassSigmaFreq); // sigma of the low pass filter (frequency units, 0.0 - do not filter)
-	    	  if ((debugLevel>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(filterFHT,"filterFHT");
+	    	  if ((debugLevel>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(filterFHT,"filterFHT");
 	// Extend at least by half sliding window in each direction to reduce border effect 	  
 	    	  diffGreens1=extendDoubleArrayForSlidingWindow(
 	    			  diffGreens, // input pixel array
@@ -145,7 +144,7 @@ public class CorrectionDenoise {
 	    	  int extendedWidth=  extendDimension(imgWidth, (nonlinParameters.maskFFTSize/2));
 	          int extendedHeight= extendDimension(imgHeight,(nonlinParameters.maskFFTSize/2));
 	         
-	          if ((debugLevel>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens1.clone(),extendedWidth,  extendedHeight,"diffGreens-extended");
+	          if ((debugLevel>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens1.clone(),extendedWidth,  extendedHeight,"diffGreens-extended");
 	    	  
 	// run block rejection filter
 	    	  diffGreens1=filterMaskFromBlockArtifacts(
@@ -157,7 +156,7 @@ public class CorrectionDenoise {
 	    			  threadsMax, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
 	    			  updateStatus, // update status info
 	    			  debugLevel);
-	          if ((debugLevel>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens1.clone(),extendedWidth,
+	          if ((debugLevel>3) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens1.clone(),extendedWidth,
 	        		  extendedHeight,"diffGreens-filtered-extended");/**/
 	// cut extra margins, crop to original size
 	    	  diffGreens1=reducedDoubleArrayAfterSlidingWindow(
@@ -165,7 +164,7 @@ public class CorrectionDenoise {
 	    			  imgWidth,  // width of the image
 	    			  imgHeight,
 	    			  nonlinParameters.maskFFTSize/2); // size of sliding step (half of the sliding window size)
-	          if ((debugLevel>2) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens1.clone(),imgWidth,
+	          if ((debugLevel>2) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens1.clone(),imgWidth,
 	        		  imgHeight,"diffGreens-filtered");
 	    	  if (nonlinParameters.combineBothModes) {
 //	      		DoubleGaussianBlur gb=new DoubleGaussianBlur();
@@ -181,7 +180,7 @@ public class CorrectionDenoise {
 //	    		DoubleGaussianBlur gb=new DoubleGaussianBlur();
 	    		gb.blurDouble(diffGreens, imgWidth, imgHeight, nonlinParameters.lowPassSigma, nonlinParameters.lowPassSigma, 0.01);
 	      }
-	      if ((debugLevel>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-filtered");
+	      if ((debugLevel>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-filtered");
 	      
 //	      final double [][]       noiseMask, // 2-d array of kernelsNoiseGain (divide mask by it)
 //	      final int               noiseStep, // linear pixels per noiseMask pixels (32)
@@ -197,7 +196,7 @@ public class CorrectionDenoise {
 	        	  diffGreens[i]/=noiseMask[j][k];
 	          }    	  
 	      }
-	      if ((debugLevel>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-noise");
+	      if ((debugLevel>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-noise");
 	      if (nonlinParameters.useRingFilter) {
 	    	  diffGreens=ringFilter(diffGreens,            // mask to be filtered
 	    			  imgWidth,                            // mask width
@@ -206,7 +205,7 @@ public class CorrectionDenoise {
 	    			  nonlinParameters.overRingLimit,      // limit for the pixels in the center ring relative to the maximum in a ring
 	    			  nonlinParameters.ringIR,             // ring inner radius
 	    			  nonlinParameters.ringOR);            // ring outer radius
-	          if ((debugLevel>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-ring");
+	          if ((debugLevel>1) && nonlinParameters.showMask) ShowDoubleFloatArrays.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-ring");
 	      }
 	   	  if (debugLevel>1) System.out.println ( "filtMax="+filtMax+" filtMin="+filtMin);
 	      d= (float) ( 1.0/(filtMax-filtMin));
@@ -218,7 +217,7 @@ public class CorrectionDenoise {
 	        }
 	      }
 //	      if (nonlinParameters.showMask) {
-//	    	  SDFA_INSTANCE.showArrays(diffGreens, imgWidth, imgHeight,"mask");
+//	    	  ShowDoubleFloatArrays.showArrays(diffGreens, imgWidth, imgHeight,"mask");
 //	      }
 	     this.denoiseMask=diffGreens;
 	     this.denoiseMaskWidth=imgWidth; 
@@ -289,7 +288,6 @@ public class CorrectionDenoise {
 					  double [] tile=        new double[size * size ];
 					  int tileY,tileX;
 					  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
-//					  showDoubleFloatArrays SDFA_instance=null; // just for debugging?
 					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
 						  tileY = nTile /tilesX;
 						  tileX = nTile % tilesX;

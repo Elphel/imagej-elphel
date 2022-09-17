@@ -262,18 +262,6 @@ public class ImageDtt extends ImageDttCPU {
 			}
 		}
 
-		/*
-		DttRad2 dtt = new DttRad2(transform_size);
-		dtt.set_window(window_type);
-		final double [] lt_window = dtt.getWin2d();	// [256] - never used
-		final double [] lt_window2 = new double [lt_window.length]; // squared - never used
-
-		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
-		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
-		}
-*/
 		if (globalDebugLevel > 0) {
 			System.out.println("macro_mode="+macro_mode);
 		}
@@ -662,7 +650,7 @@ public class ImageDtt extends ImageDttCPU {
 			}
 		}
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 	}
 
@@ -919,7 +907,7 @@ public class ImageDtt extends ImageDttCPU {
 			double dbg_sum = 0.0;
 			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat[i];
 			System.out.println("dbg_sum("+gpu_sigma_log_corr+")="+dbg_sum);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					log_flat,
 					8,
 					8,
@@ -928,7 +916,7 @@ public class ImageDtt extends ImageDttCPU {
 			dbg_sum = 0.0;
 			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat0[i];
 			System.out.println("dbg_sum("+4.0+")="+dbg_sum);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					log_flat0,
 					8,
 					8,
@@ -937,7 +925,7 @@ public class ImageDtt extends ImageDttCPU {
 			dbg_sum = 0.0;
 			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat1[i];
 			System.out.println("dbg_sum("+1.0+")="+dbg_sum);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					log_flat1,
 					8,
 					8,
@@ -1022,7 +1010,7 @@ public class ImageDtt extends ImageDttCPU {
 		    		System.arraycopy(corr2D[ict], iy * corr_size, corr_img[cpair], dst_offs, corr_size);
 		    	}
 		    }
-			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+			ShowDoubleFloatArrays.showArrays( // out of boundary 15
 					corr_img,
 					tilesX * sq,
 					tilesY * sq,
@@ -1447,7 +1435,7 @@ public class ImageDtt extends ImageDttCPU {
 			double dbg_sum = 0.0;
 			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat[i];
 			System.out.println("dbg_sum("+gpu_sigma_log_corr+")="+dbg_sum);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					log_flat,
 					8,
 					8,
@@ -1456,7 +1444,7 @@ public class ImageDtt extends ImageDttCPU {
 			dbg_sum = 0.0;
 			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat0[i];
 			System.out.println("dbg_sum("+4.0+")="+dbg_sum);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					log_flat0,
 					8,
 					8,
@@ -1465,7 +1453,7 @@ public class ImageDtt extends ImageDttCPU {
 			dbg_sum = 0.0;
 			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat1[i];
 			System.out.println("dbg_sum("+1.0+")="+dbg_sum);
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					log_flat1,
 					8,
 					8,
@@ -1760,19 +1748,7 @@ public class ImageDtt extends ImageDttCPU {
 			}
 		}
 
-/*		
-		DttRad2 dtt = new DttRad2(transform_size);
-		dtt.set_window(window_type);
-		final double [] lt_window = dtt.getWin2d();	// [256] - never used
-		final double [] lt_window2 = new double [lt_window.length]; // squared - never used
-
-		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
-
-		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
-		}
-*/		
+	
 		if (globalDebugLevel > 0) {
 			System.out.println("macro_mode="+macro_mode);
 		}
@@ -2075,7 +2051,7 @@ public class ImageDtt extends ImageDttCPU {
 							corr_indices,
 							fcorr2D,
 							wh);
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							dbg_corr,
 							wh[0],
 							wh[1],
@@ -2208,7 +2184,7 @@ public class ImageDtt extends ImageDttCPU {
 			}
 		}
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 		return test_tasks;
 		
@@ -2464,7 +2440,7 @@ public class ImageDtt extends ImageDttCPU {
 						corr_indices,
 						fcorr2D,
 						wh);
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_corr,
 						wh[0],
 						wh[1],
@@ -2606,16 +2582,16 @@ public class ImageDtt extends ImageDttCPU {
 			// no correlation tiles to process
 		}
 		if ((dbg_distort != null) &&(globalDebugLevel >= 0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 /*
 //		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 
 		if (dbg_ports_coords != null) {
-			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
 		}
 */
 //		return clt_data;
@@ -3673,7 +3649,7 @@ public class ImageDtt extends ImageDttCPU {
 					System.out.println("    lma_str_scale: "+imgdtt_params.lma_str_scale);
 					System.out.println("   lma_str_offset: "+imgdtt_params.lma_str_offset);
 					System.out.println("    lma_ac_offset: "+imgdtt_params.lma_ac_offset);
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							debug_lma,
 							tilesX,
 							tilesY,
@@ -3682,7 +3658,7 @@ public class ImageDtt extends ImageDttCPU {
 							debug_lma_titles
 							);
 				} else {
-					(new ShowDoubleFloatArrays()).showArrays(
+					ShowDoubleFloatArrays.showArrays(
 							debug_lma,
 							tilesX,
 							tilesY,
@@ -3895,7 +3871,7 @@ public class ImageDtt extends ImageDttCPU {
 						corr_indices,
 						fcorr2D,
 						wh);
-				(new ShowDoubleFloatArrays()).showArrays(
+				ShowDoubleFloatArrays.showArrays(
 						dbg_corr,
 						wh[0],
 						wh[1],
@@ -4037,16 +4013,16 @@ public class ImageDtt extends ImageDttCPU {
 			// no correlation tiles to process
 		}
 		if ((dbg_distort != null) &&(globalDebugLevel >= 0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 /*
 //		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 
 		if (dbg_ports_coords != null) {
-			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
 		}
 */
 //		return clt_data;
@@ -5150,7 +5126,7 @@ public class ImageDtt extends ImageDttCPU {
 		startAndJoin(threads);
 		
 		if (dbg_img != null) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img,
 					clustersX,
 					clustersY,
@@ -5448,7 +5424,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 		startAndJoin(threads);
 		if (dbg_img2 != null) {									
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img2,
 					clustersX,
 					clustersY,
@@ -5465,7 +5441,7 @@ public class ImageDtt extends ImageDttCPU {
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_img_combo,
 					clustersX,
 					clustersY,

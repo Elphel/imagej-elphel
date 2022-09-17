@@ -325,7 +325,7 @@ public class AlignmentCorrection {
 						}
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, disp_strength[0].length/tilesX, true, "filtered_ds", titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img, tilesX, disp_strength[0].length/tilesX, true, "filtered_ds", titles);
 
 			}
 
@@ -346,7 +346,7 @@ public class AlignmentCorrection {
 						}
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, disp_strength[0].length/tilesX, true, "inp_ds" , titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img, tilesX, disp_strength[0].length/tilesX, true, "inp_ds" , titles);
 
 			}
 
@@ -384,7 +384,7 @@ public class AlignmentCorrection {
 					}
 				}
 
-				(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, disp_strength[0].length/tilesX, true, "hist_filt_ds", titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img, tilesX, disp_strength[0].length/tilesX, true, "hist_filt_ds", titles);
 
 			}
 		}
@@ -639,7 +639,7 @@ public class AlignmentCorrection {
 					}
 				}
 
-				(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "infinity_"+pass, titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img, tilesX, tilesY, true, "infinity_"+pass, titles);
 			}
 
 
@@ -862,7 +862,7 @@ public class AlignmentCorrection {
 				}
 			}
 
-			(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "AC_infinityCorrection", titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img, tilesX, tilesY, true, "AC_infinityCorrection", titles);
 
 		}
 		return inf_corr;
@@ -1130,7 +1130,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 			}
 			String [] titles = {"x0", "y0", "x1", "y1", "x2", "y2", "x3","y3","weight","~disp","dx0","dy0","dx1","dy1","dx2","dy2","dx3","dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					dbg_xy,
 					tilesX,
 					tilesY,
@@ -1704,7 +1704,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					titles[ns * NUM_ALL_SLICES + i] = prefixes[i]+"_"+ns;
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans" , titles);
+			ShowDoubleFloatArrays.showArrays(scans, tilesX, tilesY, true, "scans" , titles);
 		}
 		return scans;
 	}
@@ -1750,7 +1750,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					titles[ns * NUM_ALL_SLICES + i] = prefixes[i]+"_"+ns;
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans" , titles);
+			ShowDoubleFloatArrays.showArrays(scans, tilesX, tilesY, true, "scans" , titles);
 		}
 		return scans;
 	}
@@ -1830,7 +1830,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		if (debugLevel > -2) { // -2) { //  100) {
 			if (debugLevel > -3) { // -1) { // -2) { //  100) {
-				(new ShowDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans_pre-disp");
+				ShowDoubleFloatArrays.showArrays(scans, tilesX, tilesY, true, "scans_pre-disp");
 			}
 		}
 
@@ -1845,7 +1845,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		if (debugLevel > -2) { // -2) { //  100) {
 			if (debugLevel > -3) { // -1) { // -2) { //  100) {
-				(new ShowDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans_post-disp");
+				ShowDoubleFloatArrays.showArrays(scans, tilesX, tilesY, true, "scans_post-disp");
 			}
 		}
 //	static final int [] INDICES_10_DISP = {2,4,7,9}; // which indices need to add disparity to restore full offsets
@@ -1873,7 +1873,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			for (int ns = 0; ns < num_scans; ns++){
 				titles[ns] = "scan_" + ns;
 			}
-			(new ShowDoubleFloatArrays()).showArrays(comp_strength_rms, tilesX, tilesY, true, "comp_strength_rms" , titles);
+			ShowDoubleFloatArrays.showArrays(comp_strength_rms, tilesX, tilesY, true, "comp_strength_rms" , titles);
 		}
 
 // FIXME: Seems that disparity should be combined with dxy for BG scan before that
@@ -1887,10 +1887,10 @@ B = |+dy0   -dy1      -2*dy3 |
 				tilesX);// final int        tilesX);
 
 		if (debugLevel > -2) { // -2) { //  100) {
-			(new ShowDoubleFloatArrays()).showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans");
+			ShowDoubleFloatArrays.showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans");
 			if (debugLevel > -3) { // -1) { // -2) { //  100) {
-				(new ShowDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans");
-				(new ShowDoubleFloatArrays()).showArrays(target_disparity, tilesX, tilesY, true, "target_disparity");
+				ShowDoubleFloatArrays.showArrays(scans, tilesX, tilesY, true, "scans");
+				ShowDoubleFloatArrays.showArrays(target_disparity, tilesX, tilesY, true, "target_disparity");
 			}
 		}
 
@@ -1966,7 +1966,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 
 		if (debugLevel > 0) { // -2) { //  100) {
-			(new ShowDoubleFloatArrays()).showArrays(combo_comp_rms, tilesX, tilesY, "combo_comp_rms");
+			ShowDoubleFloatArrays.showArrays(combo_comp_rms, tilesX, tilesY, "combo_comp_rms");
 		}
 
 		// instance of class to operate navigation over tiles
@@ -1997,7 +1997,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		// here combo_mismatch[2][37005] = Double.NaN,combo_mismatch[1][37005] != 0.0, combo_mismatch[0][37005] = 0.0
 		if (debugLevel > 0) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		}
 		if (clt_parameters.lyf_filter) {
 			combo_mismatch =  filterLazyEyePairs (
@@ -2011,7 +2011,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		if (debugLevel > 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "filtered_mismatch" , prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "filtered_mismatch" , prefixes);
 		}
 
 
@@ -2047,7 +2047,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					}
 				}
 
-				(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "filtered_infinity_ds"); // , titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img, tilesX, tilesY, true, "filtered_infinity_ds"); // , titles);
 
 			}
 		}
@@ -2078,7 +2078,7 @@ B = |+dy0   -dy1      -2*dy3 |
 						}
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "hist_filt_ds"); // , titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img, tilesX, tilesY, true, "hist_filt_ds"); // , titles);
 			}
 		}
 		// combine infinity and lazy eye scan data into a single array
@@ -2111,7 +2111,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				titles[i] = prefixes[i]+"-inf";
 				titles[i + NUM_SLICES] = prefixes[i]+"-ly";
 			}
-			(new ShowDoubleFloatArrays()).showArrays(inf_and_ly, tilesX, tilesY, true, "inf_and_ly",titles);
+			ShowDoubleFloatArrays.showArrays(inf_and_ly, tilesX, tilesY, true, "inf_and_ly",titles);
 
 			int step = hist_smpl_side; // should be the same for both filters
 			int tilesX1 = tilesX/step;
@@ -2153,7 +2153,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
 		}
 		if (debugLevel > 0) {
 			System.out.println("test1234");
@@ -2310,13 +2310,13 @@ B = |+dy0   -dy1      -2*dy3 |
 					titles[ns * NUM_SLICES + i] = prefixes[i]+"_"+ns;
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans_a" , titles);
+			ShowDoubleFloatArrays.showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans_a" , titles);
 		}
 
 
 		if (debugLevel > -1) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		}
 
 		if (debugLevel > -1) { // 0) {
@@ -2326,7 +2326,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				titles[i] = prefixes[i]+"-inf";
 				titles[i + NUM_SLICES] = prefixes[i]+"-ly";
 			}
-			(new ShowDoubleFloatArrays()).showArrays(inf_and_ly, tilesX, tilesY, true, "inf_and_ly_last",titles);
+			ShowDoubleFloatArrays.showArrays(inf_and_ly, tilesX, tilesY, true, "inf_and_ly_last",titles);
 		}
 		ArrayList<Mismatch> mismatch_list = use_poly? null : (new ArrayList<Mismatch>());
 		// inf_and_ly here has filtered disparity and offsets, should be process clt_parameters.ly_inf_disp before filters
@@ -2545,7 +2545,7 @@ B = |+dy0   -dy1      -2*dy3 |
 						}
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(dbg_scans, tilesX, tilesY, true, "scans_pre-disp");
+				ShowDoubleFloatArrays.showArrays(dbg_scans, tilesX, tilesY, true, "scans_pre-disp");
 			}
 		}
 
@@ -2569,7 +2569,7 @@ B = |+dy0   -dy1      -2*dy3 |
 						}
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(dbg_scans, tilesX, tilesY, true, "scans_post-disp");
+				ShowDoubleFloatArrays.showArrays(dbg_scans, tilesX, tilesY, true, "scans_post-disp");
 			}
 		}
 
@@ -2600,7 +2600,7 @@ B = |+dy0   -dy1      -2*dy3 |
 						}
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(dbg_scans, tilesX, tilesY, true, "filtered_scans");
+				ShowDoubleFloatArrays.showArrays(dbg_scans, tilesX, tilesY, true, "filtered_scans");
 			}
 			if (debugLevel > -3) { // -1) { // -2) { //  100) {
 				double [][] dbg_scans = new double[scans.length][];
@@ -2612,8 +2612,8 @@ B = |+dy0   -dy1      -2*dy3 |
 						}
 					}
 				}
-				(new ShowDoubleFloatArrays()).showArrays(dbg_scans, tilesX, tilesY, true, "scans-after");
-				(new ShowDoubleFloatArrays()).showArrays(gt_disparity_strength[0], tilesX, tilesY, true, "gt_disparity_strength");
+				ShowDoubleFloatArrays.showArrays(dbg_scans, tilesX, tilesY, true, "scans-after");
+				ShowDoubleFloatArrays.showArrays(gt_disparity_strength[0], tilesX, tilesY, true, "gt_disparity_strength");
 			}
 		}
 
@@ -2651,7 +2651,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		if (debugLevel > 0) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual"+lazyEyeCompDiff, prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual"+lazyEyeCompDiff, prefixes);
 		}
 
 
@@ -2675,7 +2675,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		if (debugLevel > 0) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual-1"+lazyEyeCompDiff, prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual-1"+lazyEyeCompDiff, prefixes);
 		}
 
 // reduce influence of high disparity,  using combined disparity
@@ -2687,7 +2687,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		if (debugLevel > 0) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual-2"+lazyEyeCompDiff, prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual-2"+lazyEyeCompDiff, prefixes);
 		}
 
 
@@ -2719,7 +2719,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		// here combo_mismatch[2][37005] = Double.NaN,combo_mismatch[1][37005] != 0.0, combo_mismatch[0][37005] = 0.0
 		if (debugLevel > 0) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		}
 //		if (clt_parameters.lyf_filter) {
 		if (filter_lyf) {
@@ -2734,7 +2734,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		if (debugLevel > 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "filtered_mismatch" , prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "filtered_mismatch" , prefixes);
 		}
 
 		// no need to extract and filter infinity data
@@ -2754,7 +2754,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		if ((debugLevel > -1) && (hist_smpl_side > 0)) { // 0) {
 			String [] titles = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, tilesY, true, "inf_and_ly",titles);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, tilesY, true, "inf_and_ly",titles);
 
 			int step = hist_smpl_side; // should be the same for both filters
 			int tilesX1 = tilesX/step;
@@ -2789,7 +2789,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					}
 				}
 			}
-			(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
 		}
 		if (debugLevel > 0) {
 			System.out.println("test1234a");
@@ -2882,13 +2882,13 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		if (debugLevel > 1) {
 			String [] titles = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans_a" , titles);
+			ShowDoubleFloatArrays.showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans_a" , titles);
 		}
 
 
 		if (debugLevel > 1) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch4" , prefixes);
+			ShowDoubleFloatArrays.showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch4" , prefixes);
 		}
 
 
@@ -2995,14 +2995,13 @@ B = |+dy0   -dy1      -2*dy3 |
 		return combo;
 	}
 
-	public void showCltMismatches(
+	public static void showCltMismatches(
 			String                                   title,
 			CLTParameters clt_parameters,
 			double [][]                              combo_data,
 			int tilesX,
 			int tilesY)
 	{
-		ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 		String [] titles = new String [combo_data.length];
 		int num_scans = combo_data.length / AlignmentCorrection.NUM_ALL_SLICES;
 		for (int pair = 0; pair < 4; pair++){
@@ -3019,10 +3018,10 @@ B = |+dy0   -dy1      -2*dy3 |
 			titles[ 12 * num_scans + i] = "disp_"+disparity;
 			titles[ 13 * num_scans + i] = "strength_"+disparity;
 		}
-		sdfa_instance.showArrays(combo_data, tilesX,tilesY, true, title, titles);
+		ShowDoubleFloatArrays.showArrays(combo_data, tilesX,tilesY, true, title, titles);
 	}
 
-	public void showCltMismatch(
+	public static void showCltMismatch(
 			String                                   title,
 			CLTParameters clt_parameters,
 			double [][]                              clt_mismatch,
@@ -3030,7 +3029,6 @@ B = |+dy0   -dy1      -2*dy3 |
 			int tilesY)
 
 	{
-		ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 		String [] titles = new String [12];
 		double [][] dbg_clt_mismatch= new double [12][];
 		for (int pair = 0; pair < 4; pair++){
@@ -3047,7 +3045,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 			}
 		}
-		sdfa_instance.showArrays(dbg_clt_mismatch, tilesX, tilesY, true, title, titles);
+		ShowDoubleFloatArrays.showArrays(dbg_clt_mismatch, tilesX, tilesY, true, title, titles);
 	}
 	/**
 	 * Calculates transposed Jacobian for 8*<number of tiles> points (port x,y coordinates) for each of the symmetrical parameters (starting with zoom)
@@ -3202,9 +3200,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			dbgImgRemoveEmpty(dbg_img_deriv);
 			dbgImgRemoveEmpty(dbg_dxy_dsym);
 
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-			sdfa_instance.showArrays(dbg_img_deriv, dbg_owidth, dbg_oheight, true, "dbg_img_deriv", dbg_img_deriv_titles);
-			sdfa_instance.showArrays(dbg_dxy_dsym,  dbg_owidth, dbg_oheight, true, "dbg_dxy_dsym",  dbg_dxy_dsym_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_img_deriv, dbg_owidth, dbg_oheight, true, "dbg_img_deriv", dbg_img_deriv_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_dxy_dsym,  dbg_owidth, dbg_oheight, true, "dbg_dxy_dsym",  dbg_dxy_dsym_titles);
 		}
 		return jt;
 	}
@@ -3611,12 +3608,11 @@ B = |+dy0   -dy1      -2*dy3 |
 			dbgImgRemoveEmpty(dbg_dmv_dsym_delta);
 			dbgImgRemoveEmpty(dbg_dmv_dsym_diff);
 
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-			sdfa_instance.showArrays(dbg_xy,              dbg_owidth, dbg_oheight, true, "dbg_xy",        dbg_titles_xy);
-			sdfa_instance.showArrays(dbg_mv,              dbg_owidth, dbg_oheight, true, "dbg_mv",        dbg_titles_mv);
-			sdfa_instance.showArrays(dbg_dmv_dsym,        dbg_owidth, dbg_oheight, true, "dbg_dmv_dsym",  dbg_dmv_dsym_titles);
-			sdfa_instance.showArrays(dbg_dmv_dsym_delta,  dbg_owidth, dbg_oheight, true, "delta_dmv_dsym",dbg_dmv_dsym_titles);
-			sdfa_instance.showArrays(dbg_dmv_dsym_diff,   dbg_owidth, dbg_oheight, true, "diff_dmv_dsym", dbg_dmv_dsym_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_xy,              dbg_owidth, dbg_oheight, true, "dbg_xy",        dbg_titles_xy);
+			ShowDoubleFloatArrays.showArrays(dbg_mv,              dbg_owidth, dbg_oheight, true, "dbg_mv",        dbg_titles_mv);
+			ShowDoubleFloatArrays.showArrays(dbg_dmv_dsym,        dbg_owidth, dbg_oheight, true, "dbg_dmv_dsym",  dbg_dmv_dsym_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_dmv_dsym_delta,  dbg_owidth, dbg_oheight, true, "delta_dmv_dsym",dbg_dmv_dsym_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_dmv_dsym_diff,   dbg_owidth, dbg_oheight, true, "diff_dmv_dsym", dbg_dmv_dsym_titles);
 		}
 		if (debugLevel>-1) {
 			jtj.print(18, 6);

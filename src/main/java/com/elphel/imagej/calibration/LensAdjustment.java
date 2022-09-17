@@ -34,10 +34,8 @@ import ij.gui.GenericDialog;
 
 // Started to move methods from Aberration_Calibration
 public class LensAdjustment {
-	private ShowDoubleFloatArrays sdfaInstance =new ShowDoubleFloatArrays(); // just for debugging?
-//	public int debugLevel=2;
 
-	public int updateFocusGrid(
+	public static int updateFocusGrid(
 			double x0,   // lens center on the sensor
 			double y0,  // lens center on the sensor
 			ImagePlus imp,
@@ -195,7 +193,7 @@ public class LensAdjustment {
 			       double [] test_masked=new double [matchSimulatedPattern.focusMask.length];
 			       float [] pixels_eq=(float []) imp_eq.getProcessor().getPixels();
 				   for (int i=0;i<test_masked.length;i++) test_masked[i]=matchSimulatedPattern.focusMask[i]?pixels_eq[i]:0.0;
-				   sdfaInstance.showArrays(test_masked,matchSimulatedPattern.getImageWidth(), matchSimulatedPattern.getImageHeight(), "MASKED");
+				   ShowDoubleFloatArrays.showArrays(test_masked,matchSimulatedPattern.getImageWidth(), matchSimulatedPattern.getImageHeight(), "MASKED");
 			}
 
 		}
@@ -203,7 +201,7 @@ public class LensAdjustment {
 		if (debug_level>2) {
 	       double [] test_uv=new double [matchSimulatedPattern.UV_INDEX.length];
 		   for (int i=0;i<matchSimulatedPattern.UV_INDEX.length;i++) test_uv[i]=matchSimulatedPattern.UV_INDEX[i];
-		   sdfaInstance.showArrays(test_uv,matchSimulatedPattern.getImageWidth(), matchSimulatedPattern.getImageHeight(), "UV_INDEX");
+		   ShowDoubleFloatArrays.showArrays(test_uv,matchSimulatedPattern.getImageWidth(), matchSimulatedPattern.getImageHeight(), "UV_INDEX");
 		}
 		return numAbsolutePoints;
 

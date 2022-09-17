@@ -296,8 +296,6 @@ public class EyesisDCT {
 				kernels[chn] = null;
 			}
 		}
-	    ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-
 
 		for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (kernels[chn]==null)){
@@ -322,7 +320,7 @@ public class EyesisDCT {
 // save files
 				String [] symNames = {"red_sym","blue_sym","green_sym"};
 				String [] asymNames = {"red_asym","blue_asym","green_asym"};
-				ImageStack symStack = sdfa_instance.makeStack(
+				ImageStack symStack = ShowDoubleFloatArrays.makeStack(
 						kernels.sym_kernels,
 						sym_width,
 						sym_height,
@@ -342,12 +340,9 @@ public class EyesisDCT {
 	    		}
         		FileSaver fs=new FileSaver(imp_sym);
         		fs.saveAsTiffStack(symPath);
-
-//				sdfa_instance.showArrays(kernels.sym_kernels,  sym_width, sym_height, true, imp_kernel_sharp.getTitle()+"-sym");
-
 				int asym_width =  kernels.numHor * kernels.asym_size;
 				int asym_height = kernels.asym_kernels[0].length /asym_width;
-				ImageStack asymStack = sdfa_instance.makeStack(
+				ImageStack asymStack = ShowDoubleFloatArrays.makeStack(
 						kernels.asym_kernels,
 						asym_width,
 						asym_height,
@@ -367,7 +362,6 @@ public class EyesisDCT {
 	    		}
         		fs=new FileSaver(imp_asym);
         		fs.saveAsTiffStack(asymPath);
-//				sdfa_instance.showArrays(kernels.asym_kernels,  asym_width, asym_height, true, imp_kernel_sharp.getTitle()+"-asym");
 			}
 		}
 		return true;
@@ -623,8 +617,6 @@ public class EyesisDCT {
 			  }
 		  }
 
-
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  DttRad2 dtt = new DttRad2(dct_parameters.dct_size);
 
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
@@ -828,8 +820,8 @@ public class EyesisDCT {
 				  }
 				  // Debug will be removed later, the
 				  if (debugLevel > 0) {
-					  sdfa_instance.showArrays(kernels[chn].sym_kernels,  sym_width, sym_height, true, symKernelPaths[chn]);
-					  sdfa_instance.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, asymKernelPaths[chn]);
+					  ShowDoubleFloatArrays.showArrays(kernels[chn].sym_kernels,  sym_width, sym_height, true, symKernelPaths[chn]);
+					  ShowDoubleFloatArrays.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, asymKernelPaths[chn]);
 				  }
 				  kernels[chn].sym_kernels = null;  // not needed anymore
 				  kernels[chn].asym_kernels = null; // not needed anymore
@@ -866,7 +858,6 @@ public class EyesisDCT {
 		  kernels[chn].asym_kernels = new double [nColors][asym_width*asym_height];
 		  int sym_kernel_inc_index =   numHor * dct_size;
 		  int asym_kernel_inc_index =   numHor * asym_size;
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  for (int nc = 0; nc < nColors; nc++){
 			  for (int tileY = 0; tileY < numVert; tileY++){
 				  for (int tileX = 0; tileX < numHor; tileX++){
@@ -922,10 +913,10 @@ public class EyesisDCT {
 		  System.out.println("asym_width="+asym_width+" asym_height="+asym_height);
 		  System.out.println("kernels["+chn+"].asym_kernels.length="+kernels[chn].asym_kernels.length);
 		  System.out.println("kernels["+chn+"][0].asym_kernels.length="+kernels[chn].asym_kernels[0].length);
-		  sdfa_instance.showArrays(kernels[chn].sym_kernels,  sym_width, sym_height, true, "restored-sym-"+chn);
-		  sdfa_instance.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, "restored-asym-"+chn);
+		  ShowDoubleFloatArrays.showArrays(kernels[chn].sym_kernels,  sym_width, sym_height, true, "restored-sym-"+chn);
+		  ShowDoubleFloatArrays.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, "restored-asym-"+chn);
 		  if (kernels[chn].st_direct != null){
-			  sdfa_instance.showArrays(kernels[chn].sym_direct,  sym_width, sym_height, true, "restored-direct-"+chn);
+			  ShowDoubleFloatArrays.showArrays(kernels[chn].sym_direct,  sym_width, sym_height, true, "restored-direct-"+chn);
 		  }
 		  kernels[chn].sym_kernels = null;  // not needed anymore
 		  kernels[chn].asym_kernels = null; // not needed anymore
@@ -1210,7 +1201,6 @@ public class EyesisDCT {
 			  return result;
 		  }
 		  // =================
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  if (debugLevel > 0) {
 			  System.out.println("Showing image BEFORE_PROC");
 			  ImagePlus imp_dbg= new ImagePlus("BEFORE_PROC",stack);
@@ -1276,7 +1266,7 @@ public class EyesisDCT {
 							  debugLevel);
 				  }
 				  //	        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
-				  sdfa_instance.showArrays(dct,
+				  ShowDoubleFloatArrays.showArrays(dct,
 						  tilesX*dct_parameters.dct_size,
 						  tilesY*dct_parameters.dct_size,
 						  true,
@@ -1292,7 +1282,7 @@ public class EyesisDCT {
 						  debugLevel);
 			  }
 			  if (dct_parameters.color_DCT){ // convert RBG -> YPrPb
-				  if (debugLevel > 0) sdfa_instance.showArrays(
+				  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(
 						  idct_data,
 						  (tilesX + 1) * dct_parameters.dct_size,
 						  (tilesY + 1) * dct_parameters.dct_size,
@@ -1316,7 +1306,7 @@ public class EyesisDCT {
 							  dct_parameters.denoise_c_corn,          // final double      denoise_c_corn,   // =   0.5;  // weight of the 4 corner pixels during denoise y (relative to 4 straight)
 							  dct_parameters.dct_size,                //,                             // final int         threadsMax,       // maximal number of threads to launch
 							  debugLevel);                            // final int         globalDebugLevel)
-					  if (debugLevel > 0) sdfa_instance.showArrays(
+					  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(
 							  idct_data,
 							  (tilesX + 1) * dct_parameters.dct_size,
 							  (tilesY + 1) * dct_parameters.dct_size,
@@ -1333,7 +1323,7 @@ public class EyesisDCT {
 			  } else {
 				  if (dct_parameters.post_debayer){ // post_debayer
 					  if (debugLevel > -1) System.out.println("Applying post-debayer");
-					  if (debugLevel > -1) sdfa_instance.showArrays(
+					  if (debugLevel > -1) ShowDoubleFloatArrays.showArrays(
 							  idct_data,
 							  (tilesX + 1) * dct_parameters.dct_size,
 							  (tilesY + 1) * dct_parameters.dct_size,
@@ -1347,7 +1337,7 @@ public class EyesisDCT {
 							  dct_parameters.dct_size,                // final int         threadsMax,       // maximal number of threads to launch
 							  debugLevel);                            // final int         globalDebugLevel)
 					  // add here YPrPb conversion, then edge_emphasis
-					  if (debugLevel > -1) sdfa_instance.showArrays(
+					  if (debugLevel > -1) ShowDoubleFloatArrays.showArrays(
 							  idct_data,
 							  (tilesX + 1) * dct_parameters.dct_size,
 							  (tilesY + 1) * dct_parameters.dct_size,
@@ -1355,7 +1345,7 @@ public class EyesisDCT {
 							  result.getTitle()+"-rbg_after");
 				  } else {
 					  if (debugLevel > -1) System.out.println("Applyed LPF, sigma = "+dct_parameters.dbg_sigma);
-					  if (debugLevel > -1) sdfa_instance.showArrays(
+					  if (debugLevel > -1) ShowDoubleFloatArrays.showArrays(
 							  idct_data,
 							  (tilesX + 1) * dct_parameters.dct_size,
 							  (tilesY + 1) * dct_parameters.dct_size,
@@ -1364,7 +1354,7 @@ public class EyesisDCT {
 				  }
 			  }
 
-			  if (debugLevel > 0) sdfa_instance.showArrays(idct_data,
+			  if (debugLevel > 0) ShowDoubleFloatArrays.showArrays(idct_data,
 					  (tilesX + 1) * dct_parameters.dct_size,
 					  (tilesY + 1) * dct_parameters.dct_size,
 					  true,
@@ -1372,7 +1362,7 @@ public class EyesisDCT {
 
 			  // convert to ImageStack of 3 slices
 			  String [] sliceNames = {"red", "blue", "green"};
-			  stack = sdfa_instance.makeStack(
+			  stack = ShowDoubleFloatArrays.makeStack(
 					  idct_data,
 					  (tilesX + 1) * dct_parameters.dct_size,
 					  (tilesY + 1) * dct_parameters.dct_size,

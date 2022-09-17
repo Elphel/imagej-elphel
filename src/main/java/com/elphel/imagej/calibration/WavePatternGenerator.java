@@ -171,17 +171,17 @@ public class WavePatternGenerator {
 				mask[base+ix]=Math.exp(kLong*cLong*cLong+kLat*cLat*cLat);
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(data, "input data");
-		(new ShowDoubleFloatArrays()).showArrays(mask, "mask");
+		ShowDoubleFloatArrays.showArrays(data, "input data");
+		ShowDoubleFloatArrays.showArrays(mask, "mask");
 		DoubleFHT fht =new DoubleFHT();
 		fht.swapQuadrants(data);
 		fht.transform(    data);
-		(new ShowDoubleFloatArrays()).showArrays(data, "FHT data");
+		ShowDoubleFloatArrays.showArrays(data, "FHT data");
 		for (int i=0;i<data.length;i++) data[i]*=mask[i];
-		(new ShowDoubleFloatArrays()).showArrays(data, "masked FHT data");
+		ShowDoubleFloatArrays.showArrays(data, "masked FHT data");
 		fht.inverseTransform(data);
 		fht.swapQuadrants   (data);
-//		(new showDoubleFloatArrays()).showArrays(data, "restored data");
+//		ShowDoubleFloatArrays.showArrays(data, "restored data");
 		float [] pixels = new float [data.length];
 		if (binary) for (int i=0;i<data.length;i++) pixels[i] = (data[i]>0)?1.0f:0.0f;
 		else        for (int i=0;i<data.length;i++) pixels[i] = (float) data[i];

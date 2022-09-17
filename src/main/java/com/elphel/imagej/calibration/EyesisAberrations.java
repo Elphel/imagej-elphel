@@ -29,7 +29,6 @@ import ij.process.ImageProcessor;
 public class EyesisAberrations {
 	public double [][][][] pdfKernelMap=null;
 	JP46_Reader_camera JP4_INSTANCE=       new JP46_Reader_camera(false);
-	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 	public Distortions distortions=null;
 	public AberrationParameters aberrationParameters=null;
@@ -931,8 +930,8 @@ public class EyesisAberrations {
    	/* TODO: calculate top-left corner in output array */
    						/*
    	   if ((DEBUG_LEVEL>1) &&(tileY==0)) {
-   	      SDFA_instance.showArrays(firstFHTColumn,size,size, "firstFHTColumn");
-   	      SDFA_instance.showArrays(secondFHTColumn,size,size, "secondFHTColumn");
+   	      ShowDoubleFloatArrays.showArrays(firstFHTColumn,size,size, "firstFHTColumn");
+   	      ShowDoubleFloatArrays.showArrays(secondFHTColumn,size,size, "secondFHTColumn");
    	      DEBUG_LEVEL=4;
    	      return null;
    	   }
@@ -1419,7 +1418,6 @@ public class EyesisAberrations {
 		    AtomicInteger stopRequested, // 1 - stop now, 2 - when convenient
 			EyesisAberrations.InterpolateParameters  interpolateParameters, // INTERPOLATE
 			EyesisAberrations.MultiFilePSF           multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
-//			showDoubleFloatArrays  sdfa_instance,        // SDFA_INSTANCE
 			boolean                saveResult,
 			boolean                showResult,
 			boolean                updateStatus,          // UPDATE_STATUS
@@ -1446,8 +1444,6 @@ public class EyesisAberrations {
     		}
     	}
 
-		ShowDoubleFloatArrays sdfa_instance=new ShowDoubleFloatArrays();
-
 
 		ImagePlus              impShow=new ImagePlus("CombinedKernels");              // just to show in the same window?
 		long 	  startTime=System.nanoTime();
@@ -1459,7 +1455,6 @@ public class EyesisAberrations {
 					fileList[nChn],
 					resultPaths[nChn],
 					nChn, // int                    sensor_channel,       // just for debugging
-					sdfa_instance,        // SDFA_INSTANCE
 					impShow, // just to show in the same window?
 					saveResult,
 					showResult,
@@ -1483,7 +1478,6 @@ public class EyesisAberrations {
 			String []              filenames,
 			String                 resultPath,
 			int                    sensor_channel,       // just for debugging
-			ShowDoubleFloatArrays  sdfa_instance,        // SDFA_INSTANCE
 			ImagePlus              imp_sel, // just to show in the same window?
 			boolean                saveResult,
 			boolean                showResult,
@@ -1601,7 +1595,7 @@ public class EyesisAberrations {
 				weights[0][index]+=weights[nFile+1][index];
 			}
 		}
-		if (thisDebugLevel>1) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights_"+String.format("%02d",sensor_channel));
+		if (thisDebugLevel>1) ShowDoubleFloatArrays.showArrays(weights, kWidth, kHeight,  true, "weights_"+String.format("%02d",sensor_channel));
 
 		// remove any border ones if non-border is present in the same cell
 		double [][] weightsMasked=new double[weights.length][];
@@ -1615,15 +1609,15 @@ public class EyesisAberrations {
 			for (int nFile=0;nFile<nFiles;nFile++) if ((weightsMasked[nFile+1][i]<1.0) && (maxWeight >= 1.0)) weightsMasked[nFile+1][i]=0.0; // do not count  half-weights if full one(s) are present
 			for (int nFile=0;nFile<nFiles;nFile++)  weightsMasked[0][i]+=weightsMasked[nFile+1][i];
 		}
-		if (thisDebugLevel>1) sdfa_instance.showArrays(weightsMasked, kWidth, kHeight,  true, "weightsMasked");
+		if (thisDebugLevel>1) ShowDoubleFloatArrays.showArrays(weightsMasked, kWidth, kHeight,  true, "weightsMasked");
 
 		double [][][] psfRadius=c[5]; // later may remove all other calculations for c[i]?
 		double [][][] pxfCenterX=c[0]; // some outlier kernels have large x/y shift with normal radius - remove them too
 		double [][][] pxfCenterY=c[1];
 		if (thisDebugLevel>1) {
-			for (int color=0;color<nChn;color++) sdfa_instance.showArrays(psfRadius[color], kWidth, kHeight,  true, "psfRadius-"+color);
-			for (int color=0;color<nChn;color++) sdfa_instance.showArrays(pxfCenterX[color], kWidth, kHeight,  true, "pxfCenterX-"+color);
-			for (int color=0;color<nChn;color++) sdfa_instance.showArrays(pxfCenterY[color], kWidth, kHeight,  true, "pxfCenterY-"+color);
+			for (int color=0;color<nChn;color++) ShowDoubleFloatArrays.showArrays(psfRadius[color], kWidth, kHeight,  true, "psfRadius-"+color);
+			for (int color=0;color<nChn;color++) ShowDoubleFloatArrays.showArrays(pxfCenterX[color], kWidth, kHeight,  true, "pxfCenterX-"+color);
+			for (int color=0;color<nChn;color++) ShowDoubleFloatArrays.showArrays(pxfCenterY[color], kWidth, kHeight,  true, "pxfCenterY-"+color);
 		}
 		double [][][] radiusRatio=new double[nChn][nFiles+1][kLength];
 		int ref_color = 2; // green
@@ -1810,21 +1804,21 @@ public class EyesisAberrations {
 				}
 
 				if (multiFilePSF.validateShowEllipse) {
-						sdfa_instance.showArrays(radiusRatio[chn], kWidth, kHeight,  true, "ratio-"+chn);
-						sdfa_instance.showArrays(c[5][chn],kWidth, kHeight,  true, "radius-"+chn);
+						ShowDoubleFloatArrays.showArrays(radiusRatio[chn], kWidth, kHeight,  true, "ratio-"+chn);
+						ShowDoubleFloatArrays.showArrays(c[5][chn],kWidth, kHeight,  true, "radius-"+chn);
 					if (thisDebugLevel>1) {
-						sdfa_instance.showArrays(c[0][chn], kWidth, kHeight,  true, "x-shift-"+chn);
-						sdfa_instance.showArrays(c[1][chn], kWidth, kHeight,  true, "y-shift-"+chn);
-						sdfa_instance.showArrays(c[2][chn], kWidth, kHeight,  true, "x2-"+chn);
-						sdfa_instance.showArrays(c[3][chn], kWidth, kHeight,  true, "y2-"+chn);
-						sdfa_instance.showArrays(c[4][chn], kWidth, kHeight,  true, "xy-"+chn);
-						sdfa_instance.showArrays(c[6][chn], kWidth, kHeight,  true, "area-"+chn);
+						ShowDoubleFloatArrays.showArrays(c[0][chn], kWidth, kHeight,  true, "x-shift-"+chn);
+						ShowDoubleFloatArrays.showArrays(c[1][chn], kWidth, kHeight,  true, "y-shift-"+chn);
+						ShowDoubleFloatArrays.showArrays(c[2][chn], kWidth, kHeight,  true, "x2-"+chn);
+						ShowDoubleFloatArrays.showArrays(c[3][chn], kWidth, kHeight,  true, "y2-"+chn);
+						ShowDoubleFloatArrays.showArrays(c[4][chn], kWidth, kHeight,  true, "xy-"+chn);
+						ShowDoubleFloatArrays.showArrays(c[6][chn], kWidth, kHeight,  true, "area-"+chn);
 					}
 				}
 			}
 
 		}
-		if (multiFilePSF.showWeights) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights-"+String.format("%02d",sensor_channel));
+		if (multiFilePSF.showWeights) ShowDoubleFloatArrays.showArrays(weights, kWidth, kHeight,  true, "weights-"+String.format("%02d",sensor_channel));
 		//    	double [][] weights=new double[nFiles+1][kLength];
 		for (int i=0;i<kLength;i++) weights[0][i]=0.0;
 		psfKernelMap=new double [kHeight][kWidth][nChn][];
@@ -2309,7 +2303,7 @@ public class EyesisAberrations {
 			for (int i = 0; i < dbg_index.length; i++) {
 				dbg_index[i] = commonMatchSimulatedPattern.UV_INDEX[i];
 			}
-			SDFA_INSTANCE.showArrays(dbg_index, imp_sel.getWidth(), dbg_index.length/imp_sel.getWidth(), "UV_INDEX");
+			ShowDoubleFloatArrays.showArrays(dbg_index, imp_sel.getWidth(), dbg_index.length/imp_sel.getWidth(), "UV_INDEX");
 		}
 		
 		
@@ -2536,7 +2530,7 @@ public class EyesisAberrations {
 						if (debugLateral[nTileY][nTileX][cIndex[j]]!=null) dbgLat[layer][nTileY*debugLateral[0].length+nTileX]=debugLateral[nTileY][nTileX][cIndex[j]][i];
 					} layer++;
 				}
-				SDFA_INSTANCE.showArrays(dbgLat, debugLateral[0].length, debugLateral.length, true, "lateral"+imp_sel.getTitle(), debugTitles);
+				ShowDoubleFloatArrays.showArrays(dbgLat, debugLateral[0].length, debugLateral.length, true, "lateral"+imp_sel.getTitle(), debugTitles);
 				/*
 					debugLateralTile[i][0]=lateralChromatic[i][0];
 					debugLateralTile[i][1]=lateralChromatic[i][1];
@@ -2976,10 +2970,10 @@ public class EyesisAberrations {
 			// should it be averaged WV?
 			if (debugThis || (globalDebugLevel>2)) System.out.println ( " x0="+x0+" y0="+y0);
 			if (debugThis || (globalDebugLevel>2)) {
-				SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-in");
+				ShowDoubleFloatArrays.showArrays(input_bayer_or_mono, true, title+"-in");
 			}
 			if (debugThis || (globalDebugLevel>2)) {
-				SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-S");
+				ShowDoubleFloatArrays.showArrays(simul_pixels, true, title+"-S");
 			}
 
 			if (masterDebugLevel>1){
@@ -2994,7 +2988,7 @@ public class EyesisAberrations {
 
 		input_bayer_or_mono= normalizeAndWindow (input_bayer_or_mono, Hamming);
 		if (debugThis || (globalDebugLevel>2)) {
-			SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-in-norm");
+			ShowDoubleFloatArrays.showArrays(input_bayer_or_mono, true, title+"-in-norm");
 		}
 		if (subpixel>1) {
 			if (is_mono) {
@@ -3011,7 +3005,7 @@ public class EyesisAberrations {
 			for (i=0;i<4;i++) if (!colorComponents.colorsToCorrect[i]) input_bayer_or_mono[i]=null; // leave composite greens even if disabled
 		}
 		if (debugThis) {
-//			SDFA_INSTANCE.showArrays(input_bayer_or_mono, full_fft_size, full_fft_size, title);
+//			ShowDoubleFloatArrays.showArrays(input_bayer_or_mono, full_fft_size, full_fft_size, title);
 		}
 
 		if (globalDebugLevel>2) System.out.println ( " input_bayer.length="+input_bayer_or_mono.length+" simul_pixels.length="+simul_pixels.length+" full_fft_size="+full_fft_size*subpixel);
@@ -3020,10 +3014,10 @@ public class EyesisAberrations {
 		}
 
 		if (debugThis) {
-			SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-input");
+			ShowDoubleFloatArrays.showArrays(input_bayer_or_mono, true, title+"-input");
 		}
 		if (debugThis) {
-			SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-SIM");
+			ShowDoubleFloatArrays.showArrays(simul_pixels, true, title+"-SIM");
 		}
 
 //if (globalDebugLevel>2)globalDebugLevel=0; //************************************************************
@@ -3056,7 +3050,7 @@ public class EyesisAberrations {
 		}
 		int debugThreshold=1;
 		if (debugThis) {
-			SDFA_INSTANCE.showArrays(inverted, title+"_Combined-PSF"); // Here OK with mono
+			ShowDoubleFloatArrays.showArrays(inverted, title+"_Combined-PSF"); // Here OK with mono
 		}
 /* correct composite greens */
 /* Here we divide wave vectors by subpixel as the pixels are already added */
@@ -3204,7 +3198,7 @@ public class EyesisAberrations {
 				break;
 			}
 			if (debugSize>0) {
-				SDFA_INSTANCE.showArrays(kernels, debugSize, debugSize, title+"_KERNELS");
+				ShowDoubleFloatArrays.showArrays(kernels, debugSize, debugSize, title+"_KERNELS");
 			}
 		}
 		return kernels;
@@ -3328,7 +3322,7 @@ public class EyesisAberrations {
 		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
 			double [][] meas_sim = {measuredPixels, modelPixels};
 //			String [] dbg_titles = {"measured","simulated"};
-			SDFA_INSTANCE.showArrays(meas_sim, true, title+"-MEAS_SIM");
+			ShowDoubleFloatArrays.showArrays(meas_sim, true, title+"-MEAS_SIM");
 		}
 		if (fht_instance==null) fht_instance=new DoubleFHT(); // move upstream to reduce number of initializations
 		int i;
@@ -3352,22 +3346,22 @@ public class EyesisAberrations {
 					globalDebugLevel);
 /* debug show the mask */
 			if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-				SDFA_INSTANCE.showArrays(mask, title+"-MASK");
+				ShowDoubleFloatArrays.showArrays(mask, title+"-MASK");
 			}
 			for (int ii=0;ii<ps.length;ii++) ps[ii]=Math.log(ps[ii]); // can be twice faster
 			if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-				SDFA_INSTANCE.showArrays(ps, "LOG-"+title);
+				ShowDoubleFloatArrays.showArrays(ps, "LOG-"+title);
 			}
 			double [] ps_smooth=ps.clone();
 			gb.blurDouble(ps_smooth, size, size, mask1_sigma, mask1_sigma, 0.01);
 			if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-				SDFA_INSTANCE.showArrays(ps_smooth, "SM-"+title);
+				ShowDoubleFloatArrays.showArrays(ps_smooth, "SM-"+title);
 			}
 			double threshold1=Math.log(2.0*mask1_threshold);
 			mask1=new double [ps.length];
 			for (int ii=0;ii<ps.length;ii++) mask1[ii]= ps[ii]-ps_smooth[ii]-threshold1;
 			if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-				SDFA_INSTANCE.showArrays(mask1, "M1-"+title);
+				ShowDoubleFloatArrays.showArrays(mask1, "M1-"+title);
 			}
 			fht_instance.swapQuadrants(mask1); // zero in the corner
 			for (int ii=0;ii<mask1.length;ii++){
@@ -3378,7 +3372,7 @@ public class EyesisAberrations {
 				mask1[ii]*=mask[ii];
 			}
 			if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-				SDFA_INSTANCE.showArrays(mask1, "M1A-"+title);
+				ShowDoubleFloatArrays.showArrays(mask1, "M1A-"+title);
 			}
 		}
 /* Mask already includes zeros on ps, so we can just use divisions of FHT*/
@@ -3387,21 +3381,21 @@ public class EyesisAberrations {
 		//get to frequency domain
 		fht_instance.transform(nominatorPixels);
 		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug evel later */ // was 3
-			SDFA_INSTANCE.showArrays(nominatorPixels, title+"-NOM-FHT");
-			SDFA_INSTANCE.showArrays(denominatorPixels, title+"-DENOM-FHT");
+			ShowDoubleFloatArrays.showArrays(nominatorPixels, title+"-NOM-FHT");
+			ShowDoubleFloatArrays.showArrays(denominatorPixels, title+"-DENOM-FHT");
 		}
 		double [] pixels=fht_instance.divide(nominatorPixels,denominatorPixels);
 		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug evel later */ // was 3
-			SDFA_INSTANCE.showArrays(pixels, title+"-DECONV");
+			ShowDoubleFloatArrays.showArrays(pixels, title+"-DECONV");
 		}
 		for (i=0;i<pixels.length;i++) {
 			if (mask[i]==0.0) pixels[i]=0.0; // preventing NaN*0.0
 			else pixels[i]*=mask[i];
 		}
 		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-			SDFA_INSTANCE.showArrays(pixels, title+"-MASKED");
+			ShowDoubleFloatArrays.showArrays(pixels, title+"-MASKED");
 			double [][] aphase=fht_instance.fht2AmpHase(pixels,true);
-			SDFA_INSTANCE.showArrays(aphase, true,"AP="+title+"-MASKED");
+			ShowDoubleFloatArrays.showArrays(aphase, true,"AP="+title+"-MASKED");
 
 		}
 		if (gaps_sigma>0.0){
@@ -3416,7 +3410,7 @@ public class EyesisAberrations {
 				else if (mask1[jj]>=0.0) fft_reIm_centered[ii][jj]/=mask_denoise;
 				else  fft_reIm_centered[ii][jj]=0.0;
 			if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-				SDFA_INSTANCE.showArrays(fft_reIm_centered, true,"ReIm-"+title);
+				ShowDoubleFloatArrays.showArrays(fft_reIm_centered, true,"ReIm-"+title);
 			}
 			fht_instance.swapQuadrants(fft_reIm_centered[0]); // zero in the corner
 			fht_instance.swapQuadrants(fft_reIm_centered[1]); // zero in the corner
@@ -3427,7 +3421,7 @@ public class EyesisAberrations {
 		fht_instance.inverseTransform(pixels);
 		fht_instance.swapQuadrants(pixels);
 		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
-			SDFA_INSTANCE.showArrays(pixels, "PSF-"+title);
+			ShowDoubleFloatArrays.showArrays(pixels, "PSF-"+title);
 		}
 		return pixels;
 	}
@@ -3474,7 +3468,7 @@ public class EyesisAberrations {
 			double k=1.0/psMax;
 			for (i=0;i<length; i++) ps[i]*=k;
 			if (globalDebugLevel>2) {
-				SDFA_INSTANCE.showArrays(ps, "PS");
+				ShowDoubleFloatArrays.showArrays(ps, "PS");
 			}
 	/* Add maximum at (0,0) */
 			double [] psWithZero=ps;
@@ -3504,13 +3498,13 @@ public class EyesisAberrations {
 			}
 	/* debug show the mask */
 			if (globalDebugLevel>2) {
-				SDFA_INSTANCE.showArrays(mask, "PS-cloned");
+				ShowDoubleFloatArrays.showArrays(mask, "PS-cloned");
 			}
 			if (sigma>0) {
 				DoubleGaussianBlur gb = new DoubleGaussianBlur();
 				gb.blurDouble(mask,size,size,sigma,sigma, 0.01);
 				if (globalDebugLevel>2) {
-					SDFA_INSTANCE.showArrays(mask, "PS-smooth");
+					ShowDoubleFloatArrays.showArrays(mask, "PS-smooth");
 				}
 			}
 
@@ -3533,7 +3527,7 @@ public class EyesisAberrations {
 				}
 			}
 			if (globalDebugLevel>2) {
-				SDFA_INSTANCE.showArrays(mask, "mask-all");
+				ShowDoubleFloatArrays.showArrays(mask, "mask-all");
 			}
 			/* zeros are now for FHT - in the top left corner */
 			fht_instance.swapQuadrants(mask);
@@ -3541,7 +3535,7 @@ public class EyesisAberrations {
 		}
 
 
-	private boolean [][] mapFromPatternMask (
+	private static boolean [][] mapFromPatternMask (
 			MatchSimulatedPattern matchSimulatedPattern, // to use windowFunction
 			int width, // image (mask) width
 			int tileSize,
@@ -3679,14 +3673,14 @@ public class EyesisAberrations {
 //				fht_instance.debug=(centerXY[0]-Math.round(centerXY[0]))<-0.4; // just reducing number
 //				double dx=centerXY[0]-Math.round(centerXY[0]);
 //				double dy=centerXY[1]-Math.round(centerXY[1]);
-//				if (dx<-0.4) SDFA_INSTANCE.showArrays(pixelsPSF.clone(), "before:"+dx+":"+dy);
+//				if (dx<-0.4) ShowDoubleFloatArrays.showArrays(pixelsPSF.clone(), "before:"+dx+":"+dy);
 
 				pixelsPSF=fht_instance.translateSubPixel (
 						 pixelsPSF,
 						 -(centerXY[0]-Math.round(centerXY[0])),
 						 -(centerXY[1]-Math.round(centerXY[1])));
 //				fht_instance.debug=false;
-//				if (dx<-0.4) SDFA_INSTANCE.showArrays(pixelsPSF.clone(), "after:"+dx+":"+dy);
+//				if (dx<-0.4) ShowDoubleFloatArrays.showArrays(pixelsPSF.clone(), "after:"+dx+":"+dy);
 
 			}
 
@@ -4352,7 +4346,7 @@ public class EyesisAberrations {
 					}
 					if (maxValue==0.0) { // Should
 						if (!noThreshold) {
-							SDFA_INSTANCE.showArrays(psf, title+"-failed_cluster");
+							ShowDoubleFloatArrays.showArrays(psf, title+"-failed_cluster");
 							System.out.println("findClusterOnPSF: - should not get here - no points around >0, and threshold is not reached yet."+
 							" startX="+startX+" startY="+startY);
 						}
@@ -4635,16 +4629,16 @@ public class EyesisAberrations {
 				}
 			}
 	/* optionally show original array with masked out low-contrast cells */
-			if ((globalDebugLevel>2) && (pass==1))  SDFA_INSTANCE.showArrays(pixelsPSF, title+"_Used-PSF");
+			if ((globalDebugLevel>2) && (pass==1))  ShowDoubleFloatArrays.showArrays(pixelsPSF, title+"_Used-PSF");
 			if (debug) {
-				SDFA_INSTANCE.showArrays(debugPixels, title+"_mask_PSF");
+				ShowDoubleFloatArrays.showArrays(debugPixels, title+"_mask_PSF");
 				double [] doublePixelsPSFCount=new double [pixelsPSF.length];
 				for (j=0;j<doublePixelsPSFCount.length;j++) doublePixelsPSFCount[j]=pixelsPSFCount[j];
-				SDFA_INSTANCE.showArrays(doublePixelsPSFCount, title+"_PSF_bin_count");
-				SDFA_INSTANCE.showArrays(pixelsPSFWeight,      title+"_PSF_bin_weight");
+				ShowDoubleFloatArrays.showArrays(doublePixelsPSFCount, title+"_PSF_bin_count");
+				ShowDoubleFloatArrays.showArrays(pixelsPSFWeight,      title+"_PSF_bin_weight");
 				double [] doubleContrastCache=new double [contrastCache.length];
 				for (j=0;j<doubleContrastCache.length;j++) doubleContrastCache[j]=(contrastCache[j]>=0.0)?contrastCache[j]:-0.00001;
-				SDFA_INSTANCE.showArrays(doubleContrastCache,  title+"_ContrastCache");
+				ShowDoubleFloatArrays.showArrays(doubleContrastCache,  title+"_ContrastCache");
 			}
 			return pixelsPSF;
 		}

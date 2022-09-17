@@ -1715,7 +1715,6 @@ public class TilePlanes {
 
 					if ((debugLevel > 3) && (disp_str[nl] != null)){
 //					if ((debugLevel > 1) && (disp_str[nl] != null)){
-						  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
 						  dbg_img[0] = disp_str[nl][0];
 						  dbg_img[1] = disp_str[nl][1];
@@ -1725,7 +1724,7 @@ public class TilePlanes {
 								  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0; // exception here?
 							  }
 						  }
-						  sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
+						  ShowDoubleFloatArrays.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
 				}
 			}
@@ -1849,7 +1848,6 @@ public class TilePlanes {
 						}
 						if ((debugLevel > 2) && (disp_str[nl] != null)){
 							//						if ((debugLevel > 1) && (disp_str[nl] != null)){
-							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 							double [][] dbg_img = new double [4][];
 							dbg_img[0] = disp_str[nl][0];
 							dbg_img[1] = disp_str[nl][1];
@@ -1860,7 +1858,7 @@ public class TilePlanes {
 									dbg_img[3][i] = tile_sel[nl][i]?(edge_tiles[nl][i]?0.5:1.0):0.0; // exception here?
 								}
 							}
-							sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "fronto-disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
+							ShowDoubleFloatArrays.showArrays(dbg_img,  stSize2, stSize2, true, "fronto-disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 						}
 					}
 				}
@@ -1875,7 +1873,6 @@ public class TilePlanes {
 			} else {
 				if (debugLevel > 2){
 					for (int nl = 0; nl < tile_sel.length; nl++) if (disp_str[nl] != null) {
-						ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						double [][] dbg_img = new double [3][];
 						dbg_img[0] = disp_str[nl][0];
 						dbg_img[1] = disp_str[nl][1];
@@ -1885,7 +1882,7 @@ public class TilePlanes {
 								dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
 							}
 						}
-						sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "non-fronto-disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
+						ShowDoubleFloatArrays.showArrays(dbg_img,  stSize2, stSize2, true, "non-fronto-disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
 				}
 				if (debugLevel > 2){
@@ -2129,7 +2126,6 @@ public class TilePlanes {
 
 //					if ((debugLevel > 2) && (disp_str[nl] != null)){
 					if ((debugLevel > 3) && (disp_str[nl] != null)){
-						  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
 						  dbg_img[0] = disp_str[nl][0];
 						  dbg_img[1] = disp_str[nl][1];
@@ -2139,7 +2135,7 @@ public class TilePlanes {
 								  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
 							  }
 						  }
-						  sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
+						  ShowDoubleFloatArrays.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
 				}
 			}
@@ -2209,7 +2205,6 @@ public class TilePlanes {
 						}
 					}
 					if ((debugLevel > 3) && (disp_str[nl] != null)){
-						ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						double [][] dbg_img = new double [4][stSize2*stSize2];
 						for (int indx = 0; indx < dbg_img[0].length; indx++){
 							if (tiles_xyzw[nl][indx] != null) {
@@ -2224,7 +2219,7 @@ public class TilePlanes {
 								dbg_img[3][indx] = Double.NaN;
 							}
 						}
-						sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "world_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
+						ShowDoubleFloatArrays.showArrays(dbg_img,  stSize2, stSize2, true, "world_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
 				}
 			}
@@ -4353,7 +4348,6 @@ public class TilePlanes {
 			// first make a plane from all tiles
 			ArrayList<PlaneData> st_planes = new ArrayList<PlaneData>();
 			if (debugLevel > 2) {
-				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 				double [][] dbg_img = new double [plane_selections.length][];
 				for (int ps = 0; ps < plane_selections.length; ps++) {
 					dbg_img[ps] = new double [plane_selections[ps][0].length];
@@ -4361,7 +4355,7 @@ public class TilePlanes {
 						dbg_img[ps][i] = plane_selections[ps][0][i]? 1.0: 0.0;
 					}
 				}
-				sdfa_instance.showArrays(dbg_img,  stSize * 2, stSize * 2, true, "selections_x"+sTileXY[0]+"_y"+sTileXY[1]+"-"+suffix);
+				ShowDoubleFloatArrays.showArrays(dbg_img,  stSize * 2, stSize * 2, true, "selections_x"+sTileXY[0]+"_y"+sTileXY[1]+"-"+suffix);
 			}
 
 
@@ -4721,8 +4715,7 @@ public class TilePlanes {
 						}
 					}
 				}
-				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-				sdfa_instance.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
 			}
 
 
@@ -5548,8 +5541,7 @@ public class TilePlanes {
 						}
 					}
 				}
-				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-				sdfa_instance.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
+				ShowDoubleFloatArrays.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
 			}
 			if (debugLevel > 1)	{
 				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 3");
@@ -5735,9 +5727,8 @@ public class TilePlanes {
 									dbg_img[8][i] = selections[np][i] ? clusters[i] : 0.0;
 								}
 
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
-								sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "bridges-"+np+"-"+debugLevel,dbg_titles);
-								sdfa_instance.showArrays(pds,     2 * superTileSize, 2* superTileSize, true, "pds-bridges-"+np+"-"+debugLevel,dbg_titles);
+								ShowDoubleFloatArrays.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "bridges-"+np+"-"+debugLevel,dbg_titles);
+								ShowDoubleFloatArrays.showArrays(pds,     2 * superTileSize, 2* superTileSize, true, "pds-bridges-"+np+"-"+debugLevel,dbg_titles);
 							}
 						}
 					}

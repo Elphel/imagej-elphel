@@ -385,7 +385,7 @@ public class MLStats {
 			System.out.println(String.format("disparity: %7.3f pix rms= %5.3f  rms9= %5.3f", run_disp, rms, rms9));
 		}
 
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+		ImagePlus imp = ShowDoubleFloatArrays.makeArrays(
 				hist_double,
 				disparity_bins,
 				strength_bins,

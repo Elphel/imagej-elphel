@@ -551,8 +551,7 @@ public class ImageDttCPU {
 		final double [] dciiie = dtt0.dttt_iiie  (dc, 0, dct_size);
 		if ((globalDebugLevel > 0) && (color ==2)) {
 			double [][]dcx = {dc,dciii,dciiie, dtt0.dttt_ii(dc, dct_size),dtt0.dttt_iie(dc, 0, dct_size)};
-			ShowDoubleFloatArrays sdfa_instance0 = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance0.showArrays(dcx,  dct_size, dct_size, true, "dcx");
+			ShowDoubleFloatArrays.showArrays(dcx,  dct_size, dct_size, true, "dcx");
 		}
 
 
@@ -576,7 +575,6 @@ public class ImageDttCPU {
 					int tileY,tileX;
 					int n2 = dct_size * 2;
 					double [] tile_out_copy = null;
-					ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 						tileY = nTile/tilesX;
 						tileX = nTile - tileY * tilesX;
@@ -673,8 +671,8 @@ public class ImageDttCPU {
 								if ((globalDebugLevel > 0) && (tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 									//								if ((tileY == debug_tileY) && (tileX == debug_tileX)) {
 									double [][] pair = {tile_in, sym_conv};
-									sdfa_instance.showArrays(pair,  n2, n2, true, "dconv-X"+tileX+"Y"+tileY+"C"+color);
-									sdfa_instance.showArrays(dir_sym,  dct_size, dct_size, "dk-X"+tileX+"Y"+tileY+"C"+color);
+									ShowDoubleFloatArrays.showArrays(pair,  n2, n2, true, "dconv-X"+tileX+"Y"+tileY+"C"+color);
+									ShowDoubleFloatArrays.showArrays(dir_sym,  dct_size, dct_size, "dk-X"+tileX+"Y"+tileY+"C"+color);
 									double s1=0,s2=0;
 									for (int i = 0; i<tile_in.length; i++){
 										s1 +=tile_in[i];
@@ -751,8 +749,8 @@ public class ImageDttCPU {
 									tile_out_copy,
 									tile_out};
 							if (globalDebugLevel > 0){
-								sdfa_instance.showArrays(tile_in,  n2, n2, "tile_in-X"+tileX+"Y"+tileY+"C"+color);
-								sdfa_instance.showArrays(dbg_tile,  dct_size, dct_size, true, "dbg-X"+tileX+"Y"+tileY+"C"+color);
+								ShowDoubleFloatArrays.showArrays(tile_in,  n2, n2, "tile_in-X"+tileX+"Y"+tileY+"C"+color);
+								ShowDoubleFloatArrays.showArrays(dbg_tile,  dct_size, dct_size, true, "dbg-X"+tileX+"Y"+tileY+"C"+color);
 								System.out.println("tileY="+tileY+" tileX="+tileX+" kernelTileY="+kernelTileY+" kernelTileX="+kernelTileX);
 								double s0=0.0, s1=0.0, s2=0.0, s3=0.0;
 								for (int i=0;i<dct_size;i++){
@@ -905,9 +903,8 @@ public class ImageDttCPU {
 
 		}
 		if (globalDebugLevel > 0) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {filters_proto_direct[0],filters_proto_direct[1],filters_proto_direct[2],filters_proto[0],filters_proto[1],filters_proto[2]};
-			sdfa_instance.showArrays(ff,  dct_size,dct_size, true, "filters_proto");
+			ShowDoubleFloatArrays.showArrays(ff,  dct_size,dct_size, true, "filters_proto");
 		}
 
 		double [][] coeff_arr ={
@@ -929,12 +926,11 @@ public class ImageDttCPU {
 			}
 		}
 		if (globalDebugLevel > 0) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {
 					filters[0][0], filters[0][1], filters[0][2],
 					filters[1][0], filters[1][1], filters[1][2],
 					filters[2][0], filters[2][1], filters[2][2]};
-			sdfa_instance.showArrays(ff,  dct_size,dct_size, true, "filters");
+			ShowDoubleFloatArrays.showArrays(ff,  dct_size,dct_size, true, "filters");
 		}
 
 		final Thread[] threads = newThreadArray(threadsMax);
@@ -1080,15 +1076,12 @@ public class ImageDttCPU {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
 					int tileY,tileX, chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 						chn=nTile/nTilesInChn;
 						tileY =(nTile % nTilesInChn)/tilesX;
 						tileX = nTile % tilesX;
-//						centerX = tileX * transform_size - transform_size/2 - shiftX;
-//						centerY = tileY * transform_size - transform_size/2 - shiftY;
 						centerX = tileX * transform_size + transform_size/2 - shiftX;
 						centerY = tileY * transform_size + transform_size/2 - shiftY;
 
@@ -1097,8 +1090,6 @@ public class ImageDttCPU {
 								width,       // image width
 								clt_kernels, // [color][tileY][tileX][band][pixel]
 								clt_data[chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-//								kernel_step,
-//								transform_size,
 								dtt,
 								chn,
 								centerX, // center of aberration-corrected (common model) tile, X
@@ -1111,9 +1102,8 @@ public class ImageDttCPU {
 								null); // int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
 
 						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
-							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 							String [] titles = {"CC","SC","CS","SS"};
-							sdfa_instance.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
+							ShowDoubleFloatArrays.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 						}
 
 						if ((globalDebugLevel > -1) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
@@ -1133,9 +1123,8 @@ public class ImageDttCPU {
 									((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 											(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC","SC","CS","SS"};
-								sdfa_instance.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
 							}
 						}
 					}
@@ -1174,7 +1163,6 @@ public class ImageDttCPU {
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
 		final int nTilesInChn=tilesX*tilesY;
-//		final int nTiles=tilesX*tilesY*nChn;
 		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][4][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -1192,28 +1180,15 @@ public class ImageDttCPU {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
 					int tileY,tileX; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY = new double[quad][];
-
-//					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
 						// TODO: make all color channels to be processed here (atomically)
-						//						chn=nTile/nTilesInChn;
-						//						tileY =(nTile % nTilesInChn)/tilesX;
-						//						tileX = nTile % tilesX;
 						tileY = nTile /tilesX;
 						tileX = nTile % tilesX;
-
-
-
 						centerX = tileX * transform_size + transform_size/2 - shiftX;
 						centerY = tileY * transform_size + transform_size/2 - shiftY;
-//						double [][] centersXY = geometryCorrection.getPortsCoordinates(
-//								centerX,
-//								centerY,
-//								disparity);
 						double [][] centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
 								geometryCorrection, //			GeometryCorrection gc_main,
 								false,          // boolean use_rig_offsets,
@@ -1257,11 +1232,10 @@ public class ImageDttCPU {
 										null); // int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
 							}
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								double [][] dbg_tile = new double [16][];
 								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
-								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 							}
 
 							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
@@ -1285,11 +1259,10 @@ public class ImageDttCPU {
 													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 								}
 								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 									String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 									double [][] dbg_tile = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
+									ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
 								}
 							}
 						}
@@ -1855,8 +1828,7 @@ public class ImageDttCPU {
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 		Matrix [] corr_rots_aux = null;
 		Matrix [][] deriv_rots_aux = null;
@@ -1876,7 +1848,6 @@ public class ImageDttCPU {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
 					int tileY,tileX, clustX, clustY, cTile; // , tIndex; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY = new double[numSensors][];
@@ -2090,11 +2061,10 @@ public class ImageDttCPU {
 													System.out.println();
 												}
 												if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (ncol == 2) && !FPGA_COMPARE_DATA) {
-													ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 													String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 													double [][] dbg_tile = new double [16][];
 													for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
-													sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
+													ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 												}
 
 												if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
@@ -2118,11 +2088,10 @@ public class ImageDttCPU {
 																	(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 												}
 												if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-													ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 													String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 													double [][] dbg_tile = new double [16][];
 													for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
-													sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
+													ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
 												}
 
 											} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
@@ -2352,10 +2321,10 @@ public class ImageDttCPU {
 										if (disp_dist_cons != null) {
 											System.out.println("disp_dist_cons[0]="+disp_dist_cons[0]+", disp_dist_cons[0]="+disp_dist_cons[0]+" (this tile - weighted average will be discarded)");
 										}
-//										(new ShowDoubleFloatArrays()).showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
+//										ShowDoubleFloatArrays.showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
 										// 					mcorr_comb_width,  // combined correlation tile width
 										//mcorr_comb_height, // combined correlation tile full height
-//										(new ShowDoubleFloatArrays()).showArrays(corr_combo_all,  mcorr_comb_width, mcorr_comb_height, "corr_combo_all_CX"+clustX+"-CY"+clustY);
+//										ShowDoubleFloatArrays.showArrays(corr_combo_all,  mcorr_comb_width, mcorr_comb_height, "corr_combo_all_CX"+clustX+"-CY"+clustY);
 									}
 									
 									if (ixy != null) { //TODO - for CM use magic!
@@ -2376,7 +2345,7 @@ public class ImageDttCPU {
 											if (disp_str_combo != null) {
 												System.out.println("disp_str_combo[0]="+disp_str_combo[0]+", disp_str_combo[1]="+disp_str_combo[1]);
 											}
-//											(new ShowDoubleFloatArrays()).showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
+//											ShowDoubleFloatArrays.showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
 										}
 										
 										lma2 = correlation2d.corrLMA2Single(
@@ -2550,10 +2519,10 @@ public class ImageDttCPU {
 		}
 		startAndJoin(threads);
 		if (dbg_num_good_tiles != null) {
-//			(new ShowDoubleFloatArrays()).showArrays(dbg_num_good_tiles,  clustersX, clustersY, true, "num_good_tiles"); // , dbg_titles);
+//			ShowDoubleFloatArrays.showArrays(dbg_num_good_tiles,  clustersX, clustersY, true, "num_good_tiles"); // , dbg_titles);
 		}
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 		return lazy_eye_data; // clt_data;
 	}
@@ -2760,8 +2729,7 @@ public class ImageDttCPU {
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 		if (globalDebugLevel > 0) {
 			System.out.println("macro_mode="+macro_mode);
@@ -2781,7 +2749,6 @@ public class ImageDttCPU {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
 					int tileY,tileX,tIndex; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY = new double[numSensors][];
@@ -3277,10 +3244,8 @@ public class ImageDttCPU {
 							}
 							// iclt here: [quad][color][256]
 							if ((globalDebugLevel > 0) && debugTile0) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] col_names= {"red","blue","green"};
 								String [] titles = new String[numSensors * numcol];
-//								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 								double [][] dbg_tile = new double [numSensors*numcol][];
 								for (int i = 0; i < numSensors; i++) {
 									for (int ncol = 0; ncol <numcol; ncol++) if (iclt_tile[i][ncol] != null) { // color
@@ -3289,7 +3254,7 @@ public class ImageDttCPU {
 										dbg_tile[i * numcol + ncol] = iclt_tile[i][ncol];
 									}
 								}
-								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
 							}
 
 
@@ -3314,7 +3279,6 @@ public class ImageDttCPU {
 								}
 							}
 							if ((globalDebugLevel > 0) && debugTile0) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] col_names= {"red","blue","green"};
 								String [] titles = new String[numSensors * numcol];
 								
@@ -3326,7 +3290,7 @@ public class ImageDttCPU {
 										dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 									}
 								}
-								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 							}
 							// ... used in lwir
 							double []     max_diff = null;
@@ -3355,8 +3319,7 @@ public class ImageDttCPU {
 									false);          // boolean       debug_gpu)      // generate output fro matching with GPU processing
 
 							if ((globalDebugLevel > 0) && debugTile0) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-								sdfa_instance.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_combine_rgba_x"+tileX+"_y"+tileY);
+								ShowDoubleFloatArrays.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_combine_rgba_x"+tileX+"_y"+tileY);
 							}
 							// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
 							for (int i = 0; i < iclt_tile[0][first_color].length; i++ ) {
@@ -3373,8 +3336,7 @@ public class ImageDttCPU {
 								}
 							}
 							if ((globalDebugLevel > 0) && debugTile0) { // same as previous for mono
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-								sdfa_instance.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_mixed_rgba_x"+tileX+"_y"+tileY);
+								ShowDoubleFloatArrays.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_mixed_rgba_x"+tileX+"_y"+tileY);
 							}
 							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + numSensors))){
 								for (int i = 0; i < max_diff.length; i++){
@@ -3394,7 +3356,7 @@ public class ImageDttCPU {
 		startAndJoin(threads);
 
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 
 		return clt_data;
@@ -3656,8 +3618,7 @@ public class ImageDttCPU {
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 		if (globalDebugLevel > 0) {
 			System.out.println("macro_mode="+macro_mode);
@@ -3884,18 +3845,17 @@ public class ImageDttCPU {
 												false, // ); // transpose);
 												null,
 												null);
-										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 										String [] titles = {"CC","SC","CS","SS"};
 										double [][] dbg_tile = new double [4][];
 										for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 												fpga_clt_data, // double  [][]  clt_tile,
 												fpga_fract_shiftsXY[0],            // double        shiftX,
 												fpga_fract_shiftsXY[1],            // double        shiftY,
 												true); // debug
 										for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
 										System.out.println("Debugging for FPGA data, globalDebugLevel = "+globalDebugLevel+", tileX="+tileX+", tileY="+tileY+", sesnlor="+i+", color="+ncol);
 										System.out.println("Debugging for FPGA data, fpga_fract_shiftsXY[0] = "+fpga_fract_shiftsXY[0]+", fpga_fract_shiftsXY[1]="+fpga_fract_shiftsXY[1]);
 										System.out.println();
@@ -3949,11 +3909,10 @@ public class ImageDttCPU {
 									System.out.println();
 								}
 								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (ncol == 2) && !FPGA_COMPARE_DATA) {
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 									String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 									double [][] dbg_tile = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
+									ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 								}
 
 								if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
@@ -3978,11 +3937,10 @@ public class ImageDttCPU {
 														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 									}
 									if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 										String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 										double [][] dbg_tile = new double [16][];
 										for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
-										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
 									}
 								}
 							} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
@@ -4385,7 +4343,7 @@ public class ImageDttCPU {
 		startAndJoin(threads);
 		
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 		return clt_data;
 	}
@@ -4634,8 +4592,7 @@ public class ImageDttCPU {
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 		if (globalDebugLevel > 0) {
 			System.out.println("macro_mode="+macro_mode);
@@ -4928,18 +4885,17 @@ public class ImageDttCPU {
 																false, // ); // transpose);
 																null,
 																null);
-														ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 														String [] titles = {"CC","SC","CS","SS"};
 														double [][] dbg_tile = new double [4][];
 														for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-														sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+														ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
 														fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 																fpga_clt_data, // double  [][]  clt_tile,
 																fpga_fract_shiftsXY[0],            // double        shiftX,
 																fpga_fract_shiftsXY[1],            // double        shiftY,
 																true); // debug
 														for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-														sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+														ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
 														System.out.println("Debugging for FPGA data, globalDebugLevel = "+globalDebugLevel+", tileX="+tileX+", tileY="+tileY+", sesnlor="+i+", color="+ncol);
 														System.out.println("Debugging for FPGA data, fpga_fract_shiftsXY[0] = "+fpga_fract_shiftsXY[0]+", fpga_fract_shiftsXY[1]="+fpga_fract_shiftsXY[1]);
 														System.out.println();
@@ -4993,12 +4949,11 @@ public class ImageDttCPU {
 													System.out.println();
 												}
 												if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (ncol == 2) && !FPGA_COMPARE_DATA) {
-													ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 													String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 													double [][] dbg_tile = new double [16][];
 //													for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
 													for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_tile[i>>2][ncol][i & 3];
-													sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
+													ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 												}
 
 												if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
@@ -5023,13 +4978,12 @@ public class ImageDttCPU {
 																		(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 													}
 													if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-														ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 														String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 														double [][] dbg_tile = new double [16][];
 														for (int i = 0; i < 16; i++) {
 															dbg_tile[i]=clt_data_tile[i>>2][ncol][i & 3];
 														}
-														sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
+														ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
 													}
 												}
 											} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
@@ -5161,7 +5115,7 @@ public class ImageDttCPU {
 					            if (disp_str_combo != null) {
 					                System.out.println("disp_str_combo[0]="+disp_str_combo[0]+", disp_str_combo[1]="+disp_str_combo[1]);
 					            }
-//								(new ShowDoubleFloatArrays()).showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
+//								ShowDoubleFloatArrays.showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
 					        }
 					        
 					        Corr2dLMA lma2 = correlation2d.corrLMA2Single(
@@ -5239,7 +5193,7 @@ public class ImageDttCPU {
 		}
 		startAndJoin(threads);
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 //		return clt_data;
 	}
@@ -6237,7 +6191,6 @@ public class ImageDttCPU {
 					double [][] tile_out =    new double[4][]; // = new double[dct_size * dct_size];
 					int tileY,tileX;
 					int n2 = transform_size * 2;
-//					showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 						tileY = nTile/tilesX;
 						tileX = nTile - tileY * tilesX;
@@ -6266,12 +6219,11 @@ public class ImageDttCPU {
 							System.arraycopy(tile_out[dct_mode], 0, dct_data[tileY][tileX][dct_mode], 0, tile_out[dct_mode].length);
 						}
 						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-							sdfa_instance.showArrays(tile_in,  n2, n2, "tile_in_x"+tileX+"_y"+tileY);
+							ShowDoubleFloatArrays.showArrays(tile_in,  n2, n2, "tile_in_x"+tileX+"_y"+tileY);
 							String [] titles = {"CC","SC","CS","SS"};
-							sdfa_instance.showArrays(tile_folded,  transform_size, transform_size, true, "folded_x"+tileX+"_y"+tileY, titles);
+							ShowDoubleFloatArrays.showArrays(tile_folded,  transform_size, transform_size, true, "folded_x"+tileX+"_y"+tileY, titles);
 							if (globalDebugLevel > 0) {
-								sdfa_instance.showArrays(tile_out,     transform_size, transform_size, true, "clt_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(tile_out,     transform_size, transform_size, true, "clt_x"+tileX+"_y"+tileY, titles);
 							}
 						}
 					}
@@ -6781,10 +6733,9 @@ public class ImageDttCPU {
 		}
 
 		if (globalDebugLevel > 1){
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"cos_hor","sin_hor","cos_vert","sin_vert"};
 			double [][] cs_dbg = {cos_hor, sin_hor, cos_vert, sin_vert};
-			sdfa_instance.showArrays(cs_dbg,  transform_size, transform_size, true, "shift_cos_sin", titles);
+			ShowDoubleFloatArrays.showArrays(cs_dbg,  transform_size, transform_size, true, "shift_cos_sin", titles);
 		}
 
 		final double [][][][] rslt = new double[dct_data.length][dct_data[0].length][dct_data[0][0].length][dct_data[0][0][0].length];
@@ -6882,11 +6833,10 @@ public class ImageDttCPU {
 							}
 						}
 						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 							String [] titles = {"CC","SC","CS","SS"};
-							sdfa_instance.showArrays(data1[tileY][tileX], transform_size, transform_size, true, "data1_x"+tileX+"_y"+tileY, titles);
-							sdfa_instance.showArrays(data2[tileY][tileX], transform_size, transform_size, true, "data2_x"+tileX+"_y"+tileY, titles);
-							sdfa_instance.showArrays(rslt[tileY][tileX],  transform_size, transform_size, true, "rslt_x"+ tileX+"_y"+tileY, titles);
+							ShowDoubleFloatArrays.showArrays(data1[tileY][tileX], transform_size, transform_size, true, "data1_x"+tileX+"_y"+tileY, titles);
+							ShowDoubleFloatArrays.showArrays(data2[tileY][tileX], transform_size, transform_size, true, "data2_x"+tileX+"_y"+tileY, titles);
+							ShowDoubleFloatArrays.showArrays(rslt[tileY][tileX],  transform_size, transform_size, true, "rslt_x"+ tileX+"_y"+tileY, titles);
 						}
 					}
 				}
@@ -7098,7 +7048,7 @@ public class ImageDttCPU {
 				}
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				filter_direct,
 				8,
 				8,
@@ -7133,7 +7083,7 @@ public class ImageDttCPU {
 			}
 		}
 		*/
-		(new ShowDoubleFloatArrays()).showArrays(
+		ShowDoubleFloatArrays.showArrays(
 				filter_direct,
 				8,
 				8,
@@ -7189,9 +7139,8 @@ public class ImageDttCPU {
 			double [] dbg_filter= (new DttRad2(transform_size)).dttt_ii(dbg_filter0);
 			// end of code to simulate old commented out
 
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {filter_direct,filter,dbg_filter};
-			sdfa_instance.showArrays(ff,  transform_size,transform_size, true, "filter_lpf");
+			ShowDoubleFloatArrays.showArrays(ff,  transform_size,transform_size, true, "filter_lpf");
 		}
 
 		final Thread[] threads = newThreadArray(threadsMax);
@@ -7265,9 +7214,8 @@ public class ImageDttCPU {
 			double [] dbg_filter= (new DttRad2(transform_size)).dttt_ii(dbg_filter0);
 			// end of code to simulate old commented out
 
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {filter_direct,filter,dbg_filter};
-			sdfa_instance.showArrays(ff,  transform_size,transform_size, true, "filter_lpf");
+			ShowDoubleFloatArrays.showArrays(ff,  transform_size,transform_size, true, "filter_lpf");
 		}
 
 		final Thread[] threads = newThreadArray(threadsMax);
@@ -7987,7 +7935,7 @@ public class ImageDttCPU {
 		}
 		startAndJoin(threads);
 		if ((dbg_distort != null) &&(globalDebugLevel >= 0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 	}
 
@@ -11065,10 +11013,9 @@ public class ImageDttCPU {
 					}
 				}
 			}
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"CC","SC","CS","SS"};
-			sdfa_instance.showArrays(fpga_w_s,  2 * transform_size, 2 * transform_size, true, "fpga_w_s_x"+ctile_left+"_y"+ctile_top, titles);
-			sdfa_instance.showArrays(fpga_w_u,  2 * transform_size, 2 * transform_size, true, "fpga_w_u_x"+ctile_left+"_y"+ctile_top, titles);
+			ShowDoubleFloatArrays.showArrays(fpga_w_s,  2 * transform_size, 2 * transform_size, true, "fpga_w_s_x"+ctile_left+"_y"+ctile_top, titles);
+			ShowDoubleFloatArrays.showArrays(fpga_w_u,  2 * transform_size, 2 * transform_size, true, "fpga_w_u_x"+ctile_left+"_y"+ctile_top, titles);
 
 
 
@@ -11188,10 +11135,9 @@ public class ImageDttCPU {
 
 
 		if (bdebug0) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(tile_in,  transform_size2, transform_size2, "tile_in_x"+ctile_left+"_y"+ctile_top);
+			ShowDoubleFloatArrays.showArrays(tile_in,  transform_size2, transform_size2, "tile_in_x"+ctile_left+"_y"+ctile_top);
 			String [] titles = {"CC","SC","CS","SS"};
-			sdfa_instance.showArrays(clt_tile,  transform_size, transform_size, true, "clt_x"+ctile_left+"_y"+ctile_top, titles);
+			ShowDoubleFloatArrays.showArrays(clt_tile,  transform_size, transform_size, true, "clt_x"+ctile_left+"_y"+ctile_top, titles);
 		}
 		// deconvolve with kernel
 		if (use_kernels) {
@@ -11227,9 +11173,8 @@ public class ImageDttCPU {
 			}
 		}
 		if (bdebug) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"CC","SC","CS","SS"};
-			sdfa_instance.showArrays(clt_tile,  transform_size, transform_size, true, "acorr_x"+ctile_left+"_y"+ctile_top, titles);
+			ShowDoubleFloatArrays.showArrays(clt_tile,  transform_size, transform_size, true, "acorr_x"+ctile_left+"_y"+ctile_top, titles);
 		}
 		return residual_shift;
 	}
@@ -11271,12 +11216,11 @@ public class ImageDttCPU {
 			}
 		}
 		if (bdebug) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"CC","SC","CS","SS"};
 			double [][] dbg_kern = {kernel[0],kernel[1],kernel[2],kernel[3]};
-			sdfa_instance.showArrays(data,     transform_size, transform_size, true, "image_data", titles);
-			sdfa_instance.showArrays(dbg_kern, transform_size, transform_size, true, "kernel",     titles);
-			sdfa_instance.showArrays(rslt,     transform_size, transform_size, true, "aber_corr",  titles);
+			ShowDoubleFloatArrays.showArrays(data,     transform_size, transform_size, true, "image_data", titles);
+			ShowDoubleFloatArrays.showArrays(dbg_kern, transform_size, transform_size, true, "kernel",     titles);
+			ShowDoubleFloatArrays.showArrays(rslt,     transform_size, transform_size, true, "aber_corr",  titles);
 		}
 		for (int n = 0; n<4; n++){
 			data[n] = rslt[n];
@@ -11342,10 +11286,9 @@ public class ImageDttCPU {
 			System.out.println();
 		}
 		if (bdebug && debug_images){
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"cos_hor","sin_hor","cos_vert","sin_vert"};
 			double [][] cs_dbg = {cos_hor, sin_hor, cos_vert, sin_vert};
-			sdfa_instance.showArrays(cs_dbg,  transform_size, transform_size, true, "shift_cos_sin", titles);
+			ShowDoubleFloatArrays.showArrays(cs_dbg,  transform_size, transform_size, true, "shift_cos_sin", titles);
 		}
 		double [][] tmp_tile = new double [4][transform_len];
 		// Horizontal shift CLT tiled data is stored in transposed way (horizontal - Y, vertical X)
@@ -11480,12 +11423,9 @@ public class ImageDttCPU {
 					double [] tile_out; // = new double[dct_size * dct_size];
 					int tileY,tileX;
 					double [][][] fold_k =  dtt.get_fold_2d(
-//							int n,
 							scale_hor,
 							scale_vert
 							);
-//					double [] tile_out_copy = null;
-//					showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 						tileY = nTile/tilesX;
 						tileX = nTile - tileY * tilesX;
@@ -11616,12 +11556,10 @@ public class ImageDttCPU {
 								}
 							}
 						}
-//						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 						if ((globalDebugLevel > 0) && (tileY == debug_tileY) && (tileX == debug_tileX)) {
 							double [][] scaled_tiles = {dct, dct1};
-							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 							String [] titles = {"orig","scaled"};
-							sdfa_instance.showArrays(scaled_tiles,  dct_size, dct_size, true, "scaled_tile", titles);
+							ShowDoubleFloatArrays.showArrays(scaled_tiles,  dct_size, dct_size, true, "scaled_tile", titles);
 						}
 
 						System.arraycopy(dct1, 0, dct, 0, dct_len); // replace original data
@@ -12332,7 +12270,6 @@ public class ImageDttCPU {
 			}
 		}
 		if ((debugLevel > 0) || debug_gpu) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 			double [][] dbg_tile = new double [nSens*numcol][];
 			for (int i = 0; i < nSens; i++) {
@@ -12340,7 +12277,7 @@ public class ImageDttCPU {
 					dbg_tile[i * numcol + chn] = iclt_tile[i][chn];
 				}
 			}
-			sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
+			ShowDoubleFloatArrays.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
 		}
 
 
@@ -12360,7 +12297,6 @@ public class ImageDttCPU {
 			}
 		}
 		if ((debugLevel > 0) || debug_gpu) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 			double [][] dbg_tile = new double [nSens*numcol][];
 			for (int i = 0; i < nSens; i++) {
@@ -12368,7 +12304,7 @@ public class ImageDttCPU {
 					dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 				}
 			}
-			sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
+			ShowDoubleFloatArrays.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 		}
 		if (debug_gpu) {
 			System.out.println("\n=== BEFORE tile_combine_rgba ===");
@@ -12403,9 +12339,7 @@ public class ImageDttCPU {
 				debug_gpu);          // boolean       debug_gpu)      // generate output for matching with GPU processing
 
 		if (debug_gpu) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-//			String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-			sdfa_instance.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_combine_rgba_x"+tileX+"_y"+tileY); //, titles);
+			ShowDoubleFloatArrays.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_combine_rgba_x"+tileX+"_y"+tileY); //, titles);
 
 
 			// just one camera, all colors
@@ -12437,9 +12371,7 @@ public class ImageDttCPU {
 			}
 		}
 		if (debug_gpu) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-//			String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-			sdfa_instance.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "final_tile_combine_rgba_x"+tileX+"_y"+tileY); //, titles);
+			ShowDoubleFloatArrays.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "final_tile_combine_rgba_x"+tileX+"_y"+tileY); //, titles);
 			for (int chn = 0; chn < texture_tiles[tileY][tileX].length; chn++) { // color
 				System.out.println("=== AFTER combining, chn="+chn+" ===");
 				for (int i = 0; i < 2 * transform_size; i++) {
@@ -12864,8 +12796,7 @@ public class ImageDttCPU {
 
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 
 		final Matrix [] corr_rots_main = geometryCorrection_main.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
@@ -13079,15 +13010,14 @@ public class ImageDttCPU {
 								System.out.println();
 							}
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								double [][] dbg_tile = new double [16][];
 								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_main[i>>2][chn][i & 3];
-								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_pre-shifted_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_pre-shifted_x"+tileX+"_y"+tileY, titles);
 
 								double [][] dbg_tile_aux = new double [16][];
 								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_aux[i>>2][chn][i & 3];
-								sdfa_instance.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_pre-shifted_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_pre-shifted_x"+tileX+"_y"+tileY, titles);
 							}
 
 							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
@@ -13138,14 +13068,13 @@ public class ImageDttCPU {
 
 
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								double [][] dbg_tile = new double [16][];
 								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_main[i>>2][chn][i & 3];
-								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_shifted_x"+tileX+"_y"+tileY+"-z", titles);
 								double [][] dbg_tile_aux = new double [16][];
 								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_aux[i>>2][chn][i & 3];
-								sdfa_instance.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_shifted_x"+tileX+"_y"+tileY+"-z", titles);
 							}
 
 						}
@@ -13447,7 +13376,7 @@ public class ImageDttCPU {
 		}
 		startAndJoin(threads);
 		if (geom_dbg != null) {
-			(new ShowDoubleFloatArrays()).showArrays(
+			ShowDoubleFloatArrays.showArrays(
 					geom_dbg,
 					tilesX,
 					tilesY,
@@ -13718,8 +13647,7 @@ public class ImageDttCPU {
 
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 
 		final Matrix [] corr_rots_main = calc_main?geometryCorrection_main.getCorrVector().getRotMatrices():null; // get array of per-sensor rotation matrices
@@ -13733,7 +13661,6 @@ public class ImageDttCPU {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(clt_parameters.clt_window);
 					int tileY,tileX,tIndex; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY_main = calc_main ? new double[quad_main][]:null;
@@ -13916,17 +13843,16 @@ public class ImageDttCPU {
 								System.out.println();
 							}
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								if (calc_main) {
 									double [][] dbg_tile = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_main[i>>2][chn][i & 3];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_pre-shifted_x"+tileX+"_y"+tileY, titles);
+									ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_pre-shifted_x"+tileX+"_y"+tileY, titles);
 								}
 								if (calc_aux) {
 									double [][] dbg_tile_aux = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile_aux[i]=clt_data_aux[i>>2][chn][i & 3];
-									sdfa_instance.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_pre-shifted_x"+tileX+"_y"+tileY, titles);
+									ShowDoubleFloatArrays.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_pre-shifted_x"+tileX+"_y"+tileY, titles);
 								}
 							}
 
@@ -13963,17 +13889,16 @@ public class ImageDttCPU {
 							}
 
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								if (calc_main) {
 									double [][] dbg_tile = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_main[i>>2][chn][i & 3];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_shifted_x"+tileX+"_y"+tileY+"-z", titles);
 								}
 								if (calc_aux) {
 									double [][] dbg_tile_aux = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile_aux[i]=clt_data_aux[i>>2][chn][i & 3];
-									sdfa_instance.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									ShowDoubleFloatArrays.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_shifted_x"+tileX+"_y"+tileY+"-z", titles);
 								}
 							}
 						}
@@ -14424,8 +14349,7 @@ public class ImageDttCPU {
 
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 
 		//FIXME: no rotation matrices, no rig disparity - it is all included in source data in macro mode. Distortion?
@@ -14440,7 +14364,6 @@ public class ImageDttCPU {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(clt_parameters.clt_window);
 					int tileY,tileX,tIndex; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [] fract_shiftsXY_main = null; //new double[quad_main][];
@@ -14568,14 +14491,13 @@ public class ImageDttCPU {
 
 
 							if ((globalDebugLevel > 100) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0"};
 								double [][] dbg_tile = new double [4][];
 								for (int i = 0; i < 4; i++) dbg_tile[i]=clt_data_main[0][chn][i & 3];
-								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "MAIN_shifted_x"+tileX+"_y"+tileY+"-z", titles);
 								double [][] dbg_tile_aux = new double [16][];
 								for (int i = 0; i < 4; i++) dbg_tile[i]=clt_data_aux[0][chn][i & 3];
-								sdfa_instance.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile_aux,  transform_size, transform_size, true, "AUX_shifted_x"+tileX+"_y"+tileY+"-z", titles);
 							}
 						}
 
@@ -14882,8 +14804,7 @@ public class ImageDttCPU {
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 		if (globalDebugLevel > 0) {
 			System.out.println("macro_mode="+macro_mode);
@@ -14903,7 +14824,6 @@ public class ImageDttCPU {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
 					int tileY,tileX,tIndex; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY = new double[numSensors][];
@@ -15151,19 +15071,17 @@ public class ImageDttCPU {
 												false, // ); // transpose);
 												null,
 												null);
-										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 										String [] titles = {"CC","SC","CS","SS"};
 										double [][] dbg_tile = new double [4][];
 										for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 												fpga_clt_data, // double  [][]  clt_tile,
-//												transform_size,
 												fpga_fract_shiftsXY[0],            // double        shiftX,
 												fpga_fract_shiftsXY[1],            // double        shiftY,
 												true); // debug
 										for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
 										System.out.println("Debugging for FPGA data, globalDebugLevel = "+globalDebugLevel+", tileX="+tileX+", tileY="+tileY+", sesnlor="+i+", color="+ncol);
 										System.out.println("Debugging for FPGA data, fpga_fract_shiftsXY[0] = "+fpga_fract_shiftsXY[0]+", fpga_fract_shiftsXY[1]="+fpga_fract_shiftsXY[1]);
 										System.out.println();
@@ -15218,11 +15136,10 @@ public class ImageDttCPU {
 									System.out.println();
 								}
 								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (ncol == 2) && !FPGA_COMPARE_DATA) {
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 									String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 									double [][] dbg_tile = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
+									ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 								}
 
 								if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
@@ -15248,11 +15165,10 @@ public class ImageDttCPU {
 														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 									}
 									if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
-										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 										String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 										double [][] dbg_tile = new double [16][];
 										for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
-										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										ShowDoubleFloatArrays.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
 									}
 
 
@@ -16134,7 +16050,6 @@ public class ImageDttCPU {
 							}
 							// iclt here: [quad][color][256]
 							if ((globalDebugLevel > 0) && debugTile) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 								double [][] dbg_tile = new double [numSensors*numcol][];
 								for (int i = 0; i < numSensors; i++) {
@@ -16142,7 +16057,7 @@ public class ImageDttCPU {
 										dbg_tile[i * numcol + ncol] = iclt_tile[i][ncol];
 									}
 								}
-								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
 							}
 
 
@@ -16167,7 +16082,6 @@ public class ImageDttCPU {
 								}
 							}
 							if ((globalDebugLevel > 0) && debugTile) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 								double [][] dbg_tile = new double [numSensors*numcol][];
 								for (int i = 0; i < numSensors; i++) {
@@ -16175,7 +16089,7 @@ public class ImageDttCPU {
 										dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 									}
 								}
-								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 							}
 							// ... used in lwir
 							double []     max_diff = null;
@@ -16240,7 +16154,7 @@ public class ImageDttCPU {
 		startAndJoin(threads);
 
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+			ShowDoubleFloatArrays.showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 
 		return clt_data;
@@ -16297,8 +16211,7 @@ public class ImageDttCPU {
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
 
 		if (globalDebugLevel > 1) {
-			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+			ShowDoubleFloatArrays.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 		final double [][][][][] clt_data = new double[tp_tasks.length][numSensors][numcol][][];
 		final Thread[] threads = newThreadArray(threadsMax);
@@ -17035,7 +16948,6 @@ public class ImageDttCPU {
 								}
 							}
 							if ((globalDebugLevel > 0) && debugTile) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 								double [][] dbg_tile = new double [numSensors*numcol][];
 								for (int i = 0; i < numSensors; i++) {
@@ -17043,7 +16955,7 @@ public class ImageDttCPU {
 										dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 									}
 								}
-								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
+								ShowDoubleFloatArrays.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 							}
 							double [] ports_rgb = null;
 							double []     max_diff = null;

@@ -467,7 +467,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			img_data[2][nSurfTile3] = sdw;
 			img_data[3][nSurfTile3] = sw;
 		}
-		(new ShowDoubleFloatArrays()).showArrays(img_data,  3 * surfTilesX, 3 * surfTilesY, true, prefix+"tone_diffs3", titles);
+		ShowDoubleFloatArrays.showArrays(img_data,  3 * surfTilesX, 3 * surfTilesY, true, prefix+"tone_diffs3", titles);
 	}
 
 	public void showToneDiffWeights1(String prefix){
@@ -490,7 +490,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			img_data[1][nSurfTile] = sw;
 		}
 		String [] titles = {"diffs","weights"};
-		(new ShowDoubleFloatArrays()).showArrays(img_data,  surfTilesX, surfTilesY, true, prefix+"tone_diffs1", titles);
+		ShowDoubleFloatArrays.showArrays(img_data,  surfTilesX, surfTilesY, true, prefix+"tone_diffs1", titles);
 	}
 
 
@@ -717,7 +717,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			int [][]  tileLayers)
 	{
 		double [] composite_costs = calcTileCosts(tileLayers);
-		(new ShowDoubleFloatArrays()).showArrays(composite_costs, surfTilesX, surfTilesY, prefix+"composite_costs");
+		ShowDoubleFloatArrays.showArrays(composite_costs, surfTilesX, surfTilesY, prefix+"composite_costs");
 	}
 
 	public void showTileCosts(
@@ -754,7 +754,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 				cost_components[i][nSurfTile] = costs[i];
 			}
 		}
-		(new ShowDoubleFloatArrays()).showArrays(cost_components, surfTilesX, surfTilesY, true, prefix+"cost_components", titles);
+		ShowDoubleFloatArrays.showArrays(cost_components, surfTilesX, surfTilesY, true, prefix+"cost_components", titles);
 	}
 
 
