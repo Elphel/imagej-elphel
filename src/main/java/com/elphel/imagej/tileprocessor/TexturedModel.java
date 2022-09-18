@@ -32,6 +32,7 @@ import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
 import com.elphel.imagej.x3d.export.WavefrontExport;
@@ -528,6 +529,8 @@ public class TexturedModel {
 			CLTParameters                            clt_parameters,
 			ColorProcParameters                      colorProcParameters,
 			EyesisCorrectionParameters.RGBParameters rgbParameters,
+			final QuadCLT                            parameter_scene, // to use for rendering parameters in multi-series sequences
+            // if null - use reference scene 
 			QuadCLT []                               scenes,
 			double [][]                              combo_dsn_final, // null OK, will read file
 //			final int                                threadsMax,  // maximal number of threads to launch
@@ -615,21 +618,45 @@ public class TexturedModel {
 		double [][]     inter_weights = new double [tilesY][tilesX]; // per-tile texture weights for inter-scene accumulation;
 		double [][][][] inter_textures= new double [tilesY][tilesX][][]; // [channel][256] - non-overlapping textures
 		boolean [] scenes_sel = new boolean[scenes.length];
-//		for (int i = scenes.length - 10; i <  scenes.length; i++) { // start with just one (reference) scene
+		//		for (int i = scenes.length - 10; i <  scenes.length; i++) { // start with just one (reference) scene
 		for (int i = 0; i <  scenes.length; i++) { // start with just one (reference) scene
 			scenes_sel[i] = true;
 		}
-		
+		boolean        renormalize = true;// false - use normalizations from previous scenes to keep consistent colors
 		ImagePlus[] combined_textures = getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
 				clt_parameters,      // final CLTParameters  clt_parameters,
 				colorProcParameters, // ColorProcParameters  colorProcParameters,
 				rgbParameters,       // EyesisCorrectionParameters.RGBParameters rgbParameters,
+				parameter_scene,     // final QuadCLT        parameter_scene, // to use for rendering parameters in multi-series sequences
+				// if null - use reference scene 
 				scenes,              // final QuadCLT []     scenes,
 				scenes_sel,          // final boolean []     scenes_sel, // null or which scenes to process
 				null,                // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 				tileClusters,        // final TileCluster [] tileClusters, // disparities, borders, selections for texture passes
 				//				final int            margin,
+				renormalize,  // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
 				debugLevel);         // final int            debug_level)
+
+		boolean save_full_textures = true;
+		if (save_full_textures) {
+			EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
+			for (int nslice = 0; nslice < combined_textures.length; nslice++) {
+				String path= correctionsParameters.selectX3dDirectory(
+						//TODO: Which one to use - name or this.image_name ?
+						correctionsParameters.getModelName(ref_scene.getImageName()), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+						correctionsParameters.x3dModelVersion,
+						true,  // smart,
+						true);  //newAllowed, // save
+				EyesisCorrections.saveAndShow(
+						combined_textures[nslice], // imp_texture_cluster,
+						path,
+						correctionsParameters.png,
+						false, // (nslice < 4), // clt_parameters.show_textures,
+						-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+						1); //
+			}
+		}
+
 		if (debugLevel > -100) {
 			return true;
 		}
@@ -885,16 +912,21 @@ public class TexturedModel {
 			final CLTParameters  clt_parameters,
 			ColorProcParameters  colorProcParameters,
 			EyesisCorrectionParameters.RGBParameters rgbParameters,
+			QuadCLT              parameter_scene, // to use for rendering parameters in multi-series sequences
+			                                      // if null - use reference scene 
 			final QuadCLT []     scenes,
 			final boolean []     scenes_sel, // null or which scenes to process
 			final boolean []     selection, // may be null, if not null do not  process unselected tiles
 			final TileCluster [] tileClusters, // disparities, borders, selections for texture passes
-//			final int            margin,
+			final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
 			final int            debug_level)
 	{
 		// TODO: ***** scenes with high motion blur also have high ERS to be corrected ! *****
 		final int               ref_index = scenes.length -1;
 		final QuadCLT ref_scene = scenes[ref_index];
+		if (parameter_scene == null) {
+			parameter_scene = ref_scene;
+		}
 		final int earliestScene = ref_scene.getEarliestScene(scenes);
 		final ErsCorrection ers_reference = ref_scene.getErsCorrection();
 		final int tilesX =        ref_scene.getTileProcessor().getTilesX();
@@ -912,7 +944,23 @@ public class TexturedModel {
 		final double  tex_mb =         clt_parameters.tex_mb;        // 1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
 		final boolean sharp_alpha =    clt_parameters.sharp_alpha;
 		final boolean is_lwir =        ref_scene.isLwir();
-		final boolean lwir_autorange = is_lwir && colorProcParameters.lwir_autorange;
+		
+		final boolean tex_um =           clt_parameters.tex_um;        // imp.um_mono; // TODO: add own parameter
+		final double  tex_um_sigma =     clt_parameters.tex_um_sigma;  // imp.um_sigma;
+		final double  tex_um_weight =    clt_parameters.tex_um_weight; // imp.um_weight;
+		// TODO: - make texture variants, tex_um_fixed/tex_um_range apply only to unsharp mask, regardless of colors
+		
+		final boolean lwir_autorange =   is_lwir && clt_parameters.tex_lwir_autorange; // colorProcParameters.lwir_autorange;
+		final boolean tex_um_fixed =     clt_parameters.tex_um_fixed;  // imp.mono_fixed; //  true; // normalize to fixed range when converting to 8 bits 
+		final double  tex_um_range =     clt_parameters.tex_um_range;  // imp.mono_range; // 500.0;  // monochrome full-scale range (+/- half)
+		final boolean tex_hist_norm =    clt_parameters.tex_hist_norm; //  true;  
+		final double  tex_hist_amount =  clt_parameters.tex_hist_amount; // clt_parameters. 0.7;  
+		final int     tex_hist_bins =    clt_parameters.tex_hist_bins;   //  1024 ;   
+		final int     tex_hist_segments =clt_parameters.tex_hist_segments; // 32 ;   
+
+		final boolean tex_color =        clt_parameters.tex_color;     //  true;  
+		final int     tex_palette =      clt_parameters.tex_palette;     // 2 ;   
+		
 		
 		ImageDtt image_dtt;
 		image_dtt = new ImageDtt(
@@ -932,7 +980,6 @@ public class TexturedModel {
 		double [][][]     inter_weights = new double [num_slices][tilesY][tilesX]; // per-tile texture weights for inter-scene accumulation;
 		double [][][][][] inter_textures= new double [num_slices][tilesY][tilesX][][]; // [channel][256] - non-overlapping textures
 ///		double [][] scene_pXpYD;
-		
 ///		final double disparity_corr = 0.00; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 ///		TpTask[] tp_tasks_ref = null;
 		double [][][] ref_pXpYDs = new double [num_slices][][]; // individual for each slice
@@ -1118,30 +1165,77 @@ public class TexturedModel {
 				}
 			}
 		}
+		// Optionally apply UM (before auto/manual range)
+		if (tex_um) {
+			QuadCLTCPU.umTextures(
+					faded_textures, // final double [][][] textures, //  [nslices][nchn][i]
+					tilesX * transform_size, // final int    width,
+					tex_um_sigma, // final double um_sigma,
+					tex_um_weight); // final double um_weight)
+		}
+		//renormalize
 		// normalize all slices together if LWIR
 		// FIXME: Should it be here? Will setColdHot() change photometric calibration ? Or should it be disabled?
-		if (lwir_autorange) {
-			double rel_low =  colorProcParameters.lwir_low;
-			double rel_high = colorProcParameters.lwir_high;
-			if (!Double.isNaN(ref_scene.getLwirOffset())) {
-				rel_low -=  ref_scene.getLwirOffset();
-				rel_high -= ref_scene.getLwirOffset();
-			}
-			double [] cold_hot =  QuadCLTCPU.autorangeTextures(
-					faded_textures,                    // double [][][] textures, //  [nslices][nchn][i]
-					rel_low,                           // double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
-					rel_high,                          // double hard_hot,   // matches data, DC (this.lwir_offset)  subtracted
-					colorProcParameters.lwir_too_cold, // double too_cold, // pixels per image
-					colorProcParameters.lwir_too_hot,  // double too_hot,  // pixels per image
-					1024); // int num_bins)
-			if (cold_hot != null) {
-				if (!Double.isNaN(ref_scene.getLwirOffset())) {
-					cold_hot[0] += ref_scene.getLwirOffset();
-					cold_hot[1] += ref_scene.getLwirOffset();
+		double [] norm_table = null; // first try, then make save to properties with cold/hot
+		if (renormalize) {
+			if (lwir_autorange) {
+				double rel_low;
+				double rel_high;
+				boolean force_min_max = true;
+				if (!tex_um && !force_min_max) { // for UM will use min/max
+					rel_low =  colorProcParameters.lwir_low;
+					rel_high = colorProcParameters.lwir_high;
+					if (!Double.isNaN(parameter_scene.getLwirOffset())) { // ref_scene or parameter_scene? Or both?
+						rel_low -=  parameter_scene.getLwirOffset();
+						rel_high -= parameter_scene.getLwirOffset();
+					}
+				} else { // for UM need to calculate min and max (probably OK for non-UM too !)
+					double [] minmax = QuadCLTCPU.getMinMaxTextures(
+							faded_textures ); //double [][][] textures //  [nslices][nchn][i]
+					rel_low =  minmax[0];
+					rel_high = minmax[1];
 				}
+				double [] cold_hot =  QuadCLTCPU.autorangeTextures(
+						faded_textures,                    // double [][][] textures, //  [nslices][nchn][i]
+						rel_low,                           // double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+						rel_high,                          // double hard_hot,   // matches data, DC (this.lwir_offset)  subtracted
+						colorProcParameters.lwir_too_cold, // double too_cold, // pixels per image
+						colorProcParameters.lwir_too_hot,  // double too_hot,  // pixels per image
+						tex_hist_bins); // int num_bins)
+				if ((cold_hot != null) && !tex_um && !force_min_max) {
+					if (!Double.isNaN(parameter_scene.getLwirOffset())) {
+						cold_hot[0] += parameter_scene.getLwirOffset();
+						cold_hot[1] += parameter_scene.getLwirOffset();
+					}
+				}
+				parameter_scene.setColdHot(cold_hot); // will be used for shifted images and for texture tiles
+			} else if (tex_um && tex_um_fixed) { // apply fixed range, but for UM only (what about RGB?)
+				parameter_scene.setColdHot(-0.5*tex_um_range, 0.5*tex_um_range);
 			}
-			ref_scene.setColdHot(cold_hot); // will be used for shifted images and for texture tiles
+			
+			if (tex_hist_norm) { // will normalize (0..1) keeping cold_hot to apply during rendering
+				// last norm_table element is <=1.0, first >=0;
+				 norm_table = QuadCLTCPU.getHistogramNormalization(
+						  faded_textures,               // double [][][] textures, //  [nslices][nchn][i]
+						  parameter_scene.getColdHot(), // double [] minmax,
+						  tex_hist_bins,                    // int       num_bins,
+						  tex_hist_segments,               //int       num_nodes
+						  tex_hist_amount);  //double    hist_normalize_amount // 1.0 - full
+			}
 		}
+		if (tex_hist_norm && (norm_table != null)) {
+			// apply histogram normalization
+			double [] cold_hot = parameter_scene.getColdHot(); // used in linearStackToColor
+			double [] inverted_table = QuadCLTCPU.invertHistogramNormalization(
+					norm_table, // double [] direct_table, // last is <1.0, first > 0
+					tex_hist_bins); //  int       num_bins)
+			QuadCLTCPU.applyTexturesNormHist(
+					faded_textures,  // final double [][][] textures, //  [nslices][nchn][i]
+					cold_hot,        // final double []     min_max,
+					inverted_table); //  final double []     inv_table)
+		}
+		
+		
 		if (debug_level > -1) {
 			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
 			String [] dbg_titles = new String[dbg_textures.length];
@@ -1181,58 +1275,29 @@ public class TexturedModel {
 						ref_scene.getImageName()+"-texture_weights");
 			}
 		}
-		
-		for (int nslice = 0; nslice < num_slices; nslice++) {
-			// See how textures where processed with alpha
-			/*
-			 // Prepare 4-channel images
-			ImagePlus [] imps_RGB = new ImagePlus[iclt_fimg.length];
-			for (int ncam = 0; ncam < iclt_fimg.length; ncam++) if (iclt_fimg[ncam] != null){
-	            String title=String.format("%s%s-%02d",image_name, sAux(), ncam);
-				imps_RGB[ncam] = linearStackToColor( // probably no need to separate and process the second half with quadCLT_aux (!)
-						clt_parameters,
-						colorProcParameters,
-						rgbParameters,
-						title, // String name,
-						"-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
-						toRGB, // does not work here?
-						!correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
-						false, // true, // boolean saveShowIntermediate, // save/show if set globally
-						false, // boolean saveShowFinal,        // save/show result (color image?)
-						iclt_fimg[ncam],
-						out_width,
-						out_height,
-						1.0, // scaleExposures[iAux][iSubCam], // double scaleExposure, // is it needed?
-						-1); // debugLevel );
-			}
 
-			// combine to a sliced color image
-			int [] slice_seq = {0,1,3,2}; //clockwise
-			if (imps_RGB.length > 4) {
-				slice_seq = new int [imps_RGB.length];
-				for (int i = 0; i < slice_seq.length; i++) {
-					slice_seq[i] = i;
-				}
-			}
-			int width = imps_RGB[0].getWidth();
-			int height = imps_RGB[0].getHeight();
-			ImageStack array_stack=new ImageStack(width,height);
-			for (int i = 0; i<slice_seq.length; i++) if (imps_RGB[slice_seq[i]] != null){
-				array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
-			}
-			ImagePlus imp_stack = new ImagePlus(image_name+sAux()+suffix, array_stack);
-			imp_stack.getProcessor().resetMinAndMax();
-			return imp_stack;
-*/
-			// convert to color or apply UM,			
-			
+		double [] minmax = parameter_scene.getColdHot(); // used in linearStackToColor
+		ImagePlus [] imp_tex = new ImagePlus[num_slices];
+		EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+            String title=String.format("%s-texture-%02d",ref_scene.getImageName(), nslice);
+			imp_tex[nslice] =  	  QuadCLTCPU.linearStackToColorLWIR(
+					clt_parameters, // CLTParameters  clt_parameters,
+					tex_palette, // int            lwir_palette, // <0 - do not convert
+					  minmax, // double []      minmax,
+					  title, // String         name,
+					  "", // String         suffix, // such as disparity=...
+					  tex_color, // boolean        toRGB,
+					  faded_textures[nslice], // double [][]    texture_data,
+					  tilesX * transform_size, // int            width, // int tilesX,
+					  tilesY * transform_size, // int            height, // int tilesY,
+					  debug_level); // int            debugLevel )
 			// Add synthetic mesh only with higher resolution? or just any by a specified period?what king of mesh - vertical random, ...
-			
 			// Split and save as png
 			
 		}
 		// Process accumulated textures: average, apply borders, convert to color or apply UM, add synthetic mesh, ... 
-		return null; // ImagePlus[] ? with alpha, to be split into png and saved with alpha.
+		return imp_tex; // ImagePlus[] ? with alpha, to be split into png and saved with alpha.
 	}
 	
 	

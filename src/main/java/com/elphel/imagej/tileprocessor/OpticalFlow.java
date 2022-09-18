@@ -5296,10 +5296,12 @@ public class OpticalFlow {
 					clt_parameters,      // CLTParameters                            clt_parameters,
 					colorProcParameters, // ColorProcParameters                      colorProcParameters,
 					rgbParameters,       // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					quadCLTs[quadCLTs.length-1], // quadCLT_main,        // final QuadCLT                            parameter_scene, // to use for rendering parameters in multi-series sequences
+		            // if null - use reference scene 
 					quadCLTs,            // QuadCLT []                               scenes,
 					combo_dsn_final,     //double [][]                              combo_dsn_final, // null OK, will read file
 					updateStatus,        // final boolean                            updateStatus,
-					debugLevel + 1);         // final int                                debugLevel)
+					debugLevel); //  + 1);         // final int                                debugLevel)
 			System.out.println ("TexturedModel.output3d() -> "+ok_3d);
 		}
 		

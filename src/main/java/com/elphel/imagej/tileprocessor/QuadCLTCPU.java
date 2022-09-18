@@ -7292,21 +7292,21 @@ public class QuadCLTCPU {
 		  return hist;
 	  }
 	  
-	  public static int [] getLwirHistogramSliceAlpha(
+	  public static double [] getLwirHistogramSliceAlpha(
 			  double [][] data,
 			  double    hard_cold,
 			  double    hard_hot,
 			  int       num_bins) {
 		  int chn_y =     0;
 		  int chn_alpha = 1;
-		  int [] hist = new int [num_bins];
+		  double [] hist = new double [num_bins];
 		  double k = num_bins / (hard_hot - hard_cold);
 		  for (int i = 0; i < data[chn_y].length; i++) {
-			  double d = data[chn_y][i] * data[chn_alpha][i]; 
+			  double d = data[chn_y][i] ; 
 			  int bin = (int) ((d - hard_cold)*k);
 			  if (bin < 0) bin = 0;
 			  else if (bin >= num_bins) bin = (num_bins -1);
-			  hist[bin]++;
+			  hist[bin] += data[chn_alpha][i];
 		  }
 		  return hist;
 	  }
@@ -7336,11 +7336,22 @@ public class QuadCLTCPU {
 		  }
 		  return this_hist;
 	  }
+
+	  public static double [] addHist( // USED in lwir
+			  double [] this_hist,
+			  double [] other_hist) {
+		  for (int i = 0; i < this_hist.length; i++) {
+			  this_hist[i] += other_hist[i];
+		  }
+		  return this_hist;
+	  }
+	  
+	  
 	  // get low/high (soft min/max) from the histogram
 	  // returns value between 0.0 (low histogram limit and 1.0 - high histgram limit
 	  public static double getMarginFromHist( // USED in lwir
 			  int [] hist, // histogram
-			  double cumul_val, // cummulative number of items to be ignored
+			  double cumul_val, // cumulative number of items to be ignored
 			  boolean high_marg) { // false - find low margin(output ~0.0) , true - find high margin (output ~1.0)
 		  int n = 0;
 		  int n_prev = 0;
@@ -7374,6 +7385,44 @@ public class QuadCLTCPU {
 		  return v;
 	  }
 
+	  public static double getMarginFromHist( // USED in lwir
+			  double [] hist, // histogram
+			  double cumul_val, // cumulative number of items to be ignored
+			  boolean high_marg) { // false - find low margin(output ~0.0) , true - find high margin (output ~1.0)
+		  double n = 0;
+		  double n_prev = 0;
+		  int bin;
+		  double s = 1.0 / hist.length;
+		  double v;
+		  if (high_marg) {
+			  for (bin = hist.length -1; bin >= 0; bin--) {
+				  n_prev = n;
+				  n+= hist[bin];
+				  if (n > cumul_val) break;
+			  }
+			  if (n <= cumul_val) { // not used in lwir
+				  v =  0.0; // cumul_val > total number of samples
+			  } else {
+				  v = s* (bin + 1 - (cumul_val - n_prev)/(n - n_prev));
+			  }
+
+		  } else {
+			  for (bin = 0; bin < hist.length; bin++) {
+				  n_prev = n;
+				  n+= hist[bin];
+				  if (n > cumul_val) break;
+			  }
+			  if (n <= cumul_val) { // not used in lwir
+				  v =  1.0; // cumul_val > total number of samples
+			  } else {
+				  v = s * (bin + (cumul_val - n_prev)/(n - n_prev));
+			  }
+		  }
+		  return v;
+	  }
+	  
+	  
+	  
 	  public static double [] autorange( // USED in lwir (double input)
 			  double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
 			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
@@ -7485,13 +7534,9 @@ public class QuadCLTCPU {
 			  double too_cold, // pixels per image
 			  double too_hot,  // pixels per image
 			  int num_bins) {
-//		  int     num_channels = textures[0].length;
-//		  boolean is_mono =       num_channels < 3;
-//		  too_cold *= num_chn; // iclt_data.length;
-//		  too_hot *= num_chn; // iclt_data.length;
-		  int [] hist = null;
+		  double [] hist = null;
 		  for (int nslice = 0; nslice < textures.length; nslice++) {
-			  int [] this_hist = getLwirHistogramSliceAlpha(
+			  double [] this_hist = getLwirHistogramSliceAlpha(
 					  textures[nslice], // double [][][] data,
 					  hard_cold,
 					  hard_hot,
@@ -7520,7 +7565,236 @@ public class QuadCLTCPU {
 		  return abs_lim;
 	  }
 	  
+	  public static double [] getMinMaxTextures(
+			  double [][][] textures //  [nslices][nchn][i]
+			  ) {
+		  if ((textures == null) || (textures.length==0)) {
+			  throw new IllegalArgumentException ("umTextures(): Empty textures");
+		  }
+		  final boolean is_mono = textures[0].length <= 2;
+		  final int alpha_chn = is_mono? 1 : 3;
+		  final boolean has_alpha = textures[0].length > alpha_chn;
+		  final double alpha_min = 0.9; // only consider pixels with higher alpha
+		  final int num_um_chn = alpha_chn * textures.length; // number of images to UM
+		  final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
+		  final AtomicInteger ai =  new AtomicInteger(0);
+		  final AtomicInteger ati = new AtomicInteger(0);
+		  final double [][] tminmax = new double [threads.length][];
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  int thread_num = ati.getAndIncrement();
+					  tminmax[thread_num] = new double [] {Double.NaN,Double.NaN};
+					  for (int nimg = ai.getAndIncrement(); nimg < num_um_chn; nimg = ai.getAndIncrement()) {
+						  int nslice = nimg / alpha_chn;
+						  int nchn = nimg % alpha_chn;
+						  double [] alpha = has_alpha ? textures[nslice][alpha_chn] : null;
+						  double [] texture = textures[nslice][nchn];
+						  for (int i = 0; i < texture.length; i++) if (!has_alpha || (alpha[i] > alpha_min)) {
+							  if (!(texture[i] >= tminmax[thread_num][0])) {
+								  tminmax[thread_num][0] =  texture[i];
+							  }
+							  if (!(texture[i] <= tminmax[thread_num][1])) {
+								  tminmax[thread_num][1] =  texture[i];
+							  }
+						  }
+					  }
+				  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+		  double [] minmax =  {Double.NaN,Double.NaN};
+		  for (int i = 0; i < tminmax.length; i++) if ((tminmax[i] != null) && !Double.isNaN(tminmax[i][0]) &&!Double.isNaN(tminmax[i][1])) {
+			  if (!(tminmax[i][0] >= minmax[0])) {
+				  minmax[0] = tminmax[i][0];
+			  }
+			  if (!(tminmax[i][1] <= minmax[1])) {
+				  minmax[1] = tminmax[i][1];
+			  }
+		  }
+		  return minmax;
+	  }
+	  
+	  public static void umTextures(
+			  final double [][][] textures, //  [nslices][nchn][i]
+			  final int    width,
+			  final double um_sigma,
+			  final double um_weight){
+		  if ((textures == null) || (textures.length==0)) {
+			  throw new IllegalArgumentException ("umTextures(): Empty textures");
+		  }
+		  final int height = textures[0][0].length / width;
+		  final boolean is_mono = textures[0].length <= 2;
+		  final int alpha_chn = is_mono? 1 : 3;
+		  final boolean has_alpha = textures[0].length > alpha_chn;
+		  final int num_um_chn = alpha_chn * textures.length; // number of images to UM
+		  final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  double [] texture_orig = new double [width * height];
+					  for (int nimg = ai.getAndIncrement(); nimg < num_um_chn; nimg = ai.getAndIncrement()) {
+						  int nslice = nimg / alpha_chn;
+						  int nchn = nimg % alpha_chn; 
+						  double [] texture = textures[nslice][nchn];
+						  double [] texture_alpha = has_alpha? textures[nslice][alpha_chn]:null;
+						  System.arraycopy(texture, 0, texture_orig,0,texture.length);
+						  (new DoubleGaussianBlur()).blurDouble(
+								  texture,       // FloatProcessor ip,
+								  width,
+								  height,
+								  um_sigma,              // double sigmaX,
+								  um_sigma,              // double sigmaY,
+								  0.01);                 // double accuracy)
+						  for (int i = 0; i < texture.length; i++) {
+							  texture[i] = texture_orig[i] - um_weight * texture[i];
+						  }
+						  if (has_alpha) {
+							  for (int i = 0; i < texture.length; i++) if (texture_alpha[i] <= 0.0){
+								  texture[i] = 0.0;
+							  }
+						  }
+					  }
+				  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+	  }
 
+	  public static double [] getHistogramNormalization(
+			  double [][][] textures, //  [nslices][nchn][i]
+			  double [] minmax,
+			  int       num_bins,
+			  int       num_nodes,
+			  double    hist_normalize_amount // 1.0 - full
+			  ) {
+		  double [] hist = null;
+		  for (int nslice = 0; nslice < textures.length; nslice++) {
+			  double [] this_hist = getLwirHistogramSliceAlpha(
+					  textures[nslice], // double [][][] data,
+					  minmax[0],
+					  minmax[1],
+					  num_bins);
+			  if (hist == null) {
+				  hist = this_hist;
+			  } else {
+				  addHist(
+						  hist,
+						  this_hist);
+			  }
+		  }
+		  for (int i = 1; i < hist.length; i++) {
+			  hist[i] += hist[i - 1];  
+		  }
+		  if (hist_normalize_amount < 1.0) {
+			  double full = hist[hist.length-1];
+			  for (int i = 0; i < hist.length; i++) {
+				  hist[i] = hist_normalize_amount * hist[i] + (1.0-hist_normalize_amount) * full;  
+			  }
+		  }
+		  double [] norm_table = new double  [num_nodes];
+		  int indx = 0;
+//		  norm_table[num_nodes - 1] = 1.0;
+		  for (int n = 0; n < num_nodes; n++) {
+			  double thresh =  hist[hist.length - 1] * (n + 1) /(num_nodes + 1);
+			  if (thresh > hist[hist.length - 1]) { // full histogram
+				  thresh = hist[hist.length - 1];
+			  }
+			  for (; ((indx < hist.length) && (hist[indx] <= thresh)); indx++);
+			  double hist_prev = (indx == 0) ? 0.0: hist[indx-1];
+			  if (indx >= hist.length) {
+				  norm_table[n] = 1.0; // not normal?
+			  } else {
+				  norm_table[n] = (1.0 * indx)/hist.length + 
+						  (thresh - hist_prev)/(hist[indx] - hist_prev)/hist.length;
+			  }
+		  }
+		  return norm_table;
+	  }
+	  
+	  /**
+	   * Calculate long inverted table from short normalization one for fast application
+	   * @param direct_table
+	   * @param num_bins
+	   * @return
+	   */
+	  public static double [] invertHistogramNormalization(
+			  double [] direct_table, // last is <1.0, first > 0
+			  int       num_bins) {
+		  int       num_nodes = direct_table.length;
+		  double out_scale = num_bins - 1; // 1023, last is 1.0
+		  double out_step = 1.0 / out_scale;
+		  double [] inverted_table = new double [num_bins];
+		  int i_last = -1;
+		  double inv_step = 1.0/(direct_table.length+1);
+		  for (int indx = 0; indx <= direct_table.length; indx++) {
+			  double frac_l = (indx > 0) ? direct_table[indx-1] : 0.0;
+			  double frac_h = (indx == direct_table.length) ? 1.0 : direct_table[indx]; 
+			  int i_l = (int) Math.floor(frac_l*out_scale);
+			  int i_h = (int) Math.ceil (frac_h*out_scale);
+			  if (i_h > num_bins)  i_h = num_bins;
+			  if (i_l <= i_last)    i_l++;
+			  i_last = i_h - 1;
+			  double out_range = frac_h - frac_l;
+			  if (out_range <= 0) {
+				  continue; // may happen at the beginning/end?
+			  }
+			  double inv_l = inv_step * indx;
+			  for (int i = i_l; i < i_h; i++) {
+				double out_diff = i * out_step - frac_l;
+				inverted_table[i] = inv_l + out_diff * inv_step / out_range;
+			  }
+		  }
+		  inverted_table[inverted_table.length-1] = 1.0;
+		  return inverted_table;
+	  }
+	 
+	  public static void applyTexturesNormHist(
+			  final double [][][] textures, //  [nslices][nchn][i]
+			  final double []     min_max,
+			  final double []     inv_table)
+	  {
+		  final double range = min_max[1] - min_max[0];
+		  final boolean is_mono = textures[0].length <= 2;
+		  final int alpha_chn = is_mono? 1 : 3;
+		  final boolean has_alpha = textures[0].length > alpha_chn;
+		  final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  for (int nslice = 0; nslice < textures.length; nslice++) {
+			  final double [] texture_alpha = (has_alpha) ? textures[nslice][alpha_chn] : null;
+			  for (int nchn = 0; nchn < alpha_chn; nchn ++) {
+				  final double [] texture = textures[nslice][nchn];
+				  for (int ithread = 0; ithread < threads.length; ithread++) {
+					  threads[ithread] = new Thread() {
+						  public void run() {
+							  for (int npix = ai.getAndIncrement(); npix < texture.length; npix = ai.getAndIncrement()) {
+								  if (!has_alpha || (texture_alpha[npix] > 0.0)) {
+									  double rel_in = (texture[npix] - min_max[0]) / range;
+									  if (rel_in < 0.0) {
+										  rel_in = 0.0;
+									  } else if (rel_in > 1.0) {
+										  rel_in = 1.0;
+									  }
+									  // interpolate by table
+									  double srel_in = rel_in * inv_table.length;
+									  int il = (int) Math.floor(srel_in);
+									  if (il > (inv_table.length-1)) il = inv_table.length -1;
+									  double dl = inv_table[il];
+									  double dh = (il < (inv_table.length-1)) ? inv_table[il+1] : 1.0;
+									  texture[npix] = min_max[0]+ (dl + (srel_in - il) * (dh-dl))*range; 
+								  }
+							  }
+						  }
+					  };
+				  }		      
+				  ImageDtt.startAndJoin(threads);
+				  ai.set(0);
+			  }
+		  }
+		  return;
+	  }
+	  
 	  // float, for GPU
 	  public ImagePlus linearStackToColor( // not used in lwir
 			  CLTParameters         clt_parameters,
@@ -7540,30 +7814,50 @@ public class QuadCLTCPU {
 			  )
 	  {
 		  // convert to ImageStack of 3 slices
-		  String [] sliceNames = {"red", "blue", "green"};
-		  int green_index = 2;
-		  float [][] rbg_in;
+		  String [] sliceNames = isMonochrome()? new String[]{"mono"}: new String[]{"red", "blue", "green"};
+		  int main_color_index = isMonochrome()? 0 : 2;
+//		  int green_index = 2;
+		  float [][] rbg_in  = isMonochrome()?
+				  new float [][] {iclt_data[0]} :
+					  new float[][] {iclt_data[0],iclt_data[1],iclt_data[2]};
+/*					  
 		  if (iclt_data.length >= 3) {
 			  rbg_in = new float [][] {iclt_data[0],iclt_data[1],iclt_data[2]}; // RBG or LWIR CPU
 		  } else {
 			  rbg_in = new float [][] {iclt_data[0],iclt_data[0],iclt_data[0]}; // after LWIR/GPU
 			  green_index = 0;
 		  }
-		  float []   alpha = null; // (0..1.0)
-		  if (iclt_data.length > 3) alpha = iclt_data[3];
+*/		  
+		  float []   alpha_pixels = null; // (0..1.0)
+		  if (iclt_data.length > rbg_in.length) {
+			  alpha_pixels = iclt_data[rbg_in.length];
+		  }
 		  if (isLwir()) {
-////			  if (!colorProcParameters.lwir_pseudocolor) {
-			  if (!toRGB) {
-				  ImageProcessor ip= new FloatProcessor(width,height);
-				  ip.setPixels(iclt_data[0]);
-				  ip.resetMinAndMax();
-				  ImagePlus imp =  new ImagePlus(name+suffix, ip);
+			  if (!toRGB) { // Double [][] uses 
+///			  if (!colorProcParameters.lwir_pseudocolor) {
+				  ImagePlus imp;
+				  if (alpha_pixels != null) {
+					  String [] titles = {"Y","alpha"};
+					  ImageStack stack = ShowDoubleFloatArrays.makeStack(
+							  new float[][] {rbg_in[0],alpha_pixels},       // iclt_data,
+							  width,      // (tilesX + 0) * clt_parameters.transform_size,
+							  height,     // (tilesY + 0) * clt_parameters.transform_size,
+							  titles,     // or use null to get chn-nn slice names
+							  true);      // replace NaN with 0.0
+					  imp =  new ImagePlus(name+suffix, stack);
+					  imp.getProcessor().resetMinAndMax();
+				  } else {
+					  ImageProcessor ip= new FloatProcessor(width,height);
+					  ip.setPixels(rbg_in[0]);
+					  ip.resetMinAndMax();
+					  imp =  new ImagePlus(name+suffix, ip);
+				  }
 				  return imp;
 			  }
 			  String [] rgb_titles =  {"red","green","blue"};
 			  String [] rgba_titles = {"red","green","blue","alpha"};
-			  String [] titles = (alpha == null) ? rgb_titles : rgba_titles;
-			  int num_slices = (alpha == null) ? 3 : 4;
+			  String [] titles = (alpha_pixels == null) ? rgb_titles : rgba_titles;
+			  int num_slices = (alpha_pixels == null) ? 3 : 4;
 			  double mn = colorProcParameters.lwir_low;
 			  double mx = colorProcParameters.lwir_high;
 			  double [] cold_hot = getColdHot();
@@ -7584,18 +7878,18 @@ public class QuadCLTCPU {
 					  mx,
 					  255.0);
 			  float [][] rgba = new float [num_slices][];
-			  for (int i = 0; i < 3; i++) rgba[i] = new float [iclt_data[green_index].length];
-			  for (int i = 0; i < rbg_in[green_index].length; i++) {
+			  for (int i = 0; i < 3; i++) rgba[i] = new float [iclt_data[main_color_index].length];
+			  for (int i = 0; i < rbg_in[main_color_index].length; i++) {
 //				  if (i == 700) {
 //					  System.out.println("linearStackToColor(): i="+i);
 //				  }
-				  float [] rgb = tc.getRGB(iclt_data[green_index][i]);
+				  float [] rgb = tc.getRGB(iclt_data[main_color_index][i]);
 				  rgba[0][i] = rgb[0]; // red
 				  rgba[1][i] = rgb[1]; // green
 				  rgba[2][i] = rgb[2]; // blue
 			  }
-			  if (alpha != null) {
-				  rgba[3] = alpha; // 0..1
+			  if (alpha_pixels != null) {
+				  rgba[3] = alpha_pixels; // 0..1
 			  }
 			  ImageStack stack = ShowDoubleFloatArrays.makeStack(
 					  rgba,       // iclt_data,
@@ -7636,7 +7930,7 @@ public class QuadCLTCPU {
 				  saveShowIntermediate, // boolean saveShowIntermediate, // save/show if set globally
 				  saveShowFinal, // boolean saveShowFinal,        // save/show result (color image?)
 				  stack, // ImageStack stack,
-				  alpha, // float [] alpha_pixels,
+				  alpha_pixels, // float [] alpha_pixels,
 				  width, // int width, // int tilesX,
 				  height, // int height, // int tilesY,
 				  scaleExposure, // double scaleExposure,
@@ -7685,21 +7979,23 @@ public class QuadCLTCPU {
 				  for (int i = 0; i < pixels.length; i++) {
 					  pixels[i] = (float) iclt_data[0][i];
 				  }
+				  ImagePlus imp;
 				  if (alpha_pixels != null) {
-					  /*
+					  String [] titles = {"Y","alpha"};
 					  ImageStack stack = ShowDoubleFloatArrays.makeStack(
-							  {pixels,alpha_pixels},       // iclt_data,
+							  new float[][] {pixels,alpha_pixels},       // iclt_data,
 							  width,      // (tilesX + 0) * clt_parameters.transform_size,
 							  height,     // (tilesY + 0) * clt_parameters.transform_size,
 							  titles,     // or use null to get chn-nn slice names
 							  true);      // replace NaN with 0.0
-*/
+					  imp =  new ImagePlus(name+suffix, stack);
+					  imp.getProcessor().resetMinAndMax();
+				  } else {
+					  ImageProcessor ip= new FloatProcessor(width,height);
+					  ip.setPixels(pixels);
+					  ip.resetMinAndMax();
+					  imp =  new ImagePlus(name+suffix, ip);
 				  }
-				  
-				  ImageProcessor ip= new FloatProcessor(width,height);
-				  ip.setPixels(pixels);
-				  ip.resetMinAndMax();
-				  ImagePlus imp =  new ImagePlus(name+suffix, ip);
 				  return imp;
 			  }
 			  String [] rgb_titles =  {"red","green","blue"};
@@ -7783,7 +8079,107 @@ public class QuadCLTCPU {
 				  debugLevel); //int debugLevel
 	  }
 
+	  // float, for GPU
+	  public static ImagePlus linearStackToColorLWIR(
+			  CLTParameters  clt_parameters,
+			  int            lwir_palette, // <0 - do not convert
+			  double []      minmax,
+			  String         name,
+			  String         suffix, // such as disparity=...
+			  boolean        toRGB,
+			  double [][]    texture_data,
+			  int            width, // int tilesX,
+			  int            height, // int tilesY,
+			  int            debugLevel )
+	  {
+		  final boolean is_mono = texture_data.length <= 2;
+		  final int alpha_chn = is_mono? 1 : 3;
+//		  final boolean has_alpha = texture_data.length > alpha_chn;
+		  // convert to ImageStack of 3 slices
+//		  String [] sliceNames = is_mono? new String[]{"mono"}: new String[]{"red", "blue", "green"};
+		  int main_color_index = is_mono? 0 : 2;
+		  double [][] rbg_in  = is_mono?
+				  new double [][] {texture_data[0]} :
+					  new double[][] {texture_data[0],texture_data[1],texture_data[2]};
+					  double []   alpha_pixels = null; // (0..1.0)
+					  if (texture_data.length > rbg_in.length) {
+						  alpha_pixels = texture_data[rbg_in.length];
+					  }
+					  if (!toRGB) { // Double [][] uses 
+						  ImagePlus imp;
+						  if (alpha_pixels != null) {
+							  String [] titles = {"Y","alpha"};
+							  ImageStack stack = ShowDoubleFloatArrays.makeStack(
+									  new double[][] {rbg_in[0],alpha_pixels},       // iclt_data,
+									  width,      // (tilesX + 0) * clt_parameters.transform_size,
+									  height,     // (tilesY + 0) * clt_parameters.transform_size,
+									  titles,     // or use null to get chn-nn slice names
+									  true);      // replace NaN with 0.0
+							  imp =  new ImagePlus(name+suffix, stack);
+							  imp.getProcessor().resetMinAndMax();
+						  } else {
+							  ImageProcessor ip= new FloatProcessor(width,height);
+							  ip.setPixels(rbg_in[0]);
+							  ip.resetMinAndMax();
+							  imp =  new ImagePlus(name+suffix, ip);
+						  }
+						  return imp;
+					  }
+					  String [] rgb_titles =  {"red","green","blue"};
+					  String [] rgba_titles = {"red","green","blue","alpha"};
+					  String [] titles = (alpha_pixels == null) ? rgb_titles : rgba_titles;
+					  int num_slices = (alpha_pixels == null) ? 3 : 4;
+					  double mn = minmax[0]; // colorProcParameters.lwir_low;
+					  double mx = minmax[1]; // colorProcParameters.lwir_high;
+					  ThermalColor tc = new ThermalColor(
+							  lwir_palette, // colorProcParameters.lwir_palette,
+							  mn,
+							  mx,
+							  255.0);
+					  double [][] rgba = new double [num_slices][];
+					  for (int i = 0; i < 3; i++) rgba[i] = new double [texture_data[main_color_index].length];
+					  for (int i = 0; i < rbg_in[main_color_index].length; i++) {
+						  double [] rgb = tc.getRGB(texture_data[main_color_index][i]);
+						  rgba[0][i] = rgb[0]; // red
+						  rgba[1][i] = rgb[1]; // green
+						  rgba[2][i] = rgb[2]; // blue
+					  }
+					  if (alpha_pixels != null) {
+						  rgba[3] = alpha_pixels; // 0..1
+					  }
+					  ImageStack stack = ShowDoubleFloatArrays.makeStack(
+							  rgba,       // iclt_data,
+							  width,      // (tilesX + 0) * clt_parameters.transform_size,
+							  height,     // (tilesY + 0) * clt_parameters.transform_size,
+							  titles,     // or use null to get chn-nn slice names
+							  true);      // replace NaN with 0.0
+					  ImagePlus imp_rgba =  EyesisCorrections.convertRGBAFloatToRGBA32(
+							  stack,   // ImageStack stackFloat, //r,g,b,a
+							  //						name+"ARGB"+suffix, // String title,
+							  name+suffix, // String title,
+							  0.0,   // double r_min,
+							  255.0, // double r_max,
+							  0.0,   // double g_min,
+							  255.0, // double g_max,
+							  0.0,   // double b_min,
+							  255.0, // double b_max,
+							  0.0,   // double alpha_min,
+							  1.0);  // double alpha_max)
+					  return imp_rgba;
+	  }
 
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  
 
 
 	  // Convert a single value pixels to color (r,b,g) values to be processed instead of the normal colors

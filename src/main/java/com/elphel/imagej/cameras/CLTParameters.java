@@ -392,6 +392,19 @@ public class CLTParameters {
 	public double     tex_distort =                   0.8;  // Maximal texture distortion to accumulate multiple scenes (0 - any)
 	public double     tex_mb =                        1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
 	
+	public boolean    tex_um =                       true;   // Use unsharp mask filter for textures 
+	public double     tex_um_sigma =                   10.0; // Unsharp mask sigma for textures
+	public double     tex_um_weight =                   0.97;// Unsharp mask weight
+	public boolean    tex_lwir_autorange =           true;   // Autorange LWIR textures
+	public boolean    tex_um_fixed =                false;   // Use fixed range after unsharp mask instead of autorange
+	public double     tex_um_range =                  500;   // Full range after unsharp mask 
+	public boolean    tex_hist_norm =                true;   // Normalize texture histogram 
+	public double     tex_hist_amount =                 0.7; // Texture histogram normalization amount (0.0 - no normalization, 1.0 - full normalization)
+	public int        tex_hist_bins =                1024;   // Number of histogram bins to use for texture histograms 
+	public int        tex_hist_segments =              32;   // Number of evenly-spaced percentiles to use for histogram normalization 
+	public boolean    tex_color =                    true;   // Use pseudo-colored textures 
+	public int        tex_palette =                     2;   // Palette number for pseudo colors 
+	
 	public boolean    show_textures    = true;  // show generated textures
 	public boolean    debug_filters    = false;// show intermediate results of filtering
 	// not used anywhere so far
@@ -1394,6 +1407,19 @@ public class CLTParameters {
 		properties.setProperty(prefix+"tex_distort",                this.tex_distort+"");         // double
 		properties.setProperty(prefix+"tex_mb",                     this.tex_mb+"");              // double
 		
+		properties.setProperty(prefix+"tex_um",                     this.tex_um+"");              // boolean
+		properties.setProperty(prefix+"tex_um_sigma",               this.tex_um_sigma+"");        // double
+		properties.setProperty(prefix+"tex_um_weight",              this.tex_um_weight+"");       // double
+		properties.setProperty(prefix+"tex_lwir_autorange",         this.tex_lwir_autorange+"");        // boolean
+		properties.setProperty(prefix+"tex_um_fixed",               this.tex_um_fixed+"");        // boolean
+		properties.setProperty(prefix+"tex_um_range",               this.tex_um_range+"");        // double
+		properties.setProperty(prefix+"tex_hist_norm",              this.tex_hist_norm+"");       // boolean
+		properties.setProperty(prefix+"tex_hist_amount",            this.tex_hist_amount+"");     // double
+		properties.setProperty(prefix+"tex_hist_bins",              this.tex_hist_bins+"");       // int
+		properties.setProperty(prefix+"tex_hist_segments",          this.tex_hist_segments+"");   // int
+		properties.setProperty(prefix+"tex_color",                  this.tex_color+"");           // boolean
+		properties.setProperty(prefix+"tex_palette",                this.tex_palette+"");         // int
+		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
 		properties.setProperty(prefix+"debug_filters",              this.debug_filters+"");
 
@@ -2273,6 +2299,19 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"tex_fg_bg")!=null)            this.tex_fg_bg=Double.parseDouble(properties.getProperty(prefix+"tex_fg_bg"));
 		if (properties.getProperty(prefix+"tex_distort")!=null)          this.tex_distort=Double.parseDouble(properties.getProperty(prefix+"tex_distort"));
 		if (properties.getProperty(prefix+"tex_mb")!=null)               this.tex_mb=Double.parseDouble(properties.getProperty(prefix+"tex_mb"));
+		
+		if (properties.getProperty(prefix+"tex_um")!=null)               this.tex_um=Boolean.parseBoolean(properties.getProperty(prefix+"tex_um"));		
+		if (properties.getProperty(prefix+"tex_um_sigma")!=null)         this.tex_um_sigma=Double.parseDouble(properties.getProperty(prefix+"tex_um_sigma"));
+		if (properties.getProperty(prefix+"tex_um_weight")!=null)        this.tex_um_weight=Double.parseDouble(properties.getProperty(prefix+"tex_um_weight"));
+		if (properties.getProperty(prefix+"tex_lwir_autorange")!=null)   this.tex_lwir_autorange=Boolean.parseBoolean(properties.getProperty(prefix+"tex_lwir_autorange"));		
+		if (properties.getProperty(prefix+"tex_um_fixed")!=null)         this.tex_um_fixed=Boolean.parseBoolean(properties.getProperty(prefix+"tex_um_fixed"));		
+		if (properties.getProperty(prefix+"tex_um_range")!=null)         this.tex_um_range=Double.parseDouble(properties.getProperty(prefix+"tex_um_range"));
+		if (properties.getProperty(prefix+"tex_hist_norm")!=null)        this.tex_hist_norm=Boolean.parseBoolean(properties.getProperty(prefix+"tex_hist_norm"));		
+		if (properties.getProperty(prefix+"tex_hist_amount")!=null)      this.tex_hist_amount=Double.parseDouble(properties.getProperty(prefix+"tex_hist_amount"));
+		if (properties.getProperty(prefix+"tex_hist_bins")!=null)        this.tex_hist_bins=Integer.parseInt(properties.getProperty(prefix+"tex_hist_bins"));		
+		if (properties.getProperty(prefix+"tex_hist_segments")!=null)    this.tex_hist_segments=Integer.parseInt(properties.getProperty(prefix+"tex_hist_segments"));		
+		if (properties.getProperty(prefix+"tex_color")!=null)            this.tex_color=Boolean.parseBoolean(properties.getProperty(prefix+"tex_color"));		
+		if (properties.getProperty(prefix+"tex_palette")!=null)          this.tex_palette=Integer.parseInt(properties.getProperty(prefix+"tex_palette"));		
 		
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
 		if (properties.getProperty(prefix+"debug_filters")!=null)                 this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
@@ -3313,6 +3352,32 @@ public class CLTParameters {
 				"Maximal texture distortion to accumulate multiple scenes (neighbor tile center offset from the uniform grid. 0 - do not filter");
 		gd.addNumericField("Maximal motion blur to reduce weight",this.tex_mb, 5,7,"pix",
 				"Reduce texture weight if motion blur exceeds this (as square of MB length).");
+		gd.addMessage     ("Textures rendering");
+		gd.addCheckbox ("Apply unsharp mask",                    this.tex_um,
+				"Use unsharp mask filter for texture.");
+		gd.addNumericField("Unsharp mask sigma",                 this.tex_um_sigma, 5,7,"pix",
+				"Unsharp mask sigma for textures.");
+		gd.addNumericField("Unsharp mask weight",                this.tex_um_weight, 5,7,"",
+				"Unsharp mask weight.");
+		gd.addCheckbox ("Autorange LWIR textures",               this.tex_lwir_autorange,
+				"Autorange LWIR textures (inluding after unsharp mask).");
+		gd.addCheckbox ("Fixed range (after unsharp only)",      this.tex_um_fixed,
+				"Use fixed range after unsharp mask instead of autorange.");
+		gd.addNumericField("Full range",                         this.tex_um_range, 5,7,"counts",
+				"Full range after unsharp mask.");
+		gd.addCheckbox ("Normalize texture histogram",           this.tex_hist_norm,
+				"Normalize texture histogram.");
+		gd.addNumericField("Histogram normalization amount",     this.tex_hist_amount, 5,7,"",
+				"Texture histogram normalization amount (0.0 - no normalization, 1.0 - full normalization).");
+		gd.addNumericField("Number of histogram bins",           this.tex_hist_bins, 0,3,"",
+				"Number of histogram bins to use for texture histograms.");
+		gd.addNumericField("Number of histogram percentiles",    this.tex_hist_segments, 0,3,"",
+				"Number of evenly-spaced percentiles to use for histogram normalization.");
+		gd.addCheckbox ("Use pseudo-color",                      this.tex_color,
+				"Use pseudo-colored textures (false - monochrome, float).");
+		gd.addNumericField("Palette number",                     this.tex_palette, 0,3,"",
+				"Palette number for pseudo colors.");
+		
 		gd.addMessage     ("Earlier 3D generation parameters");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
 		gd.addCheckbox    ("show intermediate results of filtering",                                                 this.debug_filters);
@@ -4328,6 +4393,19 @@ public class CLTParameters {
 		this.tex_fg_bg =                gd.getNextNumber();
 		this.tex_distort =              gd.getNextNumber();
 		this.tex_mb =                   gd.getNextNumber();
+		
+		this.tex_um =                   gd.getNextBoolean();
+		this.tex_um_sigma =             gd.getNextNumber();
+		this.tex_um_weight =            gd.getNextNumber();
+		this.tex_lwir_autorange =       gd.getNextBoolean();
+		this.tex_um_fixed =             gd.getNextBoolean();
+		this.tex_um_range =             gd.getNextNumber();
+		this.tex_hist_norm =            gd.getNextBoolean();
+		this.tex_hist_amount =          gd.getNextNumber();
+		this.tex_hist_bins =      (int) gd.getNextNumber();
+		this.tex_hist_segments =  (int) gd.getNextNumber();
+		this.tex_color =                gd.getNextBoolean();
+		this.tex_palette =        (int) gd.getNextNumber();
 		
 		this.show_textures=         gd.getNextBoolean();
 		this.debug_filters=         gd.getNextBoolean();
