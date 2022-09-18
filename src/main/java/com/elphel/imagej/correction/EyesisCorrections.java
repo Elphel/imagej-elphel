@@ -2730,7 +2730,7 @@ public class EyesisCorrections {
 			if (hasAlphaHighByte && ((jpegQuality <= 0) || png)){
 				if (png){
 					if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
-					(new EyesisTiff()).savePNG_ARGB32(
+					EyesisTiff.savePNG_ARGB32(
 							imp,
 							path +".png",
 							debugLevel

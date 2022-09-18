@@ -550,6 +550,7 @@ public class TexturedModel {
 		long startStepTime=System.nanoTime();
 		final int tilesX = tp.getTilesX();
 		final int tilesY = tp.getTilesY();
+		final int transform_size = tp.getTileSize();
 		final double     tex_disp_adiffo = clt_parameters.tex_disp_adiffo; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
 		final double     tex_disp_rdiffo = clt_parameters.tex_disp_rdiffo; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
 		final double     tex_disp_adiffd = clt_parameters.tex_disp_adiffd; // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
@@ -637,19 +638,36 @@ public class TexturedModel {
 				renormalize,  // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
 				debugLevel);         // final int            debug_level)
 
-		boolean save_full_textures = true;
+		boolean save_full_textures = false; // true;
+		EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
+		String x3d_dir= correctionsParameters.selectX3dDirectory(
+				//TODO: Which one to use - name or this.image_name ?
+				correctionsParameters.getModelName(ref_scene.getImageName()), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		
 		if (save_full_textures) {
-			EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
 			for (int nslice = 0; nslice < combined_textures.length; nslice++) {
-				String path= correctionsParameters.selectX3dDirectory(
-						//TODO: Which one to use - name or this.image_name ?
-						correctionsParameters.getModelName(ref_scene.getImageName()), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-						correctionsParameters.x3dModelVersion,
-						true,  // smart,
-						true);  //newAllowed, // save
 				EyesisCorrections.saveAndShow(
 						combined_textures[nslice], // imp_texture_cluster,
-						path,
+						x3d_dir,
+						correctionsParameters.png,
+						false, // (nslice < 4), // clt_parameters.show_textures,
+						-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+						1); //
+			}
+		}
+		boolean save_individual_textures = true;
+		if (save_individual_textures) {
+			ImagePlus [] imp_textures = splitCombinedTextures(
+					tileClusters,       // TileCluster [] tileClusters, //should have name <timestamp>-*
+					transform_size,     // int            transform_size,
+					combined_textures); // ImagePlus []   combo_textures )
+			for (int i = 0; i < imp_textures.length; i++) if (imp_textures[i] != null) { // should not be
+				EyesisCorrections.saveAndShow(
+						imp_textures[i], // imp_texture_cluster,
+						x3d_dir,
 						correctionsParameters.png,
 						false, // (nslice < 4), // clt_parameters.show_textures,
 						-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
@@ -1278,9 +1296,8 @@ public class TexturedModel {
 
 		double [] minmax = parameter_scene.getColdHot(); // used in linearStackToColor
 		ImagePlus [] imp_tex = new ImagePlus[num_slices];
-		EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
 		for (int nslice = 0; nslice < num_slices; nslice++) {
-            String title=String.format("%s-texture-%02d",ref_scene.getImageName(), nslice);
+            String title=String.format("%s-combo%03d-texture",ref_scene.getImageName(), nslice);
 			imp_tex[nslice] =  	  QuadCLTCPU.linearStackToColorLWIR(
 					clt_parameters, // CLTParameters  clt_parameters,
 					tex_palette, // int            lwir_palette, // <0 - do not convert
@@ -1299,6 +1316,44 @@ public class TexturedModel {
 		// Process accumulated textures: average, apply borders, convert to color or apply UM, add synthetic mesh, ... 
 		return imp_tex; // ImagePlus[] ? with alpha, to be split into png and saved with alpha.
 	}
+	
+	public static ImagePlus [] splitCombinedTextures(
+			TileCluster [] tileClusters, //should have name <timestamp>-*
+			int            transform_size,
+			ImagePlus []   combo_textures ) {
+		int max_cluster = -1;
+		for (int nscene=0; nscene < tileClusters.length; nscene++) {
+			for (int indx: tileClusters[nscene].getSubIndices()) {
+				if (indx > max_cluster) max_cluster= indx;
+			}
+		}
+		ImagePlus [] tex_clusters = new ImagePlus[max_cluster + 1];
+		for (int nscene=0; nscene < tileClusters.length; nscene++) {
+			String basename = combo_textures[nscene].getTitle();
+			basename = basename.substring(0,basename.indexOf('-'));
+			ImageStack combo_stack = combo_textures[nscene].getStack();
+			int nSlices = combo_stack.getSize();
+			int [] indices = tileClusters[nscene].getSubIndices();
+			Rectangle [] bounds = tileClusters[nscene].getSubBounds();
+			// try to deal with a single-slice stack?
+			for (int i = 0; i < indices.length; i++) {
+				Rectangle roi = bounds[i];
+				ImageStack sub_stack = combo_stack.crop(
+						roi.x * transform_size,
+						roi.y * transform_size,
+						0, // z - start slice
+						roi.width * transform_size,
+						roi.height* transform_size,
+						nSlices);
+				int cluster_index = indices[i];
+	            String title=String.format("%s-img%04d-texture",basename, cluster_index);
+				tex_clusters[cluster_index] = new ImagePlus(title, sub_stack);
+//				tex_clusters[cluster_index].getProcessor().resetMinAndMax(); // probably not needed for png
+			}
+		}
+		return tex_clusters;
+	}
+	
 	
 	
 	// modifying so mono has 2 layers (Y + alpha) from IDC6585: public double [][] combineRBGATiles(

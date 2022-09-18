@@ -254,7 +254,7 @@ the type of pixel data in this file 	getPixelType()
 
  */
 
-	public void savePNG_ARGB32(
+	public static void savePNG_ARGB32(
 			ImagePlus imp,
 			String path
 			){
@@ -265,7 +265,7 @@ the type of pixel data in this file 	getPixelType()
 				);
 	}
 	
-	public void savePNG_ARGB32(
+	public static void savePNG_ARGB32(
 			ImagePlus imp,
 			String path,
 			int debug_level
@@ -273,7 +273,7 @@ the type of pixel data in this file 	getPixelType()
 		int width = imp.getWidth();
 		int height = imp.getHeight();
 		int [] pixels = (int []) imp.getProcessor().getPixels();
-		if (debug_level > 0) {
+		if (debug_level > 1) {
 			System.out.println("savePNG_ARGB32("+path+"): width="+width+", height="+height+" length="+pixels.length);
 		}
 
