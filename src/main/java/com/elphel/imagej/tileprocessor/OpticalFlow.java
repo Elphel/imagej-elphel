@@ -903,7 +903,7 @@ public class OpticalFlow {
 	 * @param debug_level if > 0; print number of tiles to correlate
 	 * @return flowXY vectors only for tiles to be updated or null if no tiles left
 	 */
-	double [][] recalculateFlowXY(
+	static double [][] recalculateFlowXY(
 			final double [][] flowXY, // will update
 			final double [][] flowXY_prev, // previous flowXY (may be null for tiles)   
 			final double [][] corr_vectorsXY,

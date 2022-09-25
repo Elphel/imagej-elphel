@@ -8626,12 +8626,24 @@ ImageDtt.startAndJoin(threads);
 	{
 		int [][] indices = new int [bounds.height][bounds.width];
 		int indx = 0;
-		for (int y = 0; y < bounds.height; y++) {
-			for (int x = 0; x < bounds.width; x++){
-				if (selected[this.tilesX * (bounds.y + y) + (bounds.x + x)]){
-					indices[y][x] = indx++;
-				} else {
-					indices[y][x] = -1;
+		if (selected.length > (bounds.height * bounds.width)) { // old version - selected is full size
+			for (int y = 0; y < bounds.height; y++) {
+				for (int x = 0; x < bounds.width; x++){
+					if (selected[this.tilesX * (bounds.y + y) + (bounds.x + x)]){
+						indices[y][x] = indx++;
+					} else {
+						indices[y][x] = -1;
+					}
+				}
+			}
+		} else { // 09.18.2022
+			for (int y = 0; y < bounds.height; y++) {
+				for (int x = 0; x < bounds.width; x++){
+					if (selected[bounds.width * y + x]){
+						indices[y][x] = indx++;
+					} else {
+						indices[y][x] = -1;
+					}
 				}
 			}
 		}
@@ -8680,17 +8692,32 @@ ImageDtt.startAndJoin(threads);
 		int maxIndex = getMaxIndex(indices);
 		double [] indexedDisparity = new double [maxIndex+1];
 		int indx = 0;
-		for (int y = 0;  indx <= maxIndex; y++) {
-			for (int x = 0; (x < width) && (indx <= maxIndex); x++){
-				if (indices[y][x] >=0){
-					// center coordinates for 8*8 tile is [3.5,3.5]
-					double disp = (disparity == null)? min_disparity:( disparity[(bounds.y + y) * tilesX + (bounds.x + x)]);
-					if      (disp < min_disparity) disp = min_disparity;
-					else if (disp > max_disparity) disp = max_disparity;
-					indexedDisparity[indx] =disp;
-					indx ++;
+		if (disparity.length > (bounds.height * bounds.width)) { // old version - selected is full size
+			for (int y = 0;  indx <= maxIndex; y++) {
+				for (int x = 0; (x < width) && (indx <= maxIndex); x++){
+					if (indices[y][x] >=0){
+						// center coordinates for 8*8 tile is [3.5,3.5]
+						double disp = (disparity == null)? min_disparity:( disparity[(bounds.y + y) * tilesX + (bounds.x + x)]);
+						if      (disp < min_disparity) disp = min_disparity;
+						else if (disp > max_disparity) disp = max_disparity;
+						indexedDisparity[indx] =disp;
+						indx ++;
+					}
 				}
-			}
+			} 
+		} else { // 09.18.2022
+			for (int y = 0;  indx <= maxIndex; y++) {
+				for (int x = 0; (x < width) && (indx <= maxIndex); x++){
+					if (indices[y][x] >=0){
+						// center coordinates for 8*8 tile is [3.5,3.5]
+						double disp = (disparity == null)? min_disparity:( disparity[bounds.width *y + x]);
+						if      (disp < min_disparity) disp = min_disparity;
+						else if (disp > max_disparity) disp = max_disparity;
+						indexedDisparity[indx] =disp;
+						indx ++;
+					}
+				}
+			} 
 		}
 		return indexedDisparity;
 	}
@@ -8711,23 +8738,45 @@ ImageDtt.startAndJoin(threads);
 		int maxIndex = getMaxIndex(indices);
 		double [][] coordinate = new double [maxIndex+1][];
 		int indx = 0;
-		for (int y = 0;  indx <= maxIndex; y++) {
-			for (int x = 0; (x < width) && (indx <= maxIndex); x++){
-				if (indices[y][x] >=0){
-					// center coordinates for 8*8 tile is [3.5,3.5]
-					double px = (bounds.x + x + 0.5) * tile_size - 0.5;
-					double py = (bounds.y + y + 0.5) * tile_size - 0.5;
-					double disp = (disparity == null)? min_disparity:( disparity[(bounds.y + y) * tilesX + (bounds.x + x)]);
-					if      (disp < min_disparity) disp = min_disparity;
-					else if (disp > max_disparity) disp = max_disparity;
-					coordinate[indx] = geometryCorrection.getWorldCoordinates(
-							px,
-							py,
-							disp,
-							correctDistortions);
-					indx ++;
+		if (disparity.length > (bounds.height * bounds.width)) { // old version - selected is full size
+			for (int y = 0;  indx <= maxIndex; y++) {
+				for (int x = 0; (x < width) && (indx <= maxIndex); x++){
+					if (indices[y][x] >=0){
+						// center coordinates for 8*8 tile is [3.5,3.5]
+						double px = (bounds.x + x + 0.5) * tile_size - 0.5;
+						double py = (bounds.y + y + 0.5) * tile_size - 0.5;
+						double disp = (disparity == null)? min_disparity:( disparity[(bounds.y + y) * tilesX + (bounds.x + x)]);
+						if      (disp < min_disparity) disp = min_disparity;
+						else if (disp > max_disparity) disp = max_disparity;
+						coordinate[indx] = geometryCorrection.getWorldCoordinates(
+								px,
+								py,
+								disp,
+								correctDistortions);
+						indx ++;
+					}
 				}
 			}
+		} else { // 09.18.2022
+			for (int y = 0;  indx <= maxIndex; y++) {
+				for (int x = 0; (x < width) && (indx <= maxIndex); x++){
+					if (indices[y][x] >=0){
+						// center coordinates for 8*8 tile is [3.5,3.5]
+						double px = (bounds.x + x + 0.5) * tile_size - 0.5;
+						double py = (bounds.y + y + 0.5) * tile_size - 0.5;
+						double disp = (disparity == null)? min_disparity:( disparity[bounds.width * y + x]);
+						if      (disp < min_disparity) disp = min_disparity;
+						else if (disp > max_disparity) disp = max_disparity;
+						coordinate[indx] = geometryCorrection.getWorldCoordinates(
+								px,
+								py,
+								disp,
+								correctDistortions);
+						indx ++;
+					}
+				}
+			}
+
 		}
 		return coordinate;
 	}
@@ -8749,9 +8798,10 @@ ImageDtt.startAndJoin(threads);
 	public static int [][] filterTriangles(
 			int  [][] triangles,
 			double [] disparity, // disparities per vertex index
-			double    maxDispDiff) // maximal disparity difference in a triangle
-{
-			final double min_avg = 0.5; // minimal average disparity to normalize triangle
+			double    maxDispDiff, // maximal relative disparity difference in a triangle
+			int       debug_level)
+	{
+		final double min_avg = 3.0; // 0.5; // minimal average disparity to normalize triangle
 		class Triangle {
 			int [] points = new int [3];
 			Triangle (int i1, int i2, int i3){
@@ -8762,26 +8812,126 @@ ImageDtt.startAndJoin(threads);
 		}
 		ArrayList<Triangle> triList = new ArrayList<Triangle>();
 		for (int i = 0; i < triangles.length; i++){
-			double disp_avg = (triangles[i][0] + triangles[i][1]+ triangles[i][2])/3.0;
+			double disp_avg = (disparity[triangles[i][0]] + disparity[triangles[i][1]]+ disparity[triangles[i][2]])/3.0; // fixed 09.18.2022!
 			if (disp_avg < min_avg) disp_avg = min_avg;
 			loop:{
-			for (int j = 0; j < 3; j++){
-				int j1 = (j + 1) % 3;
-				if (Math.abs(disparity[triangles[i][j]] - disparity[triangles[i][j1]]) > (disp_avg* maxDispDiff)) break loop;
+				for (int j = 0; j < 3; j++){
+					int j1 = (j + 1) % 3;
+					if (Math.abs(disparity[triangles[i][j]] - disparity[triangles[i][j1]]) > (disp_avg* maxDispDiff)) {
+						if (debug_level > 1) {
+							System.out.println("removed triangle "+i+": "+
+									disparity[triangles[i][0]]+". "+disparity[triangles[i][1]]+". "+disparity[triangles[i][2]]+
+									". Avg = "+disp_avg);
+						}
+						break loop;
+					}
+				}
+				triList.add(new Triangle(
+						triangles[i][0],
+						triangles[i][1],
+						triangles[i][2]));
 			}
-			triList.add(new Triangle(
-					triangles[i][0],
-					triangles[i][1],
-					triangles[i][2]));
-		}
 		}
 		int [][] filteredTriangles = new int [triList.size()][3];
 		for (int i = 0; i < filteredTriangles.length; i++){
 			filteredTriangles[i] = triList.get(i).points;
 		}
 		return filteredTriangles;
-}
+	}
 
+	public static int [][] filterTrianglesWorld(
+			int  [][] triangles,
+			double [][] worldXYZ,  // world per vertex index
+			double      maxZtoXY,
+			double maxZ) 
+	{
+		final double maxZtoXY2 = maxZtoXY * maxZtoXY;
+		class Triangle {
+			int [] points = new int [3];
+			Triangle (int i1, int i2, int i3){
+				points[0] = i1;
+				points[1] = i2;
+				points[2] = i3;
+			}
+		}
+		ArrayList<Triangle> triList = new ArrayList<Triangle>();
+		for (int i = 0; i < triangles.length; i++){
+			double [][] min_max = new double[3][2];
+			boolean not_too_far = true;
+			for (int di = 0; di < 3; di++) {
+				min_max[di][0] = worldXYZ[triangles[i][0]][di];
+				min_max[di][1] = min_max[di][0]; // both min and max to the same vertex 0
+			}
+			if (maxZ != 0) {
+				not_too_far &=  worldXYZ[triangles[i][0]][2] > -maxZ; 
+			}
+			for (int vi = 1; vi < 3; vi++) {
+				for (int di = 0; di < 3; di++) {
+					min_max[di][0] = Math.min(min_max[di][0], worldXYZ[triangles[i][vi]][di]);
+					min_max[di][1] = Math.max(min_max[di][1], worldXYZ[triangles[i][vi]][di]);
+				}
+			}
+			double dx = min_max[0][1]-min_max[0][0];
+			double dy = min_max[1][1]-min_max[1][0];
+			double dz = min_max[2][1]-min_max[2][0];
+			double ratio2 = dz*dz/(dx*dx+dy*dy + 0.001);
+			if (not_too_far && ((maxZtoXY == 0) || (ratio2 < maxZtoXY2))) {
+				triList.add(new Triangle(
+						triangles[i][0],
+						triangles[i][1],
+						triangles[i][2]));
+			}
+		}
+		int [][] filteredTriangles = new int [triList.size()][3];
+		for (int i = 0; i < filteredTriangles.length; i++){
+			filteredTriangles[i] = triList.get(i).points;
+		}
+		return filteredTriangles;
+	}
+
+	public static int [] reIndex(
+			int [][]  indices,
+			int [][] triangles) {
+		int last_index = -1;
+		for (int i = 0; i < indices.length; i++) {
+			for (int j = 0; j < indices[i].length; j++) {
+				if (indices[i][j] > last_index) {
+					last_index = indices[i][j]; 
+				}
+			}
+		}
+		boolean [] used_indices = new boolean[last_index+1];
+		for (int i = 0; i < triangles.length; i++) {
+			for (int j = 0; j < triangles[i].length; j++) { // always 3
+				used_indices[triangles[i][j]] = true;
+			}
+		}
+		int new_len = 0;
+		for (int i = 0; i < used_indices.length; i++) if (used_indices[i]) {
+			new_len++;
+		}
+		if (new_len == used_indices.length) {
+			return null; // no re-indexing is needed
+		}
+		int [] re_index = new int [new_len];
+		int indx = 0;
+		for (int i = 0; i < indices.length; i++) {
+			for (int j = 0; j < indices[i].length; j++) {
+				int old_index=indices[i][j];
+				if (old_index >= 0) {
+					if (used_indices[old_index]) { // keep
+						re_index[indx] = old_index;
+						indices[i][j] = indx++;
+					} else {
+						indices[i][j] = -1;
+					}
+				}
+			}
+		}
+		return re_index;
+	}
+	
+	
 
 	public static int [][] triangulateCluster(
 			int [][]  indices)
@@ -8851,13 +9001,27 @@ ImageDtt.startAndJoin(threads);
 	{
 		String [] titles = {"disparity","triangles"};
 		double [][] dbg_img = new double [titles.length][tilesX*tilesY*tile_size*tile_size];
-		for (int i = 0; i < selected.length; i++ ){
-			double d = selected[i]? ((disparity.length >1) ? disparity[i] : disparity[0]):Double.NaN;
-			int y = i / tilesX;
-			int x = i % tilesX;
-			for (int dy = 0; dy <tile_size; dy ++){
-				for (int dx = 0; dx <tile_size; dx ++){
-					dbg_img[0][(y * tile_size + dy)*(tile_size*tilesX) + (x * tile_size + dx)] = d;
+		Arrays.fill(dbg_img[0], Double.NaN);
+		if (selected.length > (bounds.height * bounds.width)) { // old version - selected is full size
+			for (int i = 0; i < selected.length; i++ ){
+				double d = selected[i]? ((disparity.length >1) ? disparity[i] : disparity[0]):Double.NaN;
+				int y = i / tilesX;
+				int x = i % tilesX;
+				for (int dy = 0; dy <tile_size; dy ++){
+					for (int dx = 0; dx <tile_size; dx ++){
+						dbg_img[0][(y * tile_size + dy)*(tile_size*tilesX) + (x * tile_size + dx)] = d;
+					}
+				}
+			}
+		} else { // 09.18.2022
+			for (int i = 0; i < selected.length; i++ ){
+				double d = selected[i]? ((disparity.length > 1) ? disparity[i] : disparity[0]):Double.NaN;
+				int y = i / bounds.width + bounds.y;
+				int x = i % bounds.width + bounds.x;
+				for (int dy = 0; dy <tile_size; dy ++){
+					for (int dx = 0; dx <tile_size; dx ++){
+						dbg_img[0][(y * tile_size + dy)*(tile_size*tilesX) + (x * tile_size + dx)] = d;
+					}
 				}
 			}
 		}
@@ -8885,12 +9049,7 @@ ImageDtt.startAndJoin(threads);
 				for (int j = 0; j < tile_size; j++){
 					int x = pxy[pntIndx[0]][0] + dx*j;
 					int y = pxy[pntIndx[0]][1] + dy*j;
-					//					  int indx = y * tile_size * tilesX + x;
-					//					  if (indx < dbg_img[1].length) {
 					dbg_img[1][y * tile_size * tilesX + x] = 10.0; //1711748
-					//					  } else {
-					//						  indx += 0;
-					//					  }
 				}
 			}
 		}

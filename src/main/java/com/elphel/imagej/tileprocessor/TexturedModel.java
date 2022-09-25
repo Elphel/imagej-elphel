@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.json.JSONException;
+
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
@@ -35,6 +37,8 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
+import com.elphel.imagej.x3d.export.GlTfExport;
+import com.elphel.imagej.x3d.export.TriMesh;
 import com.elphel.imagej.x3d.export.WavefrontExport;
 import com.elphel.imagej.x3d.export.X3dOutput;
 
@@ -92,7 +96,7 @@ public class TexturedModel {
 			}
 		}
 
-		final int dbg_tile = (debugLevel>0)? 2021:-1; // 977 : -1;
+		final int dbg_tile = (debugLevel>0)? 1090:-1; // 977 : -1;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -481,7 +485,7 @@ public class TexturedModel {
 		for (int i = 0; i < comb_clusters.length; i++) {
 			consolidated_clusters[comb_clusters[i]].add(cluster_list.get(i));
 		}
-
+		// incorrectly combined - first combo has only one cluster and NaN in the areas where other clusters could fit
 		if (debugLevel > 0) {
 			double [][] dbg_img =     new double[this_combo][tiles];
 			double [][] dbg_borders = new double[this_combo][tiles];
@@ -538,6 +542,7 @@ public class TexturedModel {
 			final int                                debugLevel)
 	{
 		final boolean       batch_mode = clt_parameters.batch_run;
+		final boolean       gltf_emissive = clt_parameters.gltf_emissive;
 		final int           ref_index =  scenes.length - 1;
 		final QuadCLT       ref_scene =  scenes[ref_index];
 		final TileProcessor tp =         ref_scene.getTileProcessor();
@@ -546,7 +551,8 @@ public class TexturedModel {
 		}
 		double infinity_disparity = 	ref_scene.getGeometryCorrection().getDisparityFromZ(clt_parameters.infinityDistance);
 		X3dOutput x3dOutput = null;
-		WavefrontExport wfOutput = null; 
+		WavefrontExport    wfOutput = null; 
+		ArrayList<TriMesh> tri_meshes = null; 
 		long startStepTime=System.nanoTime();
 		final int tilesX = tp.getTilesX();
 		final int tilesY = tp.getTilesY();
@@ -609,15 +615,15 @@ public class TexturedModel {
 		TileCluster [] tileClusters = clusterizeFgBg( // wrong result type, not decided
 				tilesX, // final int          tilesX,
 				ds_fg_bg, // final double [][]  disparities, // may have more layers
-				sky_invert, // final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
+				null, // sky_invert, // final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
 				tex_disp_adiffo, // final double       disp_adiffo,
 				tex_disp_rdiffo, // final double       disp_rdiffo,
 				tex_disp_adiffd, // final double       disp_adiffd,
 				tex_disp_rdiffd, // final double       disp_rdiffd,
 				tex_disp_fof, // final double       disp_fof,    // enable higher difference (scale) for fried of a friend 
 				debugLevel); //1); //  2); // final int          debugLevel)
-		double [][]     inter_weights = new double [tilesY][tilesX]; // per-tile texture weights for inter-scene accumulation;
-		double [][][][] inter_textures= new double [tilesY][tilesX][][]; // [channel][256] - non-overlapping textures
+//		double [][]     inter_weights = new double [tilesY][tilesX]; // per-tile texture weights for inter-scene accumulation;
+//		double [][][][] inter_textures= new double [tilesY][tilesX][][]; // [channel][256] - non-overlapping textures
 		boolean [] scenes_sel = new boolean[scenes.length];
 		//		for (int i = scenes.length - 10; i <  scenes.length; i++) { // start with just one (reference) scene
 		for (int i = 0; i <  scenes.length; i++) { // start with just one (reference) scene
@@ -638,15 +644,9 @@ public class TexturedModel {
 				renormalize,  // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
 				debugLevel);         // final int            debug_level)
 
-		boolean save_full_textures = false; // true;
+		boolean save_full_textures = true; // false; // true;
 		EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
-		String x3d_dir= correctionsParameters.selectX3dDirectory(
-				//TODO: Which one to use - name or this.image_name ?
-				correctionsParameters.getModelName(ref_scene.getImageName()), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
-		
+		String x3d_dir = ref_scene.getX3dDirectory();
 		if (save_full_textures) {
 			for (int nslice = 0; nslice < combined_textures.length; nslice++) {
 				EyesisCorrections.saveAndShow(
@@ -658,76 +658,42 @@ public class TexturedModel {
 						1); //
 			}
 		}
-		boolean save_individual_textures = true;
-		if (save_individual_textures) {
-			ImagePlus [] imp_textures = splitCombinedTextures(
-					tileClusters,       // TileCluster [] tileClusters, //should have name <timestamp>-*
-					transform_size,     // int            transform_size,
-					combined_textures); // ImagePlus []   combo_textures )
-			for (int i = 0; i < imp_textures.length; i++) if (imp_textures[i] != null) { // should not be
-				EyesisCorrections.saveAndShow(
-						imp_textures[i], // imp_texture_cluster,
-						x3d_dir,
-						correctionsParameters.png,
-						false, // (nslice < 4), // clt_parameters.show_textures,
-						-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
-						1); //
-			}
+		// Maybe will switch to combined textures (less files)
+		ImagePlus [] imp_textures = splitCombinedTextures(
+				tileClusters,       // TileCluster [] tileClusters, //should have name <timestamp>-*
+				transform_size,     // int            transform_size,
+				combined_textures); // ImagePlus []   combo_textures )
+		for (int i = 0; i < imp_textures.length; i++) if (imp_textures[i] != null) { // should not be
+			EyesisCorrections.saveAndShow(
+					imp_textures[i], // imp_texture_cluster,
+					x3d_dir,
+					correctionsParameters.png,
+					false, // (nslice < 4), // clt_parameters.show_textures,
+					-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+					1); //
 		}
 
-		if (debugLevel > -100) {
-			return true;
-		}
+//		if (debugLevel > -100) {
+//			return true;
+//		}
 
-		ArrayList<CLTPass3d> clt_3d_passes = new ArrayList<CLTPass3d>(); // will use its own passes
-		int next_pass = 1; // temporarily
-		/*
-
-		  if (clt_parameters.remove_scans){
-			  System.out.println("Removing all scans but the first(background) and the last to save memory");
-			  System.out.println("Will need to re-start the program to be able to output differently");
-			  CLTPass3d   latest_scan = tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1);
-			  tp.trimCLTPasses(1);
-			  tp.clt_3d_passes.add(latest_scan); // put it back
-		  }
-		  int next_pass = tp.clt_3d_passes.size(); //
-		  // Create tasks to scan, have tasks, disparity and border tiles in tp.clt_3d_passes
-		  tp.thirdPassSetupSurf( // prepare tile tasks for the second pass based on the previous one(s) // needs last scan
-				  clt_parameters,
-				  //FIXME: make a special parameter?
-				  infinity_disparity, //0.25 * clt_parameters.bgnd_range, // double            disparity_far,
-				  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
-				  ref_scene.getGeometryCorrection(),
-				  threadsMax,  // maximal number of threads to launch
-				  updateStatus,
-				  0); // final int         debugLevel)
-		 */
-
-
-
-		if (!batch_mode && (debugLevel > -1)) {
-			tp.showScan(
-					tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
-					"after_pass3-"+(next_pass-1)); //String title)
-		}
-		String x3d_path = ref_scene.getX3dDirectory();
 		// create x3d file
 		if (clt_parameters.output_x3d) {
 			x3dOutput = new X3dOutput(
 					clt_parameters,
 					ref_scene.correctionsParameters,
 					ref_scene.getGeometryCorrection(),
-					tp.clt_3d_passes);
+					null);// tp.clt_3d_passes);
 		}
-		if (clt_parameters.output_obj && (x3d_path != null)) {
+		if (clt_parameters.output_obj && (x3d_dir != null)) {
 			try {
 				wfOutput = new WavefrontExport(
-						x3d_path,
+						x3d_dir,
 						ref_scene.correctionsParameters.getModelName(ref_scene.getImageName()),
 						clt_parameters,
 						ref_scene.correctionsParameters,
 						ref_scene.getGeometryCorrection(),
-						tp.clt_3d_passes);
+						null); // tp.clt_3d_passes);
 			} catch (IOException e) {
 				System.out.println("Failed to open Wavefront files for writing");
 				// TODO Auto-generated catch block
@@ -735,187 +701,103 @@ public class TexturedModel {
 				// do nothing, just keep
 			}
 		}
-		if (x3dOutput != null) {
+		if (clt_parameters.output_glTF && (x3d_dir != null)) {
+			tri_meshes = new ArrayList<TriMesh>();
+		}		
+		
+		if (x3dOutput != null) { // 09.18.2022 For now - skipping background
 			x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
 		}
 
-		int bgndIndex = 0; // it already exists?
-		CLTPass3d bgndScan = tp.clt_3d_passes.get(bgndIndex);
-		//TODO make it w/o need for  bgndScan.texture as GPU will calculate texture right before output
-		//use selection? or texture_selection instead?		  
-		if (bgndScan.texture != null) { // TODO: same for the backdrop too
-			if (clt_parameters.infinityDistance > 0.0){ // generate background as a billboard
-				// grow selection, then grow once more and create border_tiles
-				// create/rstore, probably not needed
-				boolean [] bg_sel_backup = bgndScan.getSelected().clone();
-				boolean [] bg_border_backup = (bgndScan.getBorderTiles() == null) ? null: bgndScan.getBorderTiles().clone();
-				boolean [] bg_selected = bgndScan.getSelected();
-				boolean [] border_tiles = bg_selected.clone();
-				tp.growTiles(
-						2,                   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-						bg_selected,
-						null); // prohibit
-
-				for (int i = 0; i < border_tiles.length; i++){
-					border_tiles[i] = !border_tiles[i] && bg_selected[i];
-				}
-				// update texture_tiles (remove what is known not to be background
-				if (bgndScan.texture_tiles != null) { // for CPU
-					for (int ty = 0; ty < tilesY; ty++){
-						for (int tx = 0; tx < tilesX; tx++){
-							if (!bg_selected[tx + tilesX*ty]){
-								bgndScan.texture_tiles[ty][tx] = null; //
-							}
-
-						}
-					}
-				} else {//  for GPU
-					for (int i = 0; i < bg_selected.length; i++) {
-						if (!bg_selected[i]) {
-							bgndScan.setTextureSelection(i,false);
-						}
-					}
-				}
-
-				//TODO2020: set texture_selection
-				bgndScan.setBorderTiles(border_tiles);
-				// limit tile_op to selection?
-				// updates selection from non-null texture tiles
-				String texturePath = ref_scene.getPassImage( // get image from a single pass - both CPU and GPU
-						clt_parameters,
-						colorProcParameters,
-						rgbParameters,
-						ref_scene.correctionsParameters.getModelName(ref_scene.getImageName())+"-img_infinity", // +scanIndex,
-						bgndIndex,
-						THREADS_MAX,  // maximal number of threads to launch
-						updateStatus,
-						batch_mode ? -5: debugLevel);
-				if (texturePath != null) { // null if empty image
-					double [] scan_disparity = new double [tilesX * tilesY];
-					int indx = 0;
-					//		  boolean [] scan_selected = scan.getSelected();
-					for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
-						scan_disparity[indx++] = infinity_disparity;
-					}
-					//			  tp.showScan(
-					//    				  scan, // CLTPass3d   scan,
-					//    				  "infinityDistance");
-
-					boolean showTri = false; // ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
-					try {
-						ref_scene.generateClusterX3d(
-								x3dOutput,
-								wfOutput,  // output WSavefront if not null
-								texturePath,
-								"INFINITY", // id (scanIndex - next_pass), // id
-								"INFINITY", // class
-								bgndScan.getTextureBounds(),
-								bgndScan.getSelected(), // selected,
-								scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-								clt_parameters.transform_size,
-								clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-								showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
-								infinity_disparity,  // 0.3
-								clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-								clt_parameters.maxDispTriangle);
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-						return false;
-					}
-					// maybe not needed
-					bgndScan.setBorderTiles(bg_border_backup);
-					bgndScan.setSelected(bg_sel_backup);
-				}
+		// 09.18.2022 - skipping background generation
+		
+		int num_clusters = -1;
+		for (int nscene=0; nscene < tileClusters.length; nscene++) {
+			for (int indx: tileClusters[nscene].getSubIndices()) {
+				if (indx > num_clusters) num_clusters= indx;
 			}
 		}
-
-		// With GPU - do nothing here or copy selected -> texture_selection?
-		for (int scanIndex = next_pass; scanIndex < tp.clt_3d_passes.size(); scanIndex++){
-			if (debugLevel > 0){
-				System.out.println("FPGA processing scan #"+scanIndex);
-			}
-			ref_scene.CLTMeasureTextures( // has GPU version - will just copy selection
-					clt_parameters,
-					scanIndex,
-					THREADS_MAX,  // maximal number of threads to launch
-					updateStatus,
-					batch_mode ? -5: debugLevel);
-		}
-
-		for (int scanIndex = next_pass; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < clt_parameters.max_clusters); scanIndex++){ // just temporary limiting
+		num_clusters++;
+		
+		for (int nslice = 0; nslice < tileClusters.length; nslice++){
 			if (debugLevel > -1){
-				System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
+				//				System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
+				System.out.println("Generating cluster images from texture slice "+nslice);
 			}
-			String texturePath = ref_scene.getPassImage( // get image from a single pass
-					clt_parameters,
-					colorProcParameters,
-					rgbParameters,
-					ref_scene.correctionsParameters.getModelName(ref_scene.getImageName())+"-img"+scanIndex,
-					scanIndex,
-					THREADS_MAX,  // maximal number of threads to launch
-					updateStatus,
-					batch_mode ? -5: debugLevel);
-			if (texturePath == null) { // not used in lwir
-				continue; // empty image
-			}
-			CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
-
-			// TODO: use new updated disparity, for now just what was forced for the picture
-			double [] scan_disparity = new double [tilesX * tilesY];
-			int indx = 0;
-			for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
-				scan_disparity[indx++] = scan.disparity[ty][tx];
-			}
-			if (clt_parameters.avg_cluster_disp){
-				double sw = 0.0, sdw = 0.0;
-				for (int i = 0; i< scan_disparity.length; i++){
-					//					  if (scan.selected[i] && !scan.border_tiles[i]){
-					if (scan.getSelected()[i] && !scan.getBorderTiles()[i]){
-						double w = scan.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i];
-						sw +=w;
-						sdw += scan_disparity[i]*w;
+			int [] indices = tileClusters[nslice].getSubIndices();
+			Rectangle [] bounds = tileClusters[nslice].getSubBounds();
+			int dbg_tri_indx = 3; // showing triangles for cluster 3 
+			for (int sub_i = 0; sub_i < indices.length; sub_i++) {
+				Rectangle roi = bounds[sub_i];
+				int cluster_index = indices[sub_i];
+				ImagePlus imp_texture_cluster = imp_textures[cluster_index];
+				if (imp_textures[cluster_index] == null) {
+					if (debugLevel > -1){
+						System.out.println("Empty cluster #"+cluster_index);
 					}
+					continue;
 				}
-				sdw/=sw;
-				for (int i = 0; i< scan_disparity.length; i++){
-					scan_disparity[i] = sdw;
+				String texturePath = imp_texture_cluster.getTitle()+".png";
+				double [] scan_disparity = tileClusters[nslice].getSubDisparity(sub_i);
+				boolean [] scan_selected = tileClusters[nslice].getSubSelected(sub_i);
+				// skipping averaging disparity fro a whole cluster (needs strength and does not seem to be useful)
+				boolean showTri = !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles) && (cluster_index == dbg_tri_indx);
+				
+				try {
+					ref_scene.generateClusterX3d( // also generates wavefront obj
+							x3dOutput,
+							wfOutput,  // output WSavefront if not null
+							tri_meshes, // ArrayList<TriMesh> tri_meshes,
+							texturePath,
+							"shape_id-"+cluster_index, // id
+							null, // class
+							roi, // scan.getTextureBounds(),
+							scan_selected, // scan.getSelected(),
+							scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+							clt_parameters.transform_size,
+							clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+							showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+							// FIXME: make a separate parameter:
+							infinity_disparity, //  0.25 * clt_parameters.bgnd_range,  // 0.3
+							clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
+							clt_parameters.maxDispTriangle,
+						    clt_parameters.maxZtoXY,      // double          maxZtoXY,       // 10.0. <=0 - do not use
+						    clt_parameters.maxZ,
+						    clt_parameters.limitZ,
+							debugLevel + 1); //   int             debug_level) > 0
+				} catch (IOException e) {
+					e.printStackTrace();
+					return false;
 				}
 			}
-			boolean showTri = !batch_mode && (debugLevel > -1) && (((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73));
+			// if (imp_textures[nslice] != null)
+		} // for (int nslice = 0; nslice < tileClusters.length; nslice++){
 
-			try {
-				ref_scene.generateClusterX3d(
-						x3dOutput,
-						wfOutput,  // output WSavefront if not null
-						texturePath,
-						"shape_id-"+(scanIndex - next_pass), // id
-						null, // class
-						scan.getTextureBounds(),
-						scan.getSelected(),
-						scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-						clt_parameters.transform_size,
-						clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-						showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
-						// FIXME: make a separate parameter:
-						infinity_disparity, //  0.25 * clt_parameters.bgnd_range,  // 0.3
-						clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-						clt_parameters.maxDispTriangle);
-			} catch (IOException e) {
-				e.printStackTrace();
-				return false;
-			}
-		}
-
-		if ((x3d_path != null) && (x3dOutput != null)){
-			x3dOutput.generateX3D(x3d_path+Prefs.getFileSeparator() + ref_scene.correctionsParameters.getModelName(ref_scene.getImageName())+".x3d");
+		if ((x3d_dir != null) && (x3dOutput != null)){
+			x3dOutput.generateX3D(x3d_dir+Prefs.getFileSeparator() + ref_scene.correctionsParameters.getModelName(ref_scene.getImageName())+".x3d");
 		}
 		if (wfOutput != null){
 			wfOutput.close();
 			System.out.println("Wavefront object file saved to "+wfOutput.obj_path);
 			System.out.println("Wavefront material file saved to "+wfOutput.mtl_path);
 		}
-
+		if (tri_meshes != null) {
+			try {
+				GlTfExport.glTFExport(
+						x3d_dir, // String x3d_dir,
+						ref_scene.correctionsParameters.getModelName(ref_scene.getImageName()), // String model_name,
+						tri_meshes, // ArrayList<TriMesh> tri_meshes,
+						gltf_emissive, // boolean gltf_emissive,
+						1);
+			} catch (JSONException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} // int debugLevel
+		}
+		
 		// Save KML and ratings files if they do not exist (so not to overwrite edited ones), make them world-writable
 		ref_scene.writeKml        (null, debugLevel);
 		ref_scene.writeRatingFile (debugLevel);
@@ -1209,7 +1091,7 @@ public class TexturedModel {
 					}
 				} else { // for UM need to calculate min and max (probably OK for non-UM too !)
 					double [] minmax = QuadCLTCPU.getMinMaxTextures(
-							faded_textures ); //double [][][] textures //  [nslices][nchn][i]
+							faded_textures ); //double [][][] textures //  [slices][nchn][i]
 					rel_low =  minmax[0];
 					rel_high = minmax[1];
 				}
@@ -1322,19 +1204,19 @@ public class TexturedModel {
 			int            transform_size,
 			ImagePlus []   combo_textures ) {
 		int max_cluster = -1;
-		for (int nscene=0; nscene < tileClusters.length; nscene++) {
-			for (int indx: tileClusters[nscene].getSubIndices()) {
+		for (int nslice=0; nslice < tileClusters.length; nslice++) {
+			for (int indx: tileClusters[nslice].getSubIndices()) {
 				if (indx > max_cluster) max_cluster= indx;
 			}
 		}
 		ImagePlus [] tex_clusters = new ImagePlus[max_cluster + 1];
-		for (int nscene=0; nscene < tileClusters.length; nscene++) {
-			String basename = combo_textures[nscene].getTitle();
+		for (int nslice=0; nslice < tileClusters.length; nslice++) {
+			String basename = combo_textures[nslice].getTitle();
 			basename = basename.substring(0,basename.indexOf('-'));
-			ImageStack combo_stack = combo_textures[nscene].getStack();
+			ImageStack combo_stack = combo_textures[nslice].getStack();
 			int nSlices = combo_stack.getSize();
-			int [] indices = tileClusters[nscene].getSubIndices();
-			Rectangle [] bounds = tileClusters[nscene].getSubBounds();
+			int [] indices = tileClusters[nslice].getSubIndices();
+			Rectangle [] bounds = tileClusters[nslice].getSubBounds();
 			// try to deal with a single-slice stack?
 			for (int i = 0; i < indices.length; i++) {
 				Rectangle roi = bounds[i];

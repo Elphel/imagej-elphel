@@ -65,6 +65,7 @@ import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
 import com.elphel.imagej.readers.ImagejJp4Tiff;
+import com.elphel.imagej.x3d.export.TriMesh;
 import com.elphel.imagej.x3d.export.WavefrontExport;
 import com.elphel.imagej.x3d.export.X3dOutput;
 
@@ -7552,11 +7553,11 @@ public class QuadCLTCPU {
 		  double [] rel_lim = {
 				  getMarginFromHist(
 						  hist, // histogram
-						  too_cold, // double cumul_val, // cummulative number of items to be ignored
+						  too_cold, // double cumul_val, // cumulative number of items to be ignored
 						  false), // boolean high_marg)
 				  getMarginFromHist(
 						  hist, // histogram
-						  too_hot, // double cumul_val, // cummulative number of items to be ignored
+						  too_hot, // double cumul_val, // cumulative number of items to be ignored
 						  true)}; // boolean high_marg)
 		  double [] abs_lim = {
 				  rel_lim[0] * (hard_hot - hard_cold) + hard_cold,
@@ -12455,6 +12456,7 @@ public class QuadCLTCPU {
 		  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
 		  X3dOutput x3dOutput = null;
 		  WavefrontExport wfOutput = null;
+		  ArrayList<TriMesh> tri_meshes = null; 
 		  if (clt_parameters.remove_scans){
 			  System.out.println("Removing all scans but the first(background) and the last to save memory");
 			  System.out.println("Will need to re-start the program to be able to output differently");
@@ -12489,20 +12491,24 @@ public class QuadCLTCPU {
 		  }
 		  if (clt_parameters.output_obj && (x3d_path != null)) {
 			  try {
-				wfOutput = new WavefrontExport(
+				  wfOutput = new WavefrontExport(
 						  x3d_path,
 						  correctionsParameters.getModelName(this.image_name),
 						  clt_parameters,
 						  correctionsParameters,
 						  geometryCorrection,
 						  tp.clt_3d_passes);
-			} catch (IOException e) {
-				System.out.println("Failed to open Wavefront files for writing");
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				// do nothing, just keep
-			}
+			  } catch (IOException e) {
+				  System.out.println("Failed to open Wavefront files for writing");
+				  // TODO Auto-generated catch block
+				  e.printStackTrace();
+				  // do nothing, just keep
+			  }
 		  }
+		  if (clt_parameters.output_glTF && (x3d_path != null)) {
+			  tri_meshes = new ArrayList<TriMesh>();
+		  }		
+
 		  if (x3dOutput != null) {
 			  x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
 		  }
@@ -12579,6 +12585,7 @@ public class QuadCLTCPU {
 						  generateClusterX3d(
 								  x3dOutput,
 								  wfOutput,  // output WSavefront if not null
+								  tri_meshes, // ArrayList<TriMesh> tri_meshes,
 								  texturePath,
 								  "INFINITY", // id (scanIndex - next_pass), // id
 								  "INFINITY", // class
@@ -12590,7 +12597,11 @@ public class QuadCLTCPU {
 								  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
 								  infinity_disparity,  // 0.3
 								  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-								  clt_parameters.maxDispTriangle);
+								  clt_parameters.maxDispTriangle,
+								  clt_parameters.maxZtoXY,      // double          maxZtoXY,       // 10.0. <=0 - do not use
+								  clt_parameters.maxZ,
+								  clt_parameters.limitZ,
+								  debugLevel + 1); //   int             debug_level) > 0
 					  } catch (IOException e) {
 						  // TODO Auto-generated catch block
 						  e.printStackTrace();
@@ -12668,11 +12679,11 @@ public class QuadCLTCPU {
 				  }
 			  }
 			  boolean showTri = !batch_mode && (debugLevel > -1) && (((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73));
-
 			  try {
-				generateClusterX3d(
+				  generateClusterX3d(
 						  x3dOutput,
 						  wfOutput,  // output WSavefront if not null
+						  tri_meshes, // ArrayList<TriMesh> tri_meshes,
 						  texturePath,
 						  "shape_id-"+(scanIndex - next_pass), // id
 						  null, // class
@@ -12685,7 +12696,11 @@ public class QuadCLTCPU {
 						  // FIXME: make a separate parameter:
 						  infinity_disparity, //  0.25 * clt_parameters.bgnd_range,  // 0.3
 						  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-						  clt_parameters.maxDispTriangle);
+						  clt_parameters.maxDispTriangle,
+						  clt_parameters.maxZtoXY,      // double          maxZtoXY,       // 10.0. <=0 - do not use
+						  clt_parameters.maxZ,
+						  clt_parameters.limitZ,
+						  debugLevel + 1); //   int             debug_level) > 0
 			} catch (IOException e) {
 				e.printStackTrace();
 				return false;
@@ -12718,6 +12733,7 @@ public class QuadCLTCPU {
 	  public void generateClusterX3d( // USED in lwir
 			  X3dOutput       x3dOutput, // output x3d if not null
 			  WavefrontExport wfOutput,  // output WSavefront if not null
+			  ArrayList<TriMesh> tri_meshes,
 			  String          texturePath,
 			  String          id,
 			  String          class_name,
@@ -12729,18 +12745,23 @@ public class QuadCLTCPU {
 			  boolean         show_triangles,
 			  double          min_disparity,
 			  double          max_disparity,
-			  double          maxDispTriangle
+			  double          maxDispTriangle, // relative <=0 - do not use
+			  double          maxZtoXY,        // 10.0. <=0 - do not use
+			  double          maxZ,            // far clip (0 - do not clip). Negative - limit by max
+			  boolean         limitZ, 
+			  int             debug_level
 			  ) throws IOException
 	  {
+//		  int debug_level = 1;
 		  if (bounds == null) {
 			  return; // not used in lwir
 		  }
-		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected
+		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected // updated 09.18.2022
 				  bounds, 
 				  selected); 
 		  double [][] texCoord = TileProcessor.getTexCoords( // get texture coordinates for indices
 				  indices);
-		  double [][] worldXYZ = tp.getCoords( // get world XYZ in meters for indices
+		  double [][] worldXYZ = tp.getCoords( // get world XYZ in meters for indices // updated 09.18.2022
 				  disparity,
 				  min_disparity,
 				  max_disparity,
@@ -12750,7 +12771,7 @@ public class QuadCLTCPU {
 				  correctDistortions, // requires backdrop image to be corrected also
 				  this.geometryCorrection);
 
-          double [] indexedDisparity = tp.getIndexedDisparities( // get disparity for each index
+          double [] indexedDisparity = tp.getIndexedDisparities( // get disparity for each index // updated 09.18.2022
 							disparity,
 							min_disparity,
 							max_disparity,
@@ -12761,12 +12782,83 @@ public class QuadCLTCPU {
 		  int [][] triangles = 	TileProcessor.triangulateCluster(
 				  indices);
 
-
-		  triangles = 	TileProcessor.filterTriangles( // remove crazy triangles with large disparity difference
-					triangles,
-					indexedDisparity, // disparities per vertex index
-					maxDispTriangle); // maximal disparity difference in a triangle
-
+//		  double maxZtoXY = 10.0; // maximal delta_z to sqrt(dx^23 + dy^2)
+		  int num_removed = 0;
+		  if (maxDispTriangle > 0.0) {
+			  int pre_num = triangles.length;
+			  triangles = 	TileProcessor.filterTriangles( // remove crazy triangles with large disparity difference
+					  triangles,
+					  indexedDisparity, // disparities per vertex index
+					  maxDispTriangle,  // maximal disparity difference in a triangle
+					  debug_level + 0); // 	int       debug_level);
+			  if (triangles.length < pre_num) {
+				  num_removed += pre_num - triangles.length;
+				  if (debug_level > 0) {
+					  System.out.println("filterTriangles() removed "+ (pre_num - triangles.length)+" triangles");
+				  }
+			  }
+			  
+		  }
+		  if ((maxZ != 0.0) && limitZ) {
+			  for (int i = 0; i < worldXYZ.length; i++) {
+				  if (worldXYZ[i][2] < -maxZ) {
+					  double k = -maxZ/worldXYZ[i][2];
+					  worldXYZ[i][0] *= k;
+					  worldXYZ[i][1] *= k;
+					  worldXYZ[i][2] *= k;
+				  }
+			  }
+		  }
+		  if ((maxZtoXY > 0.0) || ((maxZ != 0) && !limitZ) ) {
+			  int pre_num = triangles.length;
+			  triangles = 	TileProcessor.filterTrianglesWorld(
+					  triangles,
+					  worldXYZ,  // world per vertex index
+					  maxZtoXY,
+					  maxZ);
+			  if (triangles.length < pre_num) {
+				  num_removed += pre_num - triangles.length;
+				  if (debug_level > 0) {
+					  System.out.println("filterTrianglesWorld() removed "+ (pre_num - triangles.length)+" triangles");
+				  }
+			  }
+		  }
+		  if (triangles.length == 0) {
+			  if (debug_level > 0) {
+				  System.out.println("generateClusterX3d() no triangles left in a cluster");
+			  }
+			  return; // all triangles removed
+			  
+		  }
+		  if (num_removed > 0) { 
+			  int [] re_index = TileProcessor.reIndex( // Move to TriMesh?
+					  indices, // will be modified if needed (if some indices are removed
+					  triangles);
+			  if (re_index != null) {// need to update other arrays: texCoord, worldXYZ. indexedDisparity[] will not be used
+				  int num_indices_old = worldXYZ.length;
+				  int [] inv_index = new int [num_indices_old];
+				  Arrays.fill(inv_index,-1); // just to get an error
+				  for (int i = 0; i < re_index.length; i++) {
+					  inv_index[re_index[i]] = i;
+				  }
+				  double [][]  texCoord_new = new double [re_index.length][];
+				  double [][]  worldXYZ_new = new double [re_index.length][];
+				  for (int i = 0; i < re_index.length; i++) {
+					  texCoord_new[i] = texCoord[re_index[i]];
+					  worldXYZ_new[i] = worldXYZ[re_index[i]];
+				  }
+				  texCoord = texCoord_new;
+				  worldXYZ = worldXYZ_new;
+				  for (int i = 0; i < triangles.length; i++) {
+					  for (int j=0; j < triangles[i].length; j++) {
+						  triangles[i][j] = inv_index[triangles[i][j]];
+					  }
+				  }
+			  }
+			  if (debug_level > 0) {
+				  show_triangles = true; // show after removed
+			  }
+		  }
 
 		  if (show_triangles) {
 			  double [] ddisp = (disparity == null)?(new double[1]):disparity;
@@ -12799,6 +12891,13 @@ public class QuadCLTCPU {
 				  texCoord,
 				  worldXYZ,
 				  triangles);
+		  }
+		  if (tri_meshes != null) {
+			  tri_meshes.add(new TriMesh(
+					  texturePath, // String texture_image,
+					  worldXYZ,    // double [][] worldXYZ,
+					  texCoord,    // double [][] texCoord,
+					  triangles)); // 								int [][] triangles					  
 		  }
 	  }
 

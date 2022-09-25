@@ -76,6 +76,7 @@ public class X3dOutput {
 		this.clt_3d_passes = clt_3d_passes;
 	}
 	// init document, bounding box, backdrop
+	// 09.18.2022 - made work w/o background
 	public void generateBackground(boolean use_backdrop)
 	{
 		try {
@@ -104,6 +105,11 @@ public class X3dOutput {
 		el_TopGroup.setAttribute("bboxSize",    String.format("%.3f %.3f %.3f ",bbox[1][0],bbox[1][1],bbox[1][2]));
 
 		el_Scene.appendChild(el_TopGroup);
+		
+		if (clt_3d_passes == null) {
+			System.out.println("Not using background without clt_3d_passes");
+			return;
+		}
 
 		CLTPass3d bgnd_pass = clt_3d_passes.get(0);
 
@@ -167,6 +173,10 @@ public class X3dOutput {
 			sb_tex_coords.append(String.format("%.4f %.4f", texCoord[i][0], texCoord[i][1]));
 		}
 		String sindex =  sb_coord_index.toString(); // for both coordIndex and texCoordIndex
+		if (sindex.length() == 0) {
+			System.out.println("addCluster(): sindex.length() == 0");
+			System.out.println("addCluster(): sindex.length() == 0");
+		}
 		String scoord =  sb_coords.toString();
 		String stcoord = sb_tex_coords.toString();
 

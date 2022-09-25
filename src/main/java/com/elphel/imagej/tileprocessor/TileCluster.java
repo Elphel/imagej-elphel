@@ -76,6 +76,60 @@ class TileCluster{
 	public Rectangle  getBounds() {return bounds;}
 	public boolean [] getBorder() {return border;}
 	public double []  getDisparity() {return disparity;}
+	public double []  getSubDisparity(int indx) { // disparity should be NaN for unused !
+		if (clust_list == null) {
+			return null;
+		}
+		Rectangle sub_bounds = clust_list.get(indx).bounds;
+		double [] sub_disparity = new double [sub_bounds.width * sub_bounds.height];
+		int src_x = sub_bounds.x - bounds.x;
+		for (int dst_y = 0; dst_y < sub_bounds.height; dst_y++) {
+			int src_y = dst_y + sub_bounds.y - bounds.y;
+			System.arraycopy(
+					disparity,
+					src_y * bounds.width + src_x,
+					sub_disparity,
+					dst_y * sub_bounds.width,
+					sub_bounds.width);
+		}		
+		return sub_disparity;
+	}
+	
+	public boolean []  getSubBorder(int indx) { // disparity should be NaN for unused !
+		if (clust_list == null) {
+			return null;
+		}
+		Rectangle sub_bounds = clust_list.get(indx).bounds;
+		boolean [] sub_border = new boolean [sub_bounds.width * sub_bounds.height];
+		int src_x = sub_bounds.x - bounds.x;
+		for (int dst_y = 0; dst_y < sub_bounds.height; dst_y++) {
+			int src_y = dst_y + sub_bounds.y - bounds.y;
+			System.arraycopy(
+					border,
+					src_y * bounds.width + src_x,
+					sub_border,
+					dst_y * sub_bounds.width,
+					sub_bounds.width);
+		}		
+		return sub_border;
+	}
+	
+	public boolean []  getSubSelected(int indx) { // disparity should be NaN for unused !
+		if (clust_list == null) {
+			return null;
+		}
+		double [] sub_disparity = getSubDisparity(indx);
+		boolean [] sub_selection = new boolean [sub_disparity.length];
+		for (int i = 0; i < sub_disparity.length; i++) {
+			sub_selection[i] = !Double.isNaN(sub_disparity[i]);
+		}
+		return sub_selection;
+	}
+	
+	
+
+	
+	
 	public boolean [] getSelected() {
 		if (disparity == null) {
 			return null;
@@ -132,42 +186,6 @@ class TileCluster{
 
 	}
 
-	
-
-	/*
-	public TileCluster combine (TileCluster tileCluster) {
-		TileCluster outer, inner;
-		if (bounds.contains(tileCluster.bounds)) {
-			outer = this;
-			inner = tileCluster;
-		} else if (tileCluster.bounds.contains(bounds)) {
-			outer = tileCluster;
-			inner = this;
-		} else {
-			Rectangle outer_bounds = bounds.union(tileCluster.bounds);
-			outer = new TileCluster(outer_bounds, null, null);
-			outer.combine(this); // 
-			inner = tileCluster;
-		}
-		int dst_x = inner.bounds.x - outer.bounds.x;
-		for (int src_y = 0; src_y < bounds.height; src_y++) {
-			int dst_y = src_y + inner.bounds.y - outer.bounds.y;
-			System.arraycopy(
-					inner.border,
-					src_y * bounds.width,
-					outer.border,
-					dst_y * outer.bounds.width + dst_x,
-					bounds.width);
-			System.arraycopy(
-					inner.disparity,
-					src_y * bounds.width,
-					outer.disparity,
-					dst_y * outer.bounds.width + dst_x,
-					bounds.width);
-		}
-		return outer;
-	}
-    */
 	public void add(TileCluster tileCluster) {
 		if (!bounds.contains(tileCluster.bounds)) {
 			throw new IllegalArgumentException ("TileCluster.add(): Added cluster should fit into this ");
@@ -193,16 +211,6 @@ class TileCluster{
 					disparity,
 					dst_y * bounds.width + dst_x,
 					tileCluster.bounds.width);
-			/**	
-			if ((cluster_index != null) && (tileCluster.cluster_index != null)) {
-				System.arraycopy(
-						tileCluster.cluster_index,
-						src_y * tileCluster.bounds.width,
-						cluster_index,
-						dst_y * bounds.width + dst_x,
-						tileCluster.bounds.width);
-			}
-			*/
 		}
 		return;
 	}

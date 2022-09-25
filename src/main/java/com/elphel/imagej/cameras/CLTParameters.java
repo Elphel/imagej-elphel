@@ -383,18 +383,18 @@ public class CLTParameters {
 	
 	public boolean    photo_debug =                   false; // Generate images and text
 	
-	public double     tex_disp_adiffo =               0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
-	public double     tex_disp_rdiffo =               0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
-	public double     tex_disp_adiffd =               0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
-	public double     tex_disp_rdiffd =               0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
+	public double     tex_disp_adiffo =               0.12; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
+	public double     tex_disp_rdiffo =               0.1; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
+	public double     tex_disp_adiffd =               0.18; // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
+	public double     tex_disp_rdiffd =               0.15; // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
 	public double     tex_disp_fof =                  1.5;  // Increase tolerance for friend of a friend
 	public double     tex_fg_bg =                     0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
 	public double     tex_distort =                   0.8;  // Maximal texture distortion to accumulate multiple scenes (0 - any)
 	public double     tex_mb =                        1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
 	
 	public boolean    tex_um =                       true;   // Use unsharp mask filter for textures 
-	public double     tex_um_sigma =                   10.0; // Unsharp mask sigma for textures
-	public double     tex_um_weight =                   0.97;// Unsharp mask weight
+	public double     tex_um_sigma =                    2.0; // Unsharp mask sigma for textures
+	public double     tex_um_weight =                   0.8;// Unsharp mask weight
 	public boolean    tex_lwir_autorange =           true;   // Autorange LWIR textures
 	public boolean    tex_um_fixed =                false;   // Use fixed range after unsharp mask instead of autorange
 	public double     tex_um_range =                  500;   // Full range after unsharp mask 
@@ -403,8 +403,25 @@ public class CLTParameters {
 	public int        tex_hist_bins =                1024;   // Number of histogram bins to use for texture histograms 
 	public int        tex_hist_segments =              32;   // Number of evenly-spaced percentiles to use for histogram normalization 
 	public boolean    tex_color =                    true;   // Use pseudo-colored textures 
-	public int        tex_palette =                     2;   // Palette number for pseudo colors 
+	public int        tex_palette =                     1;   // Palette number for pseudo colors 
 	
+	public int        max_clusters     = 5000;   // Maximal number of clusters to generate for one run
+	public boolean    remove_scans     = true;  // Remove all unneeded scans when generating x3d output to save memory
+	public boolean    output_x3d       = true;  // Generate x3d output
+	public boolean    output_obj       = true;  // Generate Wavefront obj output
+	public boolean    output_glTF      = true;  // Generate glTF output
+	public boolean    correct_distortions = true; // Correct lens geometric distortions in a model (will need backdrop to be corrected too)
+	public boolean    show_triangles =    false; // true;  // Show generated triangles
+	public boolean    avg_cluster_disp =  false;  // Weight-average disparity for the whole cluster
+	public double     maxDispTriangle   = 0.0; // 0.2;    // Maximal relative disparity difference in a triangle face
+	public double     maxZtoXY          = 0.0; // 30.0;   // world dz /sqrt(dx*dx + dz*dz),       // 10.0. <=0 - do not use
+	public double     maxZ              = 20000;  // maximal distance to far object
+	public boolean    limitZ            = true;   // limit Z, if false - remove triangle
+	public double     infinityDistance  = 10000;  // Distance to generate backdrop (0 - use regular backdrop)
+	public int        min_bgnd_tiles    = 10;     // Minimal number of background tiles to generate background
+
+	public boolean    gltf_emissive =     false; // true;   // Use emissive textures
+
 	public boolean    show_textures    = true;  // show generated textures
 	public boolean    debug_filters    = false;// show intermediate results of filtering
 	// not used anywhere so far
@@ -472,18 +489,7 @@ public class CLTParameters {
 	public double     poles_min_strength = 0.1; // Set new pole segment strength to max of horizontal correlation and this value
 	public boolean    poles_force_disp = true;  // Set disparity to that of the bottom of existing segment (false - use hor. disparity)
 
-	public int        max_clusters     = 500;   // Maximal number of clusters to generate for one run
-	public boolean    remove_scans     = true;  // Remove all unneeded scans when generating x3d output to save memory
-	public boolean    output_x3d       = true;  // Generate x3d output
-	public boolean    output_obj       = true;  // Generate Wavefront obj output
-
-
-	public boolean    correct_distortions = false; // Correct lens geometric distortions in a model (will need backdrop to be corrected too)
-	public boolean    show_triangles =    true;  // Show generated triangles
-	public boolean    avg_cluster_disp =  false;  // Weight-average disparity for the whole cluster
-	public double     maxDispTriangle   = 0.2;    // Maximal relative disparity difference in a triangle face
-	public double     infinityDistance  = 10000;  // Distance to generate backdrop (0 - use regular backdrop)
-	public int        min_bgnd_tiles    = 10;     // Minimal number of background tiles to generate background
+	
 	public boolean    shUseFlaps        = true;  // Split into shells with flaps
 	public boolean    shAggrFade        = false; // true;  // Aggressive fade alpha (whole boundary)
 	public int        shMinArea         = 1;     // Minimal shell area (not counting flaps
@@ -1420,6 +1426,25 @@ public class CLTParameters {
 		properties.setProperty(prefix+"tex_color",                  this.tex_color+"");           // boolean
 		properties.setProperty(prefix+"tex_palette",                this.tex_palette+"");         // int
 		
+		properties.setProperty(prefix+"max_clusters",               this.max_clusters+"");
+		properties.setProperty(prefix+"remove_scans",               this.remove_scans+"");
+		properties.setProperty(prefix+"output_x3d",                 this.output_x3d+"");
+		properties.setProperty(prefix+"output_obj",                 this.output_obj+"");
+		properties.setProperty(prefix+"output_glTF",                this.output_glTF+"");
+		properties.setProperty(prefix+"correct_distortions",        this.correct_distortions+"");
+		properties.setProperty(prefix+"show_triangles",             this.show_triangles+"");
+		properties.setProperty(prefix+"avg_cluster_disp",           this.avg_cluster_disp+"");
+		properties.setProperty(prefix+"maxDispTriangle",            this.maxDispTriangle +"");
+		properties.setProperty(prefix+"maxZtoXY",                   this.maxZtoXY +"");
+		
+		properties.setProperty(prefix+"maxZ",                       this.maxZ +"");
+		properties.setProperty(prefix+"limitZ",                     this.limitZ+"");
+		
+		properties.setProperty(prefix+"infinityDistance",           this.infinityDistance +"");
+		properties.setProperty(prefix+"min_bgnd_tiles",             this.min_bgnd_tiles+"");
+
+		properties.setProperty(prefix+"gltf_emissive",              this.gltf_emissive+"");
+		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
 		properties.setProperty(prefix+"debug_filters",              this.debug_filters+"");
 
@@ -1485,18 +1510,6 @@ public class CLTParameters {
 		properties.setProperty(prefix+"poles_min_strength",         this.poles_min_strength +"");
 		properties.setProperty(prefix+"or_maxDisp",                 this.or_maxDisp+"");
 
-
-
-		properties.setProperty(prefix+"max_clusters",               this.max_clusters+"");
-		properties.setProperty(prefix+"remove_scans",               this.remove_scans+"");
-		properties.setProperty(prefix+"output_x3d",                 this.output_x3d+"");
-		properties.setProperty(prefix+"output_obj",                 this.output_obj+"");
-		properties.setProperty(prefix+"correct_distortions",        this.correct_distortions+"");
-		properties.setProperty(prefix+"show_triangles",             this.show_triangles+"");
-		properties.setProperty(prefix+"avg_cluster_disp",           this.avg_cluster_disp+"");
-		properties.setProperty(prefix+"maxDispTriangle",            this.maxDispTriangle +"");
-		properties.setProperty(prefix+"infinityDistance",           this.infinityDistance +"");
-		properties.setProperty(prefix+"min_bgnd_tiles",             this.min_bgnd_tiles+"");
 		properties.setProperty(prefix+"shUseFlaps",                 this.shUseFlaps+"");
 		properties.setProperty(prefix+"shAggrFade",                 this.shAggrFade+"");
 		properties.setProperty(prefix+"shMinArea",                  this.shMinArea+"");
@@ -2312,7 +2325,26 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"tex_hist_segments")!=null)    this.tex_hist_segments=Integer.parseInt(properties.getProperty(prefix+"tex_hist_segments"));		
 		if (properties.getProperty(prefix+"tex_color")!=null)            this.tex_color=Boolean.parseBoolean(properties.getProperty(prefix+"tex_color"));		
 		if (properties.getProperty(prefix+"tex_palette")!=null)          this.tex_palette=Integer.parseInt(properties.getProperty(prefix+"tex_palette"));		
+
+		if (properties.getProperty(prefix+"max_clusters")!=null)                  this.max_clusters=Integer.parseInt(properties.getProperty(prefix+"max_clusters"));
+		if (properties.getProperty(prefix+"remove_scans")!=null)                  this.remove_scans=Boolean.parseBoolean(properties.getProperty(prefix+"remove_scans"));
+		if (properties.getProperty(prefix+"output_x3d")!=null)                    this.output_x3d=Boolean.parseBoolean(properties.getProperty(prefix+"output_x3d"));
+		if (properties.getProperty(prefix+"output_obj")!=null)                    this.output_obj=Boolean.parseBoolean(properties.getProperty(prefix+"output_obj"));
+		if (properties.getProperty(prefix+"output_glTF")!=null)                   this.output_glTF=Boolean.parseBoolean(properties.getProperty(prefix+"output_glTF"));
+		if (properties.getProperty(prefix+"correct_distortions")!=null)           this.correct_distortions=Boolean.parseBoolean(properties.getProperty(prefix+"correct_distortions"));
+		if (properties.getProperty(prefix+"show_triangles")!=null)                this.show_triangles=Boolean.parseBoolean(properties.getProperty(prefix+"show_triangles"));
+		if (properties.getProperty(prefix+"avg_cluster_disp")!=null)              this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
+		if (properties.getProperty(prefix+"maxDispTriangle")!=null)               this.maxDispTriangle=Double.parseDouble(properties.getProperty(prefix+"maxDispTriangle"));
+		if (properties.getProperty(prefix+"maxZtoXY")!=null)                      this.maxZtoXY=Double.parseDouble(properties.getProperty(prefix+"maxZtoXY"));
 		
+		if (properties.getProperty(prefix+"maxZ")!=null)                          this.maxZ=Double.parseDouble(properties.getProperty(prefix+"maxZ"));
+		if (properties.getProperty(prefix+"limitZ")!=null)                        this.limitZ=Boolean.parseBoolean(properties.getProperty(prefix+"limitZ"));
+		
+		if (properties.getProperty(prefix+"infinityDistance")!=null)              this.infinityDistance=Double.parseDouble(properties.getProperty(prefix+"infinityDistance"));
+		if (properties.getProperty(prefix+"min_bgnd_tiles")!=null)                this.min_bgnd_tiles=Integer.parseInt(properties.getProperty(prefix+"min_bgnd_tiles"));
+		
+		if (properties.getProperty(prefix+"gltf_emissive")!=null)                 this.gltf_emissive=Boolean.parseBoolean(properties.getProperty(prefix+"gltf_emissive"));
+
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
 		if (properties.getProperty(prefix+"debug_filters")!=null)                 this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
 
@@ -2378,16 +2410,6 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"poles_min_strength")!=null)            this.poles_min_strength=Double.parseDouble(properties.getProperty(prefix+"poles_min_strength"));
 		if (properties.getProperty(prefix+"poles_force_disp")!=null)              this.poles_force_disp=Boolean.parseBoolean(properties.getProperty(prefix+"poles_force_disp"));
 
-		if (properties.getProperty(prefix+"max_clusters")!=null)                  this.max_clusters=Integer.parseInt(properties.getProperty(prefix+"max_clusters"));
-		if (properties.getProperty(prefix+"remove_scans")!=null)                  this.remove_scans=Boolean.parseBoolean(properties.getProperty(prefix+"remove_scans"));
-		if (properties.getProperty(prefix+"output_x3d")!=null)                    this.output_x3d=Boolean.parseBoolean(properties.getProperty(prefix+"output_x3d"));
-		if (properties.getProperty(prefix+"output_obj")!=null)                    this.output_obj=Boolean.parseBoolean(properties.getProperty(prefix+"output_obj"));
-		if (properties.getProperty(prefix+"correct_distortions")!=null)           this.correct_distortions=Boolean.parseBoolean(properties.getProperty(prefix+"correct_distortions"));
-		if (properties.getProperty(prefix+"show_triangles")!=null)                this.show_triangles=Boolean.parseBoolean(properties.getProperty(prefix+"show_triangles"));
-		if (properties.getProperty(prefix+"avg_cluster_disp")!=null)              this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
-		if (properties.getProperty(prefix+"maxDispTriangle")!=null)               this.maxDispTriangle=Double.parseDouble(properties.getProperty(prefix+"maxDispTriangle"));
-		if (properties.getProperty(prefix+"infinityDistance")!=null)              this.infinityDistance=Double.parseDouble(properties.getProperty(prefix+"infinityDistance"));
-		if (properties.getProperty(prefix+"min_bgnd_tiles")!=null)                this.min_bgnd_tiles=Integer.parseInt(properties.getProperty(prefix+"min_bgnd_tiles"));
 		if (properties.getProperty(prefix+"shUseFlaps")!=null)                    this.shUseFlaps=Boolean.parseBoolean(properties.getProperty(prefix+"shUseFlaps"));
 		if (properties.getProperty(prefix+"shAggrFade")!=null)                    this.shAggrFade=Boolean.parseBoolean(properties.getProperty(prefix+"shAggrFade"));
 		if (properties.getProperty(prefix+"shMinArea")!=null)                     this.shMinArea=Integer.parseInt(properties.getProperty(prefix+"shMinArea"));
@@ -3352,6 +3374,7 @@ public class CLTParameters {
 				"Maximal texture distortion to accumulate multiple scenes (neighbor tile center offset from the uniform grid. 0 - do not filter");
 		gd.addNumericField("Maximal motion blur to reduce weight",this.tex_mb, 5,7,"pix",
 				"Reduce texture weight if motion blur exceeds this (as square of MB length).");
+		
 		gd.addMessage     ("Textures rendering");
 		gd.addCheckbox ("Apply unsharp mask",                    this.tex_um,
 				"Use unsharp mask filter for texture.");
@@ -3377,6 +3400,41 @@ public class CLTParameters {
 				"Use pseudo-colored textures (false - monochrome, float).");
 		gd.addNumericField("Palette number",                     this.tex_palette, 0,3,"",
 				"Palette number for pseudo colors.");
+
+		gd.addMessage     ("Triangulation");
+		gd.addNumericField("Maximal output meshes",                this.max_clusters,   0,3,"",
+				"Maximal number of output meshes to generate.");
+		gd.addCheckbox    ("Remove all unneeded scans before x3d", this.remove_scans,
+				"Remove all unneeded scans when generating x3d output to save memory (old).");
+		gd.addCheckbox    ("Generate x3d",                         this.output_x3d,
+				"Generate x3d output.");
+		gd.addCheckbox    ("Generate Wavefront obj",               this.output_obj,
+				"Generate Wavefront obj output.");
+		gd.addCheckbox    ("Generate glTF output",                 this.output_glTF,
+				"Generate glTF output.");
+		gd.addCheckbox    ("Correct lens distortions in a model",  this.correct_distortions,
+				"Correct lens geometric distortions in a model (will need backdrop to be corrected too)");
+		gd.addCheckbox    ("Show triangles",                       this.show_triangles,
+				"Show generated triangles.");
+		gd.addCheckbox    ("Same cluster disparity",               this.avg_cluster_disp,
+				"Weight-average disparity for the whole cluster.");
+		gd.addNumericField("Maximal relative disparity difference",this.maxDispTriangle, 4, 6, "",
+				"Maximal relative disparity difference in a triangle face to show.");
+		gd.addNumericField("Maximal world dz to dx,dy",            this.maxZtoXY, 4, 6, "",
+				"Maximal world dz to dx,dy of a triangular face to show");
+		
+		gd.addNumericField("Maximal world Z",                      this.maxZ, 4, 6, "m",
+				"Maximal absolute distance.");
+		gd.addCheckbox    ("Clamp Z",                       this.limitZ,
+				"Replace too far distance with the maximal one. If false - remove triangle faces that havce too far vertices.");
+		
+		gd.addNumericField("Distance to a backdrop",               this.infinityDistance,8,8,"m",
+				"Distance to generate backdrop (0 - use regular backdrop).");
+		gd.addNumericField("Minimal background tiles",             this.min_bgnd_tiles,   0,4,"",
+				"Minimal number of background tiles to generate background.");
+		
+		gd.addMessage     ("glTF export");
+		gd.addCheckbox    ("glTF use emissive textures",                                                             this.gltf_emissive);
 		
 		gd.addMessage     ("Earlier 3D generation parameters");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
@@ -3456,16 +3514,6 @@ public class CLTParameters {
 		gd.addNumericField("Set new pole segment strength to max of horizontal correlation and this value",             this.poles_min_strength,  3);
 		gd.addCheckbox    ("Set disparity to that of the bottom of existing segment (false - use hor. disparity)",          this.poles_force_disp);
 
-		gd.addNumericField("Maximal number of output meshes to generate",                                            this.max_clusters,   0);
-		gd.addCheckbox    ("Remove all unneeded scans when generating x3d output to save memory",                    this.remove_scans);
-		gd.addCheckbox    ("Generate x3d output",                                                                    this.output_x3d);
-		gd.addCheckbox    ("Generate Wavefront obj output",                                                          this.output_obj);
-		gd.addCheckbox    ("Correct lens geometric distortions in a model (will need backdrop to be corrected too)",           this.correct_distortions);
-		gd.addCheckbox    ("Show generated triangles",                                                               this.show_triangles);
-		gd.addCheckbox    ("Weight-average disparity for the whole cluster ",                                        this.avg_cluster_disp);
-		gd.addNumericField("Maximal disparity difference in a triangle face to show",                                this.maxDispTriangle,  6);
-		gd.addNumericField("Distance to generate backdrop (0 - use regular backdrop)",                               this.infinityDistance,  8);
-		gd.addNumericField(" Minimal number of background tiles to generate background",                             this.min_bgnd_tiles,   0);
 
 		gd.addCheckbox    ("Split into shells with flaps",                                                           this.shUseFlaps);
 		gd.addCheckbox    ("Aggressive fade alpha (whole boundary)",                                                 this.shAggrFade);
@@ -4407,6 +4455,25 @@ public class CLTParameters {
 		this.tex_color =                gd.getNextBoolean();
 		this.tex_palette =        (int) gd.getNextNumber();
 		
+		this.max_clusters=    (int) gd.getNextNumber();
+		this.remove_scans=          gd.getNextBoolean();
+		this.output_x3d=            gd.getNextBoolean();
+		this.output_obj=            gd.getNextBoolean();
+		this.output_glTF=           gd.getNextBoolean();
+		this.correct_distortions=   gd.getNextBoolean();
+		this.show_triangles=        gd.getNextBoolean();
+		this.avg_cluster_disp=      gd.getNextBoolean();
+		this.maxDispTriangle=       gd.getNextNumber();
+		this.maxZtoXY=              gd.getNextNumber();
+		
+		this.maxZ=                  gd.getNextNumber();
+		this.limitZ=                gd.getNextBoolean();
+		
+		this.infinityDistance=      gd.getNextNumber();
+		this.min_bgnd_tiles=  (int) gd.getNextNumber();
+		
+		this.gltf_emissive=         gd.getNextBoolean();
+		
 		this.show_textures=         gd.getNextBoolean();
 		this.debug_filters=         gd.getNextBoolean();
 		this.min_smth=              gd.getNextNumber();
@@ -4471,16 +4538,6 @@ public class CLTParameters {
 		this.poles_min_strength=    gd.getNextNumber();
 		this.poles_force_disp=      gd.getNextBoolean();
 
-		this.max_clusters=    (int) gd.getNextNumber();
-		this.remove_scans=          gd.getNextBoolean();
-		this.output_x3d=            gd.getNextBoolean();
-		this.output_obj=            gd.getNextBoolean();
-		this.correct_distortions=   gd.getNextBoolean();
-		this.show_triangles=        gd.getNextBoolean();
-		this.avg_cluster_disp=      gd.getNextBoolean();
-		this.maxDispTriangle=       gd.getNextNumber();
-		this.infinityDistance=      gd.getNextNumber();
-		this.min_bgnd_tiles=  (int) gd.getNextNumber();
 		this.shUseFlaps=            gd.getNextBoolean();
 		this.shAggrFade=            gd.getNextBoolean();
 		this.shMinArea=       (int) gd.getNextNumber();
