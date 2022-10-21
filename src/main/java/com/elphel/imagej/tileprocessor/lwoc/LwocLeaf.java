@@ -36,17 +36,23 @@ public class LwocLeaf {
 		scenes =       new ArrayList <LwocScene>(); // cameras located in this node
 	}
 	
-	public void addScene(LwocScene scene) {
-		scenes.add(scene);
+	public void addScene(LwocScene scene,
+			boolean check_existed) {
+		if (!check_existed || !scenes.contains(scene)) {
+			scenes.add(scene);
+		}
 	}
 	
-	public void addMeshCenter(LwocMesh mesh) {
-		mesh_centers.add(mesh);
+	public void addMeshCenter(LwocMesh mesh,
+			boolean check_existed) {
+		if (!check_existed || !mesh_centers.contains(mesh)) {
+			mesh_centers.add(mesh);
+		}
 	}
 
 	public void addMesh(LwocMesh mesh,
 			boolean check_existed) {
-		if (!check_existed || meshes.contains(mesh)) {
+		if (!check_existed || !meshes.contains(mesh)) {
 			meshes.add(mesh);
 		}
 	}

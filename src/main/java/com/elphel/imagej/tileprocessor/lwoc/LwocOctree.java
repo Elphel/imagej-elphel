@@ -25,6 +25,7 @@
 package com.elphel.imagej.tileprocessor.lwoc;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import com.elphel.imagej.common.MultiThreading;
 public class LwocOctree {
@@ -98,7 +99,6 @@ public class LwocOctree {
 	 * @return if world needs growing.
 	 */
 	public static boolean pendingGrow() {
-//		return !pendingScenes.isEmpty() || !pendingMeshes.isEmpty();
 		return (numPendingScenes.get()  + numPendingMeshes.get()) > 0;
 	}
 	
@@ -154,24 +154,32 @@ public class LwocOctree {
      * @param scene Scene to add.
      * @param pendingScenes per thread list of scenes to be combined after merging threads
      * @param pendingLeafNodes  per thread list of nodes to be combined after merging threads
+     * @param check_existed - do not add duplicate scenes and nodes
      * @return An octree node where scene is added or null if the world needs growing
      */
     public static LwocOctree addScene(
     		LwocScene             scene,
     		ArrayList<LwocScene>  pendingScenes,
-    		ArrayList<LwocOctree> pendingLeafNodes
+    		ArrayList<LwocOctree> pendingLeafNodes,
+    		boolean               check_existed
     		) {// returns null and adds to pendingScenes if needs growing
     	LwocOctree node = getLeafNode(scene.getCameraXYZ());
     	if (node == null) {
     		if (pendingScenes != null) {
-    			pendingScenes.add(scene);
+    			if (!check_existed || !pendingScenes.contains(scene)) {
+    				pendingScenes.add(scene);
+    				numPendingScenes.getAndIncrement();
+    			}
     		}
     	} else {
-    		node.leaf.addScene(scene);
+    		node.leaf.addScene(scene,check_existed);
     		// Check if leaf node requires splitting
     		if (node.leaf.getScenes().size() > MAX_CAMERAS) {
     			if (node.hsize > MIN_HSIZE) {
-    				pendingLeafNodes.add(node);
+        			if (!check_existed || !pendingLeafNodes.contains(node)) {
+        				pendingLeafNodes.add(node);
+        				numPendingLeafNodes.getAndIncrement();
+        			}
     			}
     		}
     	}
@@ -182,10 +190,12 @@ public class LwocOctree {
      * Tend to pending scenes list. Not thread-safe, should be run in a single-thread mode.
      * @param pendingScenes    combined list of scenes to be added growing world (merged from per-thread ones)
      * @param pendingLeafNodes a list of nodes that will need splitting (here in single-thread mode - single one)
+     * @param check_existed - do not add duplicate scenes and nodes
      */
     public static void tendPendingScenes(
     		ArrayList<LwocScene>  pendingScenes, 
-    		ArrayList<LwocOctree> pendingLeafNodes
+    		ArrayList<LwocOctree> pendingLeafNodes,
+    		boolean               check_existed
     		) {
     	if (pendingScenes.isEmpty()) {
     		return; // nothing to do
@@ -195,7 +205,8 @@ public class LwocOctree {
     			LwocOctree node= addScene(  // should not be null
     					scene,
     		    		pendingScenes,
-    		    		pendingLeafNodes);
+    		    		pendingLeafNodes,
+    		    		check_existed);
     			assert node != null : "addScene() should not fail after growing world";
     		} 
     	}
@@ -203,11 +214,12 @@ public class LwocOctree {
     
     /**
      * Tend to pending meshes list. Not thread-safe, should be run in a single-thread mode.
+     * Only adds mesh centers and grows the world if needed.
      * @param check_existed    do not add duplicate meshes
      * @param pendingMeshes    combined list of meshes to be added (merged from per-thread ones). Will only be read.
      * @param pendingLeafNodes a list of nodes that will need splitting (here in single-thread mode - single one). May grow.
      */
-    public static void tendPendingMeshCenters(
+    public static void tendPendingMeshCentersOnly(
     		boolean               check_existed,
     		ArrayList<LwocMesh>   pendingMeshes,   // will read
     		ArrayList<LwocOctree> pendingLeafNodes // may add to
@@ -232,6 +244,26 @@ public class LwocOctree {
     					null, // pendingMeshes,
     		    		pendingLeafNodes);
     			assert ok : "addMeshCenter() should not fail after growing world";
+    		} 
+    	}
+    }
+
+    /**
+     * Tend to pending meshes list after thge world is grown and related mesh centers are added.
+     * Only adds mesh themselves that do not trigger node splits.
+     * Should be run after tendPendingMeshCentersOnly().
+     * @param check_existed    do not add duplicate meshes
+     * @param pendingMeshes    combined list of meshes to be added (merged from per-thread ones).
+     *                         Will only be read.
+     */
+    public static void tendPendingMeshes(
+    		boolean               check_existed,
+    		ArrayList<LwocMesh>   pendingMeshes   // will read
+    		) {
+    	if (pendingMeshes.isEmpty()) {
+    		return; // nothing to do
+      	} else {
+    		for (LwocMesh mesh: pendingMeshes) {
 //    			int num_added = 
     			lwoc_root.addMesh(
     					mesh,
@@ -240,13 +272,31 @@ public class LwocOctree {
     	}
     }
     
+    
+    /**
+     * Recursively (if needed) splits octree nodes to reduce number of scenes/cameras
+     * and mesh centers below specified thresholds (limited by the minimal node size) 
+     * @param pendingLeafNodesIn array list of nodes to be split. Will be filtered to
+     *        remove any duplicates and non-leaf nodes
+     * @param min_hsize Minimal half-size of the node (in meters). Smaller nodes will not be split
+     * @param max_mesh_centers Maximal number of mesh centers in a node. Larger number 
+     *        triggers node split.
+     * @param max_cameras Maximasl number of scenes (camera positions) in a node.  Larger 
+     *         number triggers node split. 
+     * @param check_existed 
+     */
     public static void tendPendingLeafNodes(
-    		ArrayList<LwocOctree> pendingLeafNodesIn) {
+    		ArrayList<LwocOctree> pendingLeafNodesIn,
+    		final double          min_hsize,
+    		final int             max_mesh_centers,
+    		final int             max_cameras, // scenes
+    		final boolean         check_existed) {
     	// remove any possible duplicates
     	final ArrayList<LwocOctree> pendingLeafNodes = new ArrayList<LwocOctree>();
     	for (LwocOctree node:pendingLeafNodesIn) {
-    		if (!pendingLeafNodes.contains(node)) {
+    		if (!pendingLeafNodes.contains(node) && node.isLeaf()) {// filter already split nodes 
     			pendingLeafNodes.add(node);
+    			numPendingLeafNodes.getAndIncrement();    			
     		}
     	}
     	// run splitting multithreaded
@@ -259,6 +309,11 @@ public class LwocOctree {
 					for (int indx_node = ai.getAndIncrement(); indx_node < pendingLeafNodes.size(); indx_node = ai.getAndIncrement()) {
 						LwocOctree node = pendingLeafNodes.get(indx_node);
 					    // Split recursively until satisfied conditions
+						node.splitNode(
+								min_hsize,        // double  min_hsize,
+								max_mesh_centers, // int     max_mesh_centers,
+								max_cameras,      // int     max_cameras,
+								check_existed);   // boolean check_existed)
 					} // end of tile
 				}
 			};
@@ -269,9 +324,10 @@ public class LwocOctree {
     
     // Split recursively until satisfied conditions
     public int splitNode(
-    		double min_hsize,
-    		int    max_mesh_centers,
-    		int    max_cameras
+    		double  min_hsize,
+    		int     max_mesh_centers,
+    		int     max_cameras,
+    		boolean check_existed
     		) {
     	if ((hsize <= min_hsize) || (leaf == null)) {
     		return 0;
@@ -298,17 +354,53 @@ public class LwocOctree {
     	}
     	ArrayList <LwocMesh> meshes =       leaf.getMeshes();
     	// distribute meshes between 8 children
+    	for (LwocMesh mesh: meshes) { // may go to any number >=1 of the children
+    		double [] mesh_center = mesh.getCenter();
+    		double [] mesh_dims = mesh.getDims();
+    		for (LwocOctree node:children) {
+    			if (node.intersects(
+    					mesh_center,
+    					mesh_dims)) {
+    				node.leaf.addMesh(
+    						mesh,
+    						check_existed);
+    			}
+    		}
+    	}
     	ArrayList <LwocMesh> mesh_centers = leaf.getMeshCenters();
     	// distribute mesh_centers  between 8 children
+    	for (LwocMesh mesh: mesh_centers) { // goes to a single child only
+    		double [] mesh_center = mesh.getCenter();
+    		for (LwocOctree node:children) {
+    			if (node.contains(mesh_center)) {
+    				node.leaf.addMeshCenter(
+    						mesh,
+    						check_existed);
+    				break; // single point - goes to one child only 
+    			}
+    		}
+    	}
     	ArrayList <LwocScene> scenes =      leaf.getScenes();
-    	// distribute scnes (cameras) between 8 children
+    	// distribute scenes (cameras) between 8 children
+    	for (LwocScene scene: scenes) { // goes to a single child only
+    		double [] camera_xyz = scene. getCameraXYZ();
+    		for (LwocOctree node:children) {
+    			if (node.contains(camera_xyz)) {
+    				node.leaf.addScene(
+    						scene,
+    						check_existed);
+    				break; // single point - goes to one child only 
+    			}
+    		}
+    	}
     	// delete old leaf (if it is in a list) and its lists - no need
     	leaf = null;
     	for (int nchild = 0; nchild < children.length; nchild++) {
     		num_added += children[nchild].splitNode(
     				min_hsize,
     				max_mesh_centers,
-    				max_cameras);
+    				max_cameras,
+    				check_existed);
     	}
     	return num_added;
     }
@@ -445,14 +537,20 @@ public class LwocOctree {
     		corner_xyz[dm] += dims[dm];
     		if (!lwoc_root.contains(corner_xyz)){
     			if (pendingMeshes != null) {
-    				pendingMeshes.add(mesh);
+    				if (!check_existed || !pendingMeshes.contains(mesh)) {
+    					pendingMeshes.add(mesh);
+    					numPendingMeshes.getAndIncrement();
+    				}
     			}
     			return false;
     		}
     		corner_xyz[dm] -= 2*dims[dm];
     		if (!lwoc_root.contains(corner_xyz)){
     			if (pendingMeshes != null) {
-    				pendingMeshes.add(mesh);
+    				if (!check_existed || !pendingMeshes.contains(mesh)) {
+    					pendingMeshes.add(mesh);
+    					numPendingMeshes.getAndIncrement();
+    				}
     			}
     			return false;
     		}
@@ -460,18 +558,22 @@ public class LwocOctree {
     	}
     	// all corners fit - add center
     	LwocOctree node = getLeafNode(center);
-		node.leaf.addMeshCenter(mesh);
+		node.leaf.addMeshCenter(mesh, check_existed);
 		// Check if leaf node requires splitting
 		if (node.leaf.getMeshCenters().size() > MAX_MESH_CENTERS) {
 			if (node.hsize > MIN_HSIZE) {
-				pendingLeafNodes.add(node);
+				if (!check_existed || !pendingLeafNodes.contains(node)) {
+					pendingLeafNodes.add(node);
+					numPendingLeafNodes.getAndIncrement();					
+				}
 			}
 		}
-    	// Now recursively add mesh to all nodes intersected by this mesh bounding box 
+    	// Not here: Now recursively add mesh to all nodes intersected by this mesh bounding box 
     	return true;
     }
 
-    public int addMesh( // returns 0 and adds to pendingMeshes if needs growing
+    // recursive
+    public int addMesh(
     		LwocMesh mesh,
     		boolean check_existed) {
     	if (!intersects(
@@ -504,4 +606,89 @@ public class LwocOctree {
     	return 0;
     }
 
+    /**
+     * Prepare list of lists to add scenes in multithreaded environment, one inner
+     * list for each thread.
+     * @param threads Array of threads, only length is used
+     * @return list of lists to provide to threads
+     */
+    public static List<List<LwocScene>> getMultiPendingScenes(Thread [] threads){
+    	List<List<LwocScene>> multiPendingScenes = new ArrayList<List<LwocScene>>(threads.length);
+    	for (int i = 0; i < threads.length; i++) {
+    		multiPendingScenes.add(i, new ArrayList<LwocScene>());
+    	}
+    	return multiPendingScenes;
+    }
+    
+    /**
+     * Combine a List of list of scenes (created in multithreaded method getMultiPendingScenes())
+     * into a single list.
+     * @param multiPendingScenes list of list of scenes
+     * @return flattened single list of scenes
+     */
+    public static List<LwocScene> mergeMultiPendingScenes(List<List<LwocScene>> multiPendingScenes){
+    	List<LwocScene> pendingScenes =  new ArrayList<LwocScene>();
+    	for (List<LwocScene> scenes:multiPendingScenes) {
+    		pendingScenes.addAll(scenes);
+    	}
+    	return pendingScenes;
+    }
+
+    /**
+     * Prepare list of lists to add meshes in multithreaded environment, one inner
+     * list for each thread.
+     * @param threads Array of threads, only length is used
+     * @return list of lists to provide to threads
+     */
+    public static List<List<LwocMesh>> getMultiPendingMeshes(Thread [] threads){
+    	List<List<LwocMesh>> multiPendingMeshes = new ArrayList<List<LwocMesh>>(threads.length);
+    	for (int i = 0; i < threads.length; i++) {
+    		multiPendingMeshes.add(i, new ArrayList<LwocMesh>());
+    	}
+    	return multiPendingMeshes;
+    }
+    
+    /**
+     * Combine a List of list of meshes (created in multithreaded method getMultiPendingMeshes())
+     * into a single list.
+     * @param multiPendingMeshes list of list of meshes
+     * @return flattened single list of meshes
+     */
+    public static List<LwocMesh> mergeMultiPendingMeshes(List<List<LwocMesh>> multiPendingMeshes){
+    	List<LwocMesh> pendingMeshes =  new ArrayList<LwocMesh>();
+    	for (List<LwocMesh> meshes:multiPendingMeshes) {
+    		pendingMeshes.addAll(meshes);
+    	}
+    	return pendingMeshes;
+    }
+  
+    /**
+     * Prepare list of lists to add scenes in multithreaded environment, one inner
+     * list for each thread.
+     * @param threads Array of threads, only length is used
+     * @return list of lists to provide to threads
+     */
+    public static List<List<LwocOctree>> getMultiPendingLeafNodes(Thread [] threads){
+    	List<List<LwocOctree>> multiPendingLeafNodes = new ArrayList<List<LwocOctree>>(threads.length);
+    	for (int i = 0; i < threads.length; i++) {
+    		multiPendingLeafNodes.add(i, new ArrayList<LwocOctree>());
+    	}
+    	return multiPendingLeafNodes;
+    }
+    
+    /**
+     * Combine a List of list of scenes (created in multithreaded method getMultiPendingScenes())
+     * into a single list.
+     * @param multiPendingLeafNodes list of list of scenes
+     * @return flattened single list of scenes
+     */
+    public static List<LwocOctree> mergeMultiPendingLeafNodes(List<List<LwocOctree>> multiPendingLeafNodes){
+    	List<LwocOctree> pendingLeafNodes =  new ArrayList<LwocOctree>();
+    	for (List<LwocOctree> nodes:multiPendingLeafNodes) {
+    		pendingLeafNodes.addAll(nodes);
+    	}
+    	return pendingLeafNodes;
+    }
+    
+    
 }
