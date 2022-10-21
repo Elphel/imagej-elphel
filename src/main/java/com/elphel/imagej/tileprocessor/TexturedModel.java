@@ -1,7 +1,7 @@
 /**
  ** TexturedModel - Generate 3D mesh with textures
  **
- ** Copyright (C) 2017 Elphel, Inc.
+ ** Copyright (C) 2022 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
  **
@@ -35,8 +35,6 @@ import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.EyesisCorrections;
-import com.elphel.imagej.gpu.GpuQuad;
-import com.elphel.imagej.gpu.TpTask;
 import com.elphel.imagej.x3d.export.GlTfExport;
 import com.elphel.imagej.x3d.export.TriMesh;
 import com.elphel.imagej.x3d.export.WavefrontExport;
@@ -555,7 +553,7 @@ public class TexturedModel {
 		ArrayList<TriMesh> tri_meshes = null; 
 		long startStepTime=System.nanoTime();
 		final int tilesX = tp.getTilesX();
-		final int tilesY = tp.getTilesY();
+//		final int tilesY = tp.getTilesY();
 		final int transform_size = tp.getTileSize();
 		final double     tex_disp_adiffo = clt_parameters.tex_disp_adiffo; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
 		final double     tex_disp_rdiffo = clt_parameters.tex_disp_rdiffo; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
@@ -563,7 +561,7 @@ public class TexturedModel {
 		final double     tex_disp_rdiffd = clt_parameters.tex_disp_rdiffd; // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
 		final double     tex_disp_fof =    clt_parameters.tex_disp_fof;    // 1.5;  // Increase tolerance for friend of a friend
 		final double     tex_fg_bg =       clt_parameters.tex_fg_bg;       // 0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
-		final double     tex_distort =     clt_parameters.tex_distort;     // 0.1;  // Maximal texture distortion to accumulate multiple scenes
+//		final double     tex_distort =     clt_parameters.tex_distort;     // 0.1;  // Maximal texture distortion to accumulate multiple scenes
 		// get multi-scene disparity map for FG and BG and filter it
 		if (combo_dsn_final == null) {
 			combo_dsn_final =scenes[ref_index].readDoubleArrayFromModelDirectory(
@@ -799,6 +797,11 @@ public class TexturedModel {
 		}
 		
 		// Save KML and ratings files if they do not exist (so not to overwrite edited ones), make them world-writable
+		  if (!correctionsParameters.use_set_dirs) {
+			  System.out.println("**** output3d(): likely a bug (not copied?), temporary fix ***");
+			  correctionsParameters.use_set_dirs = true; 
+		  }
+
 		ref_scene.writeKml        (null, debugLevel);
 		ref_scene.writeRatingFile (debugLevel);
 		Runtime.getRuntime().gc();
@@ -1073,6 +1076,48 @@ public class TexturedModel {
 					tex_um_sigma, // final double um_sigma,
 					tex_um_weight); // final double um_weight)
 		}
+		
+		if (debug_level > -1) {
+			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
+			String [] dbg_titles = new String[dbg_textures.length];
+			String [] dbg_subtitles = new String [faded_textures[0].length];
+			for (int i = 0; i < dbg_subtitles.length; i++) {
+				dbg_subtitles[i] = (i <  (dbg_subtitles.length -1)) ? ("Y"+i):"alpha";
+			}
+			
+			for (int i = 0; i < dbg_textures.length; i++) {
+				dbg_textures[i] = faded_textures[i / faded_textures[0].length][i % faded_textures[0].length];
+				dbg_titles[i] = dbg_subtitles[i % dbg_subtitles.length] + "-" + (i / dbg_subtitles.length);
+				
+			}
+			ShowDoubleFloatArrays.showArrays(
+					dbg_textures,
+					tilesX * transform_size,
+					tilesY * transform_size,
+					true,
+					ref_scene.getImageName()+"-combined_textures-prenorm",
+					dbg_titles);
+			
+			if (dbg_overlap != null) {
+				ShowDoubleFloatArrays.showArrays(
+						dbg_overlap,
+						2 * tilesX * transform_size,
+						2 * tilesY * transform_size,
+						true,
+						ref_scene.getImageName()+"-non-overlap_textures-prenorm",
+						dbg_titles);
+			}
+			if (dbg_weights != null) {
+				ShowDoubleFloatArrays.showArrays(
+						dbg_weights,
+						tilesX,
+						tilesY,
+						true,
+						ref_scene.getImageName()+"-texture_weights-prenorm");
+			}
+		}
+		
+		
 		//renormalize
 		// normalize all slices together if LWIR
 		// FIXME: Should it be here? Will setColdHot() change photometric calibration ? Or should it be disabled?
@@ -1092,8 +1137,8 @@ public class TexturedModel {
 				} else { // for UM need to calculate min and max (probably OK for non-UM too !)
 					double [] minmax = QuadCLTCPU.getMinMaxTextures(
 							faded_textures ); //double [][][] textures //  [slices][nchn][i]
-					rel_low =  minmax[0];
-					rel_high = minmax[1];
+					rel_low =  minmax[0]; // absolute min
+					rel_high = minmax[1]; // absolute max
 				}
 				double [] cold_hot =  QuadCLTCPU.autorangeTextures(
 						faded_textures,                    // double [][][] textures, //  [nslices][nchn][i]
@@ -1414,7 +1459,7 @@ public class TexturedModel {
 		final int        alpha_chn =     is_mono ? 1: 3;
 		final int []     cluster_index = tileCluster.getClusterIndex();
 		final boolean [] borderTiles =   tileCluster.getBorder(); // .getBorderTiles();
-		final boolean [] selected =      tileCluster.getSelected(); // maybe not needed
+//		final boolean [] selected =      tileCluster.getSelected(); // maybe not needed
 		final double [][]alphaFade =     TileProcessor.getAlphaFade(transform_size);
 		final double []  alpha_zero =    new double [4*transform_size*transform_size];
 		final double [][][][] texture_tiles_cluster = new double[tilesY][tilesX][][];

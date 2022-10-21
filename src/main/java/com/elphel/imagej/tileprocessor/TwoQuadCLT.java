@@ -504,114 +504,6 @@ public class TwoQuadCLT {
 
 	}
 	
-	@Deprecated
-	public void prepareFilesForGPUDebug_old(
-			String                                         save_prefix, // absolute path to the cuda project root
-			QuadCLT                                        quadCLT_main,
-			QuadCLT                                        quadCLT_aux,
-			CLTParameters                                  clt_parameters,
-			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			ColorProcParameters                            colorProcParameters,
-			ColorProcParameters                            colorProcParameters_aux,
-			EyesisCorrectionParameters.RGBParameters       rgbParameters,
-			final int                                      threadsMax,  // maximal number of threads to launch
-			final boolean                                  updateStatus,
-			final int                                      debugLevel) throws Exception
-	{
-
-		this.startTime=System.nanoTime();
-		String [] sourceFiles=quadCLT_main.correctionsParameters.getSourcePaths();
-		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
-		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(debugLevel);
-		if ((set_channels_main == null) || (set_channels_main.length==0) || (set_channels_aux == null) || (set_channels_aux.length==0)) {
-			System.out.println("No files to process (of "+sourceFiles.length+")");
-			return;
-		}
-		double [] referenceExposures_main = quadCLT_main.eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
-		double [] referenceExposures_aux =  quadCLT_aux.eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
-		for (int nSet = 0; nSet < set_channels_main.length; nSet++){
-			// check it is the same set for both cameras
-			if (set_channels_aux.length <= nSet ) {
-				throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: nothing");
-			}
-			if (!set_channels_main[nSet].name().equals(set_channels_aux[nSet].name())) {
-				throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: '"+set_channels_main[nSet].name()+"'");
-			}
-
-			int [] channelFiles_main = set_channels_main[nSet].fileNumber();
-			int [] channelFiles_aux =  set_channels_aux[nSet].fileNumber();
-			boolean [][] saturation_imp_main = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_main.length][] : null;
-			boolean [][] saturation_imp_aux =  (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_main.length][] : null;
-			double [] scaleExposures_main = new double[channelFiles_main.length];
-			double [] scaleExposures_aux =  new double[channelFiles_main.length];
-
-			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
-					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
-					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
-					sourceFiles,                    // String []                                 sourceFiles,
-					set_channels_main[nSet].name(), // String                                    set_name,
-					referenceExposures_main,        // double []                                 referenceExposures,
-					channelFiles_main,              // int []                                    channelFiles,
-					scaleExposures_main,            //output  // double [] scaleExposures
-					saturation_imp_main,            //output  // boolean [][]                              saturation_imp,
-					threadsMax,                 // int                                       threadsMax,
-					debugLevel); // int                                       debugLevel);
-
-			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
-					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
-					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
-					sourceFiles,                    // String []                                 sourceFiles,
-					set_channels_aux[nSet].name(), // String                                    set_name,
-					referenceExposures_aux,        // double []                                 referenceExposures,
-					channelFiles_aux,              // int []                                    channelFiles,
-					scaleExposures_aux,            //output  // double [] scaleExposures
-					saturation_imp_aux,            //output  // boolean [][]                              saturation_imp,
-					threadsMax,                 // int                                       threadsMax,
-					debugLevel); // int                                       debugLevel);
-
-			// Tempporarily processing individually with the old code
-			processCLTQuadCorrPairForGPU(
-					save_prefix,                // String save_prefix,
-					quadCLT_main,               // QuadCLT                                        quadCLT_main,
-					quadCLT_aux,                // QuadCLT                                        quadCLT_aux,
-					imp_srcs_main,              // ImagePlus []                                   imp_quad_main,
-					imp_srcs_aux,               // ImagePlus []                                   imp_quad_aux,
-					saturation_imp_main,        // boolean [][]                                   saturation_main, // (near) saturated pixels or null
-					saturation_imp_aux,         // boolean [][]                                   saturation_aux, // (near) saturated pixels or null
-					clt_parameters,             // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-					debayerParameters,          // EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-					colorProcParameters,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					colorProcParameters_aux,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					rgbParameters,              // EyesisCorrectionParameters.RGBParameters       rgbParameters,
-					scaleExposures_main,        // double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
-					scaleExposures_aux,         // double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
-					false,                      //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
-					// averages measurements
-					clt_parameters.rig.lt_avg_radius,// final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
-
-					//			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
-					//			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
-					threadsMax,                 // final int        threadsMax,  // maximal number of threads to launch
-					updateStatus,               // final boolean    updateStatus,
-					debugLevel);                // final int        debugLevel);
-
-			Runtime.getRuntime().gc();
-			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory38="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-
-			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
-				System.out.println("User requested stop");
-				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory39="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-				return;
-			}
-		}
-		System.out.println("prepareFilesForGPUDebug(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory40="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-
-	}
-	
-	
 	
 	public void processCLTQuadCorrPairsGpu(
 			GpuQuad                        gpuQuad_main,
@@ -9526,24 +9418,14 @@ if (debugLevel > -100) return true; // temporarily !
 				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
 				updateStatus);                             // boolean        updateStatus);
 		
-		if (bayer_artifacts_debug) {
-			opticalFlow.intersceneNoiseDebug(
-					clt_parameters,            // CLTParameters       clt_parameters,
-					ref_only,                  // boolean              ref_only, // process only reference frame (false - inter-scene)
-					colorProcParameters,       // ColorProcParameters colorProcParameters,
-					ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
-					noise_sigma_level,         // double []            noise_sigma_level,
-					clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
-		} else {
-			opticalFlow.intersceneNoise(
-					clt_parameters,            // CLTParameters       clt_parameters,
-					ref_only,                  // boolean              ref_only, // process only reference frame (false - inter-scene)
-					colorProcParameters,       // ColorProcParameters colorProcParameters,
-					ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
-					noise_sigma_level,         // double []            noise_sigma_level,
-					noise_variant,             // int                  noise_variant, // <0 - no-variants, compatible with old code
-					clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
-		}
+		opticalFlow.intersceneNoise(
+				clt_parameters,            // CLTParameters       clt_parameters,
+				ref_only,                  // boolean              ref_only, // process only reference frame (false - inter-scene)
+				colorProcParameters,       // ColorProcParameters colorProcParameters,
+				ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
+				noise_sigma_level,         // double []            noise_sigma_level,
+				noise_variant,             // int                  noise_variant, // <0 - no-variants, compatible with old code
+				clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
 		System.out.println("End of intersceneNoise()");
 	}
 

@@ -639,7 +639,6 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 
 			addButton("CLT process files", panelClt1, color_process);
 			addButton("CLT process sets", panelClt1, color_process);
-			addButton("CLT process quads", panelClt1, color_process);
 
 			plugInFrame.add(panelClt1);
 		}
@@ -4283,68 +4282,6 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 ///========================================
 
 			QUAD_CLT.processCLTSets(CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
-					DEBAYER_PARAMETERS, // EyesisCorrectionParameters.DebayerParameters debayerParameters,
-					COLOR_PROC_PARAMETERS, // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					CHANNEL_GAINS_PARAMETERS, // CorrectionColorProc.ColorGainsParameters channelGainParameters,
-					RGB_PARAMETERS, // EyesisCorrectionParameters.RGBParameters rgbParameters,
-					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters
-												// equirectangularParameters,
-					THREADS_MAX, // final int threadsMax, // maximal number of threads to launch
-					UPDATE_STATUS, // final boolean updateStatus,
-					DEBUG_LEVEL); // final int debugLevel);
-
-			if (configPath != null) {
-				saveTimestampedProperties( // save config again
-						configPath, // full path or null
-						null, // use as default directory if path==null
-						true, PROPERTIES);
-			}
-			return;
-
-		} else if (label.equals("CLT process quads")) {
-			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
-			EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-			if (QUAD_CLT == null) {
-				QUAD_CLT = new QuadCLT(QuadCLT.PREFIX, PROPERTIES, EYESIS_CORRECTIONS, CORRECTION_PARAMETERS);
-				if (DEBUG_LEVEL > 0) {
-					System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-				}
-			}
-			String configPath = getSaveCongigPath();
-			if (configPath.equals("ABORT"))
-				return;
-
-			EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-			int numChannels = EYESIS_CORRECTIONS.getNumChannels();
-//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-			CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-			if (!QUAD_CLT.CLTKernelsAvailable()) {
-				if (DEBUG_LEVEL > 0) {
-					System.out.println("Reading CLT kernels");
-				}
-				QUAD_CLT.readCLTKernels(CLT_PARAMETERS, THREADS_MAX, UPDATE_STATUS, // update status info
-						DEBUG_LEVEL);
-
-				if (DEBUG_LEVEL > 1) {
-					QUAD_CLT.showCLTKernels(THREADS_MAX, UPDATE_STATUS, // update status info
-							DEBUG_LEVEL);
-				}
-			}
-
-			if (!QUAD_CLT.geometryCorrectionAvailable()) {
-				if (DEBUG_LEVEL > 0) {
-					System.out.println("Calculating geometryCorrection");
-				}
-				if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL + 2)) {
-					return;
-				}
-			}
-
-///========================================
-
-			QUAD_CLT.processCLTQuads( // uses quad
-					CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					DEBAYER_PARAMETERS, // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					COLOR_PROC_PARAMETERS, // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 					CHANNEL_GAINS_PARAMETERS, // CorrectionColorProc.ColorGainsParameters channelGainParameters,

@@ -44,19 +44,19 @@ import com.google.gson.JsonParser;
 import ij.Prefs;
 
 public class GlTfExport {
-	public static int NEAREST =                9728;
-	public static int LINEAR =                 9729;
-	public static int NEAREST_MIPMAP_NEAREST = 9984;
-	public static int LINEAR_MIPMAP_NEAREST =  9985;
-	public static int NEAREST_MIPMAP_LINEAR =  9986;
-	public static int LINEAR_MIPMAP_LINEAR =   9986;
+	public static int NEAREST =                  9728;
+	public static int LINEAR =                   9729;
+	public static int NEAREST_MIPMAP_NEAREST =   9984;
+	public static int LINEAR_MIPMAP_NEAREST =    9985;
+	public static int NEAREST_MIPMAP_LINEAR =    9986;
+	public static int LINEAR_MIPMAP_LINEAR =     9986;
 	
-	public static int CLAMP_TO_EDGE =         33071;
-	public static int MIRRORED_REPEAT =       33648;
-	public static int REPEAT =                10497;
+	public static int CLAMP_TO_EDGE =           33071;
+	public static int MIRRORED_REPEAT =         33648;
+	public static int REPEAT =                  10497;
 
-	public static int ARRAY_BUFFER =          34962; // for attributes
-	public static int ELEMENT_ARRAY_BUFFER =  34963; // for indices
+	public static int ARRAY_BUFFER =            34962; // for attributes
+	public static int ELEMENT_ARRAY_BUFFER =    34963; // for indices
 	
 	public static int COMPONENT_SIGNED_BYTE =    5120;
 	public static int COMPONENT_UNSIGNED_BYTE =  5121;
@@ -77,13 +77,13 @@ public class GlTfExport {
 	public static String TYPE_MAT3 =        "MAT3";   //  9
 	public static String TYPE_MAT4 =        "MAT4";   // 16
 
-	public static int MODE_POINTS =    0;
-	public static int MODE_LINES =    1;
-	public static int MODE_LINE_LOOP =    2;
-	public static int MODE_LINE_STRIP =    3;
-	public static int MODE_TRIANGLES =    4;
-	public static int MODE_TRIANGLE_STRIP =    5;
-	public static int MODE_TRIANGLE_FAN =    6;
+	public static int MODE_POINTS =         0;
+	public static int MODE_LINES =          1;
+	public static int MODE_LINE_LOOP =      2;
+	public static int MODE_LINE_STRIP =     3;
+	public static int MODE_TRIANGLES =      4;
+	public static int MODE_TRIANGLE_STRIP = 5;
+	public static int MODE_TRIANGLE_FAN =   6;
 
 	
 	public static void glTFExport(
