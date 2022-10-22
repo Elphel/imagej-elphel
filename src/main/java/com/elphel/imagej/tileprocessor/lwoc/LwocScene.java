@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.elphel.imagej.tileprocessor.GeometryCorrection;
 
 public class LwocScene {
+	private static final long    serialVersionUID = 1L;
 	static AtomicInteger SCENE_ID = new AtomicInteger();
 	static ArrayList<LwocScene> LWOC_SCENES;
 	

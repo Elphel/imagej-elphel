@@ -27,6 +27,7 @@ package com.elphel.imagej.tileprocessor.lwoc;
 import java.util.ArrayList;
 
 public class LwocLeaf {
+	private static final long    serialVersionUID = 1L;
 	ArrayList <LwocMesh>  meshes;
 	ArrayList <LwocMesh>  mesh_centers;
 	ArrayList <LwocScene> scenes;
@@ -36,21 +37,43 @@ public class LwocLeaf {
 		scenes =       new ArrayList <LwocScene>(); // cameras located in this node
 	}
 	
-	public void addScene(LwocScene scene,
+	public void initMeshes() {
+		meshes =       new ArrayList <LwocMesh>();  // all meshes BB intersecting this node
+	}
+	public synchronized void addScene( // IS synchronized needed?
+			LwocScene scene,
 			boolean check_existed) {
 		if (!check_existed || !scenes.contains(scene)) {
 			scenes.add(scene);
 		}
 	}
 	
-	public void addMeshCenter(LwocMesh mesh,
+	public synchronized void addMeshCenter( // IS synchronized needed?
+			LwocMesh mesh,
 			boolean check_existed) {
 		if (!check_existed || !mesh_centers.contains(mesh)) {
 			mesh_centers.add(mesh);
 		}
 	}
 
-	public void addMesh(LwocMesh mesh,
+	public synchronized void removeScene(
+			LwocScene scene) {
+		while (scenes.remove(scene)); // will remove all
+	}
+
+	public synchronized void removeMeshCenter(
+			LwocMesh mesh) {
+		while (mesh_centers.remove(mesh)); // will remove all
+	}
+
+	public synchronized void removeMesh(
+			LwocMesh mesh) {
+		while (meshes.remove(mesh)); // will remove all
+	}
+	
+	
+	public synchronized void addMesh( // synchronized IS needed
+			LwocMesh mesh,
 			boolean check_existed) {
 		if (!check_existed || !meshes.contains(mesh)) {
 			meshes.add(mesh);

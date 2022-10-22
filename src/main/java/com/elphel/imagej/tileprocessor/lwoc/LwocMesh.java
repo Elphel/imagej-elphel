@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LwocMesh {
+	private static final long    serialVersionUID = 1L;
 	static AtomicInteger       MESH_ID = new AtomicInteger();
 	static ArrayList<LwocMesh> LWOC_MESHES;
 	int                        id;         // assign unique ID
