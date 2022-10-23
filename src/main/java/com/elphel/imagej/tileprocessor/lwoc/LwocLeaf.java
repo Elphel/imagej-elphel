@@ -24,11 +24,12 @@
 
 package com.elphel.imagej.tileprocessor.lwoc;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 
-public class LwocLeaf {
+public class LwocLeaf implements Serializable{
 	private static final long    serialVersionUID = 1L;
-	ArrayList <LwocMesh>  meshes;
+	transient ArrayList <LwocMesh>  meshes; // will be rebuilt with LwocOctree.rebuildMeshLists()
 	ArrayList <LwocMesh>  mesh_centers;
 	ArrayList <LwocScene> scenes;
 	public LwocLeaf() {

@@ -24,11 +24,17 @@
 
 package com.elphel.imagej.tileprocessor.lwoc;
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import com.elphel.imagej.common.MultiThreading;
-public class LwocOctree {
+public class LwocOctree implements Serializable {
 	private static final long    serialVersionUID = 1L;
 	public static final int      NUM_CHILDREN =      8;
 	public static double         MIN_HSIZE =         0.3; // meter - do not subdivide more
@@ -36,7 +42,7 @@ public class LwocOctree {
 	public static int            MAX_MESH_CENTERS = 10;   // maximal number of meshes in a leaf;
 	public static int            MAX_CAMERAS =      10;   // maximal number of cameras in a leaf;
 	public static LwocOctree     lwoc_root =        null;
-	static ArrayList<LwocOctree> LWOK_OCTREE =      new ArrayList<LwocOctree>();
+//	static ArrayList<LwocOctree> LWOK_OCTREE =      new ArrayList<LwocOctree>();
 	static AtomicInteger         OCTREE_ID =        new AtomicInteger();
 
 	static List<LwocScene>       pendingScenes;   // synchronized - add not-yet-added scenes pending growing world 
@@ -50,6 +56,79 @@ public class LwocOctree {
 	LwocLeaf                     leaf;       //
 	double []                    center;     // x-center, y-center, z-center
 	double                       hsize;
+	
+	/**
+	 * Serialize and write world to an output stream
+	 * @param oos ObjectOutputStream to write to.
+	 * @throws IOException
+	 */
+	private void writeObject(ObjectOutputStream oos) 
+			throws IOException {
+		oos.defaultWriteObject();
+		if (parent == null) { // write static members
+			oos.writeObject(MIN_HSIZE);
+			oos.writeObject(MAX_MESH_CENTERS);
+			oos.writeObject(MAX_CAMERAS);
+			oos.writeObject(OCTREE_ID.get());
+			oos.writeObject(LwocMesh.MESH_ID.get());
+			
+		}
+	}
+
+	/**
+	 * Read input stream and deserialize it to world octree structure.
+	 * @param ois ObjectInputStream to read from
+	 * @throws ClassNotFoundException
+	 * @throws IOException
+	 */
+	private void readObject(ObjectInputStream ois) 
+			throws ClassNotFoundException, IOException {
+		ois.defaultReadObject();
+		if (parent == null) { // read static members
+			MIN_HSIZE =         (Double)  ois.readObject();
+			MAX_MESH_CENTERS =  (Integer) ois.readObject();
+			MAX_CAMERAS =       (Integer) ois.readObject();
+			OCTREE_ID.set(      (Integer) ois.readObject());
+			LwocMesh.MESH_ID.set((Integer) ois.readObject());
+		}
+	}
+	
+	/**
+	 * 
+	 * @param path
+	 */
+	public static void saveWorld(String path) {
+	      try {
+	          FileOutputStream fileOut = new FileOutputStream(path);
+	          ObjectOutputStream out = new ObjectOutputStream(fileOut);
+	          out.writeObject(lwoc_root); // will cause all world to be saved
+	          out.close();
+	          fileOut.close();
+	          System.out.printf("Serialized data is saved in "+path);
+	       } catch (IOException e) {
+	          e.printStackTrace();
+	       }
+		
+		
+	}
+
+	public static void restoreWorld(String path) {
+	      try {
+	          FileInputStream fileIn = new FileInputStream(path);
+	          ObjectInputStream in = new ObjectInputStream(fileIn);
+	          lwoc_root = (LwocOctree) in.readObject();
+	          in.close();
+	          fileIn.close();
+	       } catch (IOException e) {
+	          e.printStackTrace();
+	          return;
+	       } catch (ClassNotFoundException c) {
+	          System.out.println(path+" not found");
+	          c.printStackTrace();
+	          return;
+	       }
+	}
+	
 	
 	public static void addPendingScene(LwocScene scene) {
 		synchronized(pendingScenes) {
@@ -69,10 +148,6 @@ public class LwocOctree {
 		}
 	}
 	
-	
-// just for testing	
-//	List<List<LwocScene>> group = new ArrayList<List<LwocScene>>(4);	
-	
 	/**
 	 * Initialize Octree data and set initial world node. It is possible to grow
 	 * world as needed later.
@@ -83,7 +158,7 @@ public class LwocOctree {
 		LwocMesh.resetMeshes();
 		LwocScene.resetScenes();
 		resetPending();
-		LWOK_OCTREE =    new ArrayList<LwocOctree>();
+//		LWOK_OCTREE =    new ArrayList<LwocOctree>();
 		// Add a single leaf node
 		lwoc_root =      new LwocOctree(null, center, world_hsize);
 		lwoc_root.leaf = new LwocLeaf();
@@ -100,8 +175,6 @@ public class LwocOctree {
 		pendingMeshes =    new ArrayList<LwocMesh>();
 		pendingLeafNodes = new ArrayList<LwocOctree>();
 	}
-	// use per-thread lists and then combine them avoiding synchronizations?
-	//Pass list to any function that may grow it
 	
 	/**
 	 * Test if it is leaf node
@@ -140,7 +213,7 @@ public class LwocOctree {
     	id = OCTREE_ID.getAndIncrement();
     	this.parent = parent;
     	this.hsize =  hsize;
-    	LWOK_OCTREE.add(this);
+//    	LWOK_OCTREE.add(this);
     }
     
     /**
@@ -267,7 +340,6 @@ public class LwocOctree {
     	}
     }
     
-    
     /**
      * Recursively (if needed) splits octree nodes to reduce number of scenes/cameras
      * and mesh centers below specified thresholds (limited by the minimal node size) 
@@ -276,7 +348,7 @@ public class LwocOctree {
      *        triggers node split.
      * @param max_cameras Maximasl number of scenes (camera positions) in a node.  Larger 
      *         number triggers node split. 
-     * @param check_existed 
+     * @param check_existed Filter identical meshes or scenes from corresponding lists.
      */
     public static void tendPendingLeafNodes(
     		final double          min_hsize,
@@ -312,7 +384,16 @@ public class LwocOctree {
 		MultiThreading.startAndJoin(threads);
     }
     
-    // Split recursively until satisfied conditions
+    /**
+     * Split recursively the octree node (and its children if needed) to keep number of scenes and
+     * mesh centers below thresholds.  
+     * @param min_hsize do not split nodes smaller than this (half size in each direction) even if
+     *        it has over-threshold number of scenes and/or mesh centers. 
+     * @param max_mesh_centers Split node if it has more mesh centers in its list.
+     * @param max_cameras Split node if it has more scenes (camera positions) than this.
+     * @param check_existed 
+     * @return
+     */
     public int splitNode(
     		double  min_hsize,
     		int     max_mesh_centers,
@@ -395,14 +476,9 @@ public class LwocOctree {
     	return num_added;
     }
     
-    
-    // not thread safe
-    // grow world to include xyz (all 8 corners for a bounding box of as mesh
-    
-    
     /**
      * Grow the world to include specified point Will repeat growing twice (in each direction)
-     * until the specified point gets inside.
+     * until the specified point gets inside. Not thread safe, should run in single-thread mode
      * @param xyz The point to be included in the world.
      */
     public static void growXYZ(double [] xyz) {
@@ -442,6 +518,7 @@ public class LwocOctree {
     		lwoc_root = new_root;
     	}
     }
+    
     /**
      * Test if the specified box intersects this node
      * @param xyz box center
@@ -480,8 +557,6 @@ public class LwocOctree {
     	return true;
     }
     
-    
-    
     /**
      * Test if the specified box completely fits in this node
      * @param xyz box center
@@ -513,8 +588,6 @@ public class LwocOctree {
     		LwocMesh              mesh,
     		boolean               check_existed
     		) {
-    	// should in check before adding?
-    	// mesh.equals(mesh);
     	double [] center = mesh.getCenter();
     	double [] dims =   mesh.getDims();
     	// First - check that all 8 corners fit in the world
@@ -555,7 +628,6 @@ public class LwocOctree {
     	return true;
     }
 
-    // recursive
     /**
      * Recursively add mesh to all leaf nodes that intersect with its bounding box. 
      * Usually starts with lwoc_root.

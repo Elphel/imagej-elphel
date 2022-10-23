@@ -24,13 +24,13 @@
 
 package com.elphel.imagej.tileprocessor.lwoc;
 
-import java.util.ArrayList;
+import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class LwocMesh {
-	private static final long    serialVersionUID = 1L;
+public class LwocMesh implements Serializable {
+	private static final long  serialVersionUID = 1L;
 	static AtomicInteger       MESH_ID = new AtomicInteger();
-	static ArrayList<LwocMesh> LWOC_MESHES;
+//	static ArrayList<LwocMesh> LWOC_MESHES;
 	int                        id;         // assign unique ID
 	String                     stimestamp; // mesh is always referenced to a single scene
 	double []                  world_xyz;  // world coordinates of the center
@@ -38,7 +38,7 @@ public class LwocMesh {
 	
 	public static void resetMeshes() {
 		MESH_ID.set(0);
-		LWOC_MESHES = new ArrayList<LwocMesh>();
+//		LWOC_MESHES = new ArrayList<LwocMesh>();
 	}
 	// maybe use mesh properties instead of id?
 	public boolean equals (LwocMesh other_mesh) {
@@ -49,7 +49,7 @@ public class LwocMesh {
 			) {
 		this.stimestamp = stimestamp;
 		id = MESH_ID.getAndIncrement();
-		LWOC_MESHES.add(this);
+//		LWOC_MESHES.add(this);
 	}
 	
 	public double [] getCenter() {
