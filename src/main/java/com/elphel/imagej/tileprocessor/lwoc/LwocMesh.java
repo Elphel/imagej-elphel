@@ -25,11 +25,11 @@
 package com.elphel.imagej.tileprocessor.lwoc;
 
 import java.io.Serializable;
-import java.util.concurrent.atomic.AtomicInteger;
+///import java.util.concurrent.atomic.AtomicInteger;
 
 public class LwocMesh implements Serializable {
 	private static final long  serialVersionUID = 1L;
-	static AtomicInteger       MESH_ID = new AtomicInteger();
+///	static AtomicInteger       MESH_ID = new AtomicInteger();
 //	static ArrayList<LwocMesh> LWOC_MESHES;
 	int                        id;         // assign unique ID
 	String                     stimestamp; // mesh is always referenced to a single scene
@@ -37,7 +37,7 @@ public class LwocMesh implements Serializable {
 	double []                  hdims_xyz;  // world bounding box half-dimensions along x,y,z
 	
 	public static void resetMeshes() {
-		MESH_ID.set(0);
+///		MESH_ID.set(0);
 //		LWOC_MESHES = new ArrayList<LwocMesh>();
 	}
 	// maybe use mesh properties instead of id?
@@ -48,7 +48,7 @@ public class LwocMesh implements Serializable {
 			String    stimestamp
 			) {
 		this.stimestamp = stimestamp;
-		id = MESH_ID.getAndIncrement();
+///		id = MESH_ID.getAndIncrement();
 //		LWOC_MESHES.add(this);
 	}
 	

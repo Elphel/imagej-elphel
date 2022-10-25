@@ -24,11 +24,11 @@
 
 package com.elphel.imagej.tileprocessor.lwoc;
 
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+//import java.io.FileInputStream;
+//import java.io.FileOutputStream;
+//import java.io.IOException;
+//import java.io.ObjectInputStream;
+//import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,98 +37,20 @@ import com.elphel.imagej.common.MultiThreading;
 public class LwocOctree implements Serializable {
 	private static final long    serialVersionUID = 1L;
 	public static final int      NUM_CHILDREN =      8;
-	public static double         MIN_HSIZE =         0.3; // meter - do not subdivide more
-	// can not be used as intersecting meshes' bb will not decrease number after splitting
-	public static int            MAX_MESH_CENTERS = 10;   // maximal number of meshes in a leaf;
-	public static int            MAX_CAMERAS =      10;   // maximal number of cameras in a leaf;
-	public static LwocOctree     lwoc_root =        null;
-//	static ArrayList<LwocOctree> LWOK_OCTREE =      new ArrayList<LwocOctree>();
-	static AtomicInteger         OCTREE_ID =        new AtomicInteger();
+//	static AtomicInteger         OCTREE_ID =        new AtomicInteger();
 
 	static List<LwocScene>       pendingScenes;   // synchronized - add not-yet-added scenes pending growing world 
 	static List<LwocMesh>        pendingMeshes;   // synchronized - add not-yet-added meshes pending growing world
 	static List<LwocOctree>      pendingLeafNodes;// synchronized - leaf nodes needed to be split
 	
-	
+//	static List<LwocWorld>       lwoc_worlds;   //  
 	int                          id;         // assign unique ID
-	LwocOctree                   parent;
+	transient LwocWorld          world; 	
+	transient LwocOctree         parent;
 	LwocOctree []                children;
 	LwocLeaf                     leaf;       //
 	double []                    center;     // x-center, y-center, z-center
 	double                       hsize;
-	
-	/**
-	 * Serialize and write world to an output stream
-	 * @param oos ObjectOutputStream to write to.
-	 * @throws IOException
-	 */
-	private void writeObject(ObjectOutputStream oos) 
-			throws IOException {
-		oos.defaultWriteObject();
-		if (parent == null) { // write static members
-			oos.writeObject(MIN_HSIZE);
-			oos.writeObject(MAX_MESH_CENTERS);
-			oos.writeObject(MAX_CAMERAS);
-			oos.writeObject(OCTREE_ID.get());
-			oos.writeObject(LwocMesh.MESH_ID.get());
-			
-		}
-	}
-
-	/**
-	 * Read input stream and deserialize it to world octree structure.
-	 * @param ois ObjectInputStream to read from
-	 * @throws ClassNotFoundException
-	 * @throws IOException
-	 */
-	private void readObject(ObjectInputStream ois) 
-			throws ClassNotFoundException, IOException {
-		ois.defaultReadObject();
-		if (parent == null) { // read static members
-			MIN_HSIZE =         (Double)  ois.readObject();
-			MAX_MESH_CENTERS =  (Integer) ois.readObject();
-			MAX_CAMERAS =       (Integer) ois.readObject();
-			OCTREE_ID.set(      (Integer) ois.readObject());
-			LwocMesh.MESH_ID.set((Integer) ois.readObject());
-		}
-	}
-	
-	/**
-	 * 
-	 * @param path
-	 */
-	public static void saveWorld(String path) {
-	      try {
-	          FileOutputStream fileOut = new FileOutputStream(path);
-	          ObjectOutputStream out = new ObjectOutputStream(fileOut);
-	          out.writeObject(lwoc_root); // will cause all world to be saved
-	          out.close();
-	          fileOut.close();
-	          System.out.printf("Serialized data is saved in "+path);
-	       } catch (IOException e) {
-	          e.printStackTrace();
-	       }
-		
-		
-	}
-
-	public static void restoreWorld(String path) {
-	      try {
-	          FileInputStream fileIn = new FileInputStream(path);
-	          ObjectInputStream in = new ObjectInputStream(fileIn);
-	          lwoc_root = (LwocOctree) in.readObject();
-	          in.close();
-	          fileIn.close();
-	       } catch (IOException e) {
-	          e.printStackTrace();
-	          return;
-	       } catch (ClassNotFoundException c) {
-	          System.out.println(path+" not found");
-	          c.printStackTrace();
-	          return;
-	       }
-	}
-	
 	
 	public static void addPendingScene(LwocScene scene) {
 		synchronized(pendingScenes) {
@@ -147,23 +69,7 @@ public class LwocOctree implements Serializable {
 			pendingLeafNodes.add(node);
 		}
 	}
-	
-	/**
-	 * Initialize Octree data and set initial world node. It is possible to grow
-	 * world as needed later.
-	 * @param center world center: x,y,z in meters. Usually {0,0,0}
-	 * @param world_hsize Half linear dimension of the world
-	 */
-	public static void initOctree(double [] center, double world_hsize) {
-		LwocMesh.resetMeshes();
-		LwocScene.resetScenes();
-		resetPending();
-//		LWOK_OCTREE =    new ArrayList<LwocOctree>();
-		// Add a single leaf node
-		lwoc_root =      new LwocOctree(null, center, world_hsize);
-		lwoc_root.leaf = new LwocLeaf();
-	}
-	
+
 	/**
 	 * Synchronized lists of pending scenes, meshes and nodes are used to delay modification of
 	 * the world octree and its elements from the multithreaded environment. These lists should
@@ -202,18 +108,19 @@ public class LwocOctree implements Serializable {
 	
 	/**
 	 * LwocOctree constructor
-	 * @param parent Parent node
-	 * @param xyz position of the node center in meters
-	 * @param hsize Node half size - each of the X,Y,Z coordinates of the internal 
-	 *              points are limited within +/-hsize from the node center
+	 * @param lwocWorld World global parameters
+	 * @param parent    Parent node
+	 * @param xyz       Position of the node center in meters
+	 * @param hsize     Node half size - each of the X,Y,Z coordinates of the internal 
+	 *                  points are limited within +/-hsize from the node center
 	 */
-    public LwocOctree (LwocOctree parent,
-    		           double []  xyz,
-    		           double     hsize) {
-    	id = OCTREE_ID.getAndIncrement();
+	public LwocOctree (
+			LwocWorld  lwocWorld,
+			LwocOctree parent,
+			double []  xyz,
+			double     hsize) {
     	this.parent = parent;
     	this.hsize =  hsize;
-//    	LWOK_OCTREE.add(this);
     }
     
     /**
@@ -222,14 +129,15 @@ public class LwocOctree implements Serializable {
      * @return Octree node that includes the point or null if the point
      *         is outside the root node (the whole world)
      */
-    public static LwocOctree getLeafNode( // if null - needs growing world
+	//FIXME: obey border (on the edges of max hsize of the root) nodes
+    public LwocOctree getLeafNode( // if null - needs growing world
     		double [] xyz) { // thread safe
-    	if (!lwoc_root.contains(xyz)) return null; // needs growing world
-    	LwocOctree node = lwoc_root;
-    	while (lwoc_root.children != null) {
+    	if (!world.getLwocRoot().contains(xyz)) return null; // needs growing world
+    	LwocOctree node = world.getLwocRoot();
+    	while (world.getLwocRoot().children != null) {
     		int indx = 0;
     		for (int dm = 0; dm < 3; dm++) {
-    			if (xyz[dm] >= lwoc_root.center[dm] ) {
+    			if (xyz[dm] >= world.getLwocRoot().center[dm] ) {
     				indx += 1 << dm;
     			}
     		}
@@ -245,7 +153,7 @@ public class LwocOctree implements Serializable {
      * @param check_existed - do not add duplicate scenes and nodes
      * @return An octree node where scene is added or null if the world needs growing
      */
-    public static LwocOctree addScene(
+    public LwocOctree addScene(
     		LwocScene             scene,
     		boolean               check_existed
     		) {// returns null and adds to pendingScenes if needs growing
@@ -259,8 +167,8 @@ public class LwocOctree implements Serializable {
     	} else {
     		node.leaf.addScene(scene,check_existed);
     		// Check if leaf node requires splitting
-    		if (node.leaf.getScenes().size() > MAX_CAMERAS) {
-    			if (node.hsize > MIN_HSIZE) {
+    		if (node.leaf.getScenes().size() > world.getMaxCameras()) {
+    			if (node.hsize > world.getMinHsize()) {
         			if (!check_existed || !pendingLeafNodes.contains(node)) {
         				addPendingLeafNode(node);
         			}
@@ -274,7 +182,7 @@ public class LwocOctree implements Serializable {
      * Tend to pending scenes list. Not thread-safe, should be run in a single-thread mode.
      * @param check_existed - do not add duplicate scenes and nodes
      */
-    public static void tendPendingScenes(
+    public void tendPendingScenes(
     		boolean               check_existed
     		) {
     	if (pendingScenes.isEmpty()) {
@@ -295,7 +203,7 @@ public class LwocOctree implements Serializable {
      * Only adds mesh centers and grows the world if needed.
      * @param check_existed    do not add duplicate meshes
      */
-    public static void tendPendingMeshCentersOnly(
+    public void tendPendingMeshCentersOnly(
     		boolean               check_existed
     		) {
     	if (pendingMeshes.isEmpty()) {
@@ -326,14 +234,14 @@ public class LwocOctree implements Serializable {
      * Should be run after tendPendingMeshCentersOnly().
      * @param check_existed    do not add duplicate meshes
      */
-    public static void tendPendingMeshes(
+    public void tendPendingMeshes(
     		boolean               check_existed ) {
     	if (pendingMeshes.isEmpty()) {
     		return; // nothing to do
       	} else {
     		for (LwocMesh mesh: pendingMeshes) {
 //    			int num_added = 
-    			lwoc_root.addMesh(
+    			world.lwoc_root.addMesh(
     					mesh,
     					check_existed);
     		} 
@@ -417,6 +325,7 @@ public class LwocOctree implements Serializable {
     			xyz[dm] +=new_hsize * ((((nchild >> dm) & 1) > 0)? 1 : -1);
     		}
     		children[nchild] = new LwocOctree(
+    				world,
     				this,
     				xyz,
     				new_hsize);
@@ -481,41 +390,44 @@ public class LwocOctree implements Serializable {
      * until the specified point gets inside. Not thread safe, should run in single-thread mode
      * @param xyz The point to be included in the world.
      */
-    public static void growXYZ(double [] xyz) {
-       	while (!lwoc_root.contains(xyz)) {// already fits, do not grow
+    public void growXYZ(double [] xyz) {
+       	while (!world.lwoc_root.contains(xyz)) {// already fits, do not grow
     	    // grow once
     		int indx=0; //direction to grow
     		double [] new_center = new double[3];
+    		double [] root_center = world.lwoc_root.center;
+			double root_hsize = world.lwoc_root.hsize;
     		for (int dm = 0; dm < new_center.length; dm++) {
-    			if (xyz[dm] >= lwoc_root.center[dm] ) {
+    			if (xyz[dm] >= root_center[dm] ) {
     				indx += 1 << dm;
-        			new_center[dm]= lwoc_root.center[dm] + lwoc_root.hsize;
+        			new_center[dm]= root_center[dm] + root_hsize;
     			} else {
-        			new_center[dm]= lwoc_root.center[dm] - lwoc_root.hsize;
+        			new_center[dm]= root_center[dm] - root_hsize;
     			}
     		}
-    		LwocOctree new_root = new LwocOctree(null, new_center, lwoc_root.hsize * 2);
+    		LwocOctree new_root = new LwocOctree(world,null, new_center, world.lwoc_root.hsize * 2);
     		new_root.children = new LwocOctree[NUM_CHILDREN];
     		int child =  (~indx ) & (NUM_CHILDREN -1); // opposite direction, from new root to old root 
     		for (int ichild = 0; ichild < NUM_CHILDREN; ichild++) {
     			if (ichild == child) {
-    				lwoc_root.parent = new_root;
-    				new_root.children[ichild] = lwoc_root;
+    				world.lwoc_root.parent = new_root;
+    				new_root.children[ichild] = world.lwoc_root;
     			} else { // create empty leaf nodes
     				new_root.children[ichild] = new LwocOctree(
+    						world,
 							new_root,
     						new double [] {
-    								new_center[0] +	lwoc_root.hsize * ((((child >> 0) & 1) > 0)? 1 : -1),
-    								new_center[1] +	lwoc_root.hsize * ((((child >> 1) & 1) > 0)? 1 : -1),
-    								new_center[2] +	lwoc_root.hsize * ((((child >> 2) & 1) > 0)? 1 : -1)
+    								new_center[0] +	root_hsize * ((((child >> 0) & 1) > 0)? 1 : -1),
+    								new_center[1] +	root_hsize * ((((child >> 1) & 1) > 0)? 1 : -1),
+    								new_center[2] +	root_hsize * ((((child >> 2) & 1) > 0)? 1 : -1)
     						},
-    						lwoc_root.hsize);
+    						root_hsize);
     				
     				// add leaf 
     				new_root.children[ichild].leaf = new LwocLeaf();
     			}
     		}
-    		lwoc_root = new_root;
+    		world.lwoc_root = new_root;
     	}
     }
     
@@ -525,6 +437,7 @@ public class LwocOctree implements Serializable {
      * @param half_whd  half width(x), height(y) and depth(z)
      * @return True if it intersects
      */
+	//FIXME: obey border (on the edges of max hsize of the root) nodes
     public boolean intersects (
     		double [] xyz,
     		double [] half_whd) {
@@ -544,6 +457,7 @@ public class LwocOctree implements Serializable {
      * @param xyz point
      * @return True if it intersects
      */
+	//FIXME: obey border (on the edges of max hsize of the root) nodes
     public boolean contains (
     		double [] xyz) {
     	for (int dm = 0; dm < center.length; dm++) {
@@ -563,6 +477,8 @@ public class LwocOctree implements Serializable {
      * @param half_whd  half width(x), height(y) and depth(z)
      * @return True if it intersects
      */
+	//FIXME: obey border (on the edges of max hsize of the root) nodes
+
     public boolean contains (
     		double [] xyz,
     		double [] half_whd) {
@@ -584,7 +500,7 @@ public class LwocOctree implements Serializable {
      * @param check_existed Add only if the same mesh did not exist
      * @return number of nodes it was added to (intersecting)
      */
-    public static boolean addMeshCenter( // returns 0 and adds to pendingMeshes if needs growing
+    public boolean addMeshCenter( // returns 0 and adds to pendingMeshes if needs growing
     		LwocMesh              mesh,
     		boolean               check_existed
     		) {
@@ -594,7 +510,7 @@ public class LwocOctree implements Serializable {
 		double [] corner_xyz = center.clone();
     	for (int dm = 0; dm < center.length; dm++) {
     		corner_xyz[dm] += dims[dm];
-    		if (!lwoc_root.contains(corner_xyz)){
+    		if (!world.lwoc_root.contains(corner_xyz)){
     			if (pendingMeshes != null) {
     				if (!check_existed || !pendingMeshes.contains(mesh)) {
     					addPendingMesh(mesh);
@@ -603,7 +519,7 @@ public class LwocOctree implements Serializable {
     			return false;
     		}
     		corner_xyz[dm] -= 2*dims[dm];
-    		if (!lwoc_root.contains(corner_xyz)){
+    		if (!world.lwoc_root.contains(corner_xyz)){
     			if (pendingMeshes != null) {
     				if (!check_existed || !pendingMeshes.contains(mesh)) {
     					addPendingMesh(mesh);
@@ -617,8 +533,8 @@ public class LwocOctree implements Serializable {
     	LwocOctree node = getLeafNode(center);
 		node.leaf.addMeshCenter(mesh, check_existed);
 		// Check if leaf node requires splitting
-		if (node.leaf.getMeshCenters().size() > MAX_MESH_CENTERS) {
-			if (node.hsize > MIN_HSIZE) {
+		if (node.leaf.getMeshCenters().size() > world.getMaxMeshCenters()) {
+			if (node.hsize >  world.getMinHsize()) {
 				if (!check_existed || !pendingLeafNodes.contains(node)) {
 					addPendingLeafNode(node);
 				}
@@ -659,7 +575,7 @@ public class LwocOctree implements Serializable {
      * Should fit in a root node (as it was earlier added)
      * @param mesh new mesh to add
      */
-    public static void removeMeshCenter(
+    public void removeMeshCenter(
     		LwocMesh mesh) { // check and remove duplicates
     	LwocOctree node = getLeafNode(mesh.getCenter());
 		node.leaf.removeMeshCenter(mesh);
@@ -689,6 +605,26 @@ public class LwocOctree implements Serializable {
     }
     
     /**
+     * Restore pointers to .parent and .world
+     * @param world
+     * @param parent
+     */
+    public void restoreWorldParent(
+    		LwocWorld world,
+    		LwocOctree parent) {
+    	this.parent = parent;
+    	this.world = world;
+    	if (!isLeaf()) {
+    		for (LwocOctree child:children) {
+    			child.restoreWorldParent(
+    		    		world, // LwocWorld world,
+    		    		this); // LwocOctree parent)
+    		}    		
+    	}
+    }
+    
+    
+    /**
      * Recursively create a list of all leave nodes in the world.
      * @return A list of all leaf nodes
      */
@@ -708,9 +644,9 @@ public class LwocOctree implements Serializable {
      * Rebuild meshes lists from mesh_centers for all leaf nodes after restoring the world.
      * Used after restoring world from serialized form
      */
-    public static void rebuildMeshLists(
+    public void rebuildMeshLists(
     		final boolean check_existed) {
-    	final List<LwocOctree> leaves = lwoc_root.getAllLeafNodes();
+    	final List<LwocOctree> leaves = world.lwoc_root.getAllLeafNodes();
     	final List<LwocMesh> meshes = new ArrayList<LwocMesh>();
     	for (LwocOctree node : leaves) {
     		node.leaf.initMeshes();
@@ -726,7 +662,7 @@ public class LwocOctree implements Serializable {
 				public void run() {
 					for (int indx_mesh = ai.getAndIncrement(); indx_mesh < meshes.size(); indx_mesh = ai.getAndIncrement()) {
 						LwocMesh mesh = meshes.get(indx_mesh);
-						lwoc_root.addMesh(mesh, check_existed);
+						world.lwoc_root.addMesh(mesh, check_existed);
 					}
 				}
 			};
