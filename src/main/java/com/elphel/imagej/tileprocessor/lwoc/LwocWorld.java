@@ -35,11 +35,10 @@ public class LwocWorld  implements Serializable {
 	private static final long   serialVersionUID = 1L;
 	static List<LwocWorld>      lwoc_worlds;   //  
 	
+	public final double         max_hsize; //  =     10000.0; // meter - do not grow more
 	public double               min_hsize; //  =         0.3; // meter - do not subdivide more
-	public double               max_hsize; //  =     10000.0; // meter - do not grow more
 	public int                  max_mesh_centers; //  = 10;   // maximal number of meshes in a leaf;
 	public int                  max_cameras; //  =      10;   // maximal number of cameras in a leaf;
-//	public transient LwocOctree lwoc_root; //  =        null;
 	public LwocOctree           lwoc_root; //  =        null;
 	public double []            atr; //  =              null; // Azimuth, tilt, roll - may be used to merge
 	public double []            xyz; //  =              null; // this world offset (before rotation) or
@@ -53,7 +52,7 @@ public class LwocWorld  implements Serializable {
 			double []  atr,
 			double []  xyz) {
 		setMinHsize      (min_hsize);
-		setMaxHsize      (max_hsize);
+		this.max_hsize =  max_hsize; // it is final, only can and has to be set in the constructor
 		setMaxMeshCenters(max_mesh_centers);
 		setMaxCameras    (max_cameras);
 		setLwocRoot      (lwoc_root);
@@ -69,7 +68,6 @@ public class LwocWorld  implements Serializable {
 	public double []  getXYZ()            {return xyz;}
 	
 	public void       setMinHsize      (double     min_hsize)        {this.min_hsize =        min_hsize;}
-	public void       setMaxHsize      (double     max_hsize)        {this.max_hsize =        max_hsize;}
 	public void       setMaxMeshCenters(int        max_mesh_centers) {this.max_mesh_centers = max_mesh_centers;}
 	public void       setMaxCameras    (int        max_cameras)      {this.max_cameras =      max_cameras;}
 	public void       setLwocRoot      (LwocOctree lwoc_root)        {this.lwoc_root =        lwoc_root;}

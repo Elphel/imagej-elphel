@@ -37,13 +37,10 @@ import com.elphel.imagej.common.MultiThreading;
 public class LwocOctree implements Serializable {
 	private static final long    serialVersionUID = 1L;
 	public static final int      NUM_CHILDREN =      8;
-//	static AtomicInteger         OCTREE_ID =        new AtomicInteger();
-
 	static List<LwocScene>       pendingScenes;   // synchronized - add not-yet-added scenes pending growing world 
 	static List<LwocMesh>        pendingMeshes;   // synchronized - add not-yet-added meshes pending growing world
 	static List<LwocOctree>      pendingLeafNodes;// synchronized - leaf nodes needed to be split
 	
-//	static List<LwocWorld>       lwoc_worlds;   //  
 	int                          id;         // assign unique ID
 	transient LwocWorld          world; 	
 	transient LwocOctree         parent;
@@ -51,6 +48,7 @@ public class LwocOctree implements Serializable {
 	LwocLeaf                     leaf;       //
 	double []                    center;     // x-center, y-center, z-center
 	double                       hsize;
+	int                          infinity = 0; 
 	
 	public static void addPendingScene(LwocScene scene) {
 		synchronized(pendingScenes) {
@@ -107,20 +105,36 @@ public class LwocOctree implements Serializable {
 	}
 	
 	/**
-	 * LwocOctree constructor
+	 * LwocOctree constructor. Sets infinity bitmap +1 - no limit for negative X,
+	 *  +2 - no limit for positive X, +4 -  no limit for negative Y, ...,
+	 *  +32 - no limit for positive Z.
 	 * @param lwocWorld World global parameters
-	 * @param parent    Parent node
+	 * @param parent_in Parent node
 	 * @param xyz       Position of the node center in meters
-	 * @param hsize     Node half size - each of the X,Y,Z coordinates of the internal 
+	 * @param h_size    Node half size - each of the X,Y,Z coordinates of the internal 
 	 *                  points are limited within +/-hsize from the node center
 	 */
 	public LwocOctree (
 			LwocWorld  lwocWorld,
-			LwocOctree parent,
+			LwocOctree parent_in,
 			double []  xyz,
-			double     hsize) {
-    	this.parent = parent;
-    	this.hsize =  hsize;
+			double     h_size) {
+		world =  lwocWorld;
+    	parent = parent_in;
+    	center = xyz;
+    	hsize =  h_size;
+    	// set which directions are to infinity (not limited by hsize)
+    	infinity = 0;
+    	double max_hsize = world.getMaxHsize();
+    	LwocOctree lwoc_root = world.getLwocRoot();
+    	for (int dm = 0; dm < center.length;  dm++) {
+    		if ((center[dm] - hsize) <= (lwoc_root.center[dm] - max_hsize)) {
+    			infinity |= (1 << (2 * dm));
+    		}
+    		if ((center[dm] + hsize) >= (lwoc_root.center[dm] + max_hsize)) {
+    			infinity |= (1 << (2 * dm + 1));
+    		}
+    	}
     }
     
     /**
@@ -129,7 +143,6 @@ public class LwocOctree implements Serializable {
      * @return Octree node that includes the point or null if the point
      *         is outside the root node (the whole world)
      */
-	//FIXME: obey border (on the edges of max hsize of the root) nodes
     public LwocOctree getLeafNode( // if null - needs growing world
     		double [] xyz) { // thread safe
     	if (!world.getLwocRoot().contains(xyz)) return null; // needs growing world
@@ -189,7 +202,7 @@ public class LwocOctree implements Serializable {
     		return; // nothing to do
       	} else {
     		for (LwocScene scene: pendingScenes) {
-    			growXYZ(scene.getCameraXYZ());
+    			growXYZ(scene.getCameraXYZ());  // will not grow in infinity direction
     			LwocOctree node= addScene(  // should not be null
     					scene,
     		    		check_existed);
@@ -215,9 +228,9 @@ public class LwocOctree implements Serializable {
     			double [] corner_xyz = center.clone();
     	    	for (int dm = 0; dm < center.length; dm++) {
     	    		corner_xyz[dm] += dims[dm];
-    	    		growXYZ(corner_xyz);
+    	    		growXYZ(corner_xyz); // will not grow in infinity direction
     	    		corner_xyz[dm] -= 2*dims[dm];
-    	    		growXYZ(corner_xyz);
+    	    		growXYZ(corner_xyz); // will not grow in infinity direction
     	    		corner_xyz[dm] += dims[dm];
     	    	}    			
     			boolean ok= addMeshCenter(  // should not be null
@@ -251,17 +264,9 @@ public class LwocOctree implements Serializable {
     /**
      * Recursively (if needed) splits octree nodes to reduce number of scenes/cameras
      * and mesh centers below specified thresholds (limited by the minimal node size) 
-     * @param min_hsize Minimal half-size of the node (in meters). Smaller nodes will not be split
-     * @param max_mesh_centers Maximal number of mesh centers in a node. Larger number 
-     *        triggers node split.
-     * @param max_cameras Maximasl number of scenes (camera positions) in a node.  Larger 
-     *         number triggers node split. 
      * @param check_existed Filter identical meshes or scenes from corresponding lists.
      */
     public static void tendPendingLeafNodes(
-    		final double          min_hsize,
-    		final int             max_mesh_centers,
-    		final int             max_cameras, // scenes
     		final boolean         check_existed) {
     	// remove any possible duplicates
     	final ArrayList<LwocOctree> pendingLeafNodesFiltered = new ArrayList<LwocOctree>();
@@ -270,26 +275,32 @@ public class LwocOctree implements Serializable {
     			pendingLeafNodesFiltered.add(node);
     		}
     	}
-    	// run splitting multithreaded
-		final Thread[] threads = MultiThreading.newThreadArray();
-		final AtomicInteger ai = new AtomicInteger(0);
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				@Override
-				public void run() {
-					for (int indx_node = ai.getAndIncrement(); indx_node < pendingLeafNodesFiltered.size(); indx_node = ai.getAndIncrement()) {
-						LwocOctree node = pendingLeafNodesFiltered.get(indx_node);
-					    // Split recursively until satisfied conditions
-						node.splitNode(
-								min_hsize,        // double  min_hsize,
-								max_mesh_centers, // int     max_mesh_centers,
-								max_cameras,      // int     max_cameras,
-								check_existed);   // boolean check_existed)
-					} // end of tile
-				}
-			};
-		}
-		MultiThreading.startAndJoin(threads);
+    	if (!pendingLeafNodesFiltered.isEmpty()) {
+    		LwocWorld world = pendingLeafNodesFiltered.get(0).world;
+    		final double min_hsize =        world.getMinHsize();
+    		final int    max_mesh_centers = world.getMaxMeshCenters();
+    		final int    max_cameras =      world.getMaxCameras();
+    		// run splitting multithreaded
+    		final Thread[] threads = MultiThreading.newThreadArray();
+    		final AtomicInteger ai = new AtomicInteger(0);
+    		for (int ithread = 0; ithread < threads.length; ithread++) {
+    			threads[ithread] = new Thread() {
+    				@Override
+    				public void run() {
+    					for (int indx_node = ai.getAndIncrement(); indx_node < pendingLeafNodesFiltered.size(); indx_node = ai.getAndIncrement()) {
+    						LwocOctree node = pendingLeafNodesFiltered.get(indx_node);
+    						// Split recursively until satisfied conditions
+    						node.splitNode(
+    								min_hsize,        // double  min_hsize,
+    								max_mesh_centers, // int     max_mesh_centers,
+    								max_cameras,      // int     max_cameras,
+    								check_existed);   // boolean check_existed)
+    					} // end of tile
+    				}
+    			};
+    		}
+    		MultiThreading.startAndJoin(threads);
+    	}
     }
     
     /**
@@ -388,10 +399,12 @@ public class LwocOctree implements Serializable {
     /**
      * Grow the world to include specified point Will repeat growing twice (in each direction)
      * until the specified point gets inside. Not thread safe, should run in single-thread mode
+     * Will mark infinity directions (inside LwocOctree constructor), so contains() will return
+     * true when the world size is big enough.
      * @param xyz The point to be included in the world.
      */
     public void growXYZ(double [] xyz) {
-       	while (!world.lwoc_root.contains(xyz)) {// already fits, do not grow
+       	while (!world.lwoc_root.contains(xyz)) {// already fits, do not grow. Will obey infinity
     	    // grow once
     		int indx=0; //direction to grow
     		double [] new_center = new double[3];
@@ -405,7 +418,11 @@ public class LwocOctree implements Serializable {
         			new_center[dm]= root_center[dm] - root_hsize;
     			}
     		}
-    		LwocOctree new_root = new LwocOctree(world,null, new_center, world.lwoc_root.hsize * 2);
+    		LwocOctree new_root = new LwocOctree( // will mark infinities
+    				world,
+    				null,
+    				new_center,
+    				world.lwoc_root.hsize * 2);
     		new_root.children = new LwocOctree[NUM_CHILDREN];
     		int child =  (~indx ) & (NUM_CHILDREN -1); // opposite direction, from new root to old root 
     		for (int ichild = 0; ichild < NUM_CHILDREN; ichild++) {
@@ -413,7 +430,7 @@ public class LwocOctree implements Serializable {
     				world.lwoc_root.parent = new_root;
     				new_root.children[ichild] = world.lwoc_root;
     			} else { // create empty leaf nodes
-    				new_root.children[ichild] = new LwocOctree(
+    				new_root.children[ichild] = new LwocOctree( // will mark infinities
     						world,
 							new_root,
     						new double [] {
@@ -437,16 +454,26 @@ public class LwocOctree implements Serializable {
      * @param half_whd  half width(x), height(y) and depth(z)
      * @return True if it intersects
      */
-	//FIXME: obey border (on the edges of max hsize of the root) nodes
     public boolean intersects (
     		double [] xyz,
     		double [] half_whd) {
-    	for (int dm = 0; dm < center.length; dm++) {
-    		if ((xyz[dm] - half_whd[dm]) >= (center[dm] + hsize)) { // semiinterval
-    			return false;
+    	if (infinity == 0) { // this branch is just for performance, it may be removed 
+    		for (int dm = 0; dm < center.length; dm++) {
+    			if ((xyz[dm] - half_whd[dm]) >= (center[dm] + hsize)) { // semiinterval
+    				return false;
+    			}
+    			if ((xyz[dm] + half_whd[dm]) < (center[dm] - hsize)) {
+    				return false;
+    			}
     		}
-    		if ((xyz[dm] + half_whd[dm]) < (center[dm] - hsize)) {
-    			return false;
+    	} else {
+    		for (int dm = 0; dm < center.length; dm++) {
+    			if (((xyz[dm] - half_whd[dm]) >= (center[dm] + hsize))  && (((infinity >> (2 * dm + 1)) & 1 ) == 0)) { // semiinterval
+    				return false;
+    			}
+    			if (((xyz[dm] + half_whd[dm]) < (center[dm] - hsize))   && (((infinity >> (2 * dm)) & 1 ) == 0)) {
+    				return false;
+    			}
     		}
     	}
     	return true;
@@ -457,18 +484,29 @@ public class LwocOctree implements Serializable {
      * @param xyz point
      * @return True if it intersects
      */
-	//FIXME: obey border (on the edges of max hsize of the root) nodes
     public boolean contains (
     		double [] xyz) {
-    	for (int dm = 0; dm < center.length; dm++) {
-    		if (xyz[dm] < (center[dm] - hsize)) { // semi-interval
-    			return false;
+    	if (infinity == 0) { // this branch is just for performance, it may be removed 
+    		for (int dm = 0; dm < center.length; dm++) {
+    			if (xyz[dm] < (center[dm] - hsize)) { // semi-interval
+    				return false;
+    			}
+    			if (xyz[dm] >= (center[dm] + hsize)) {
+    				return false;
+    			}
     		}
-    		if (xyz[dm] >= (center[dm] + hsize)) {
-    			return false;
+    		return true;
+    	} else {
+    		for (int dm = 0; dm < center.length; dm++) {
+    			if ((xyz[dm] < (center[dm] - hsize)) && (((infinity >> (2 * dm)) & 1 ) == 0)) { // semi-interval
+    				return false;
+    			}
+    			if ((xyz[dm] >= (center[dm] + hsize)) && (((infinity >> (2 * dm + 1)) & 1 ) == 0)) {
+    				return false;
+    			}
     		}
+    		return true;
     	}
-    	return true;
     }
     
     /**
@@ -477,17 +515,26 @@ public class LwocOctree implements Serializable {
      * @param half_whd  half width(x), height(y) and depth(z)
      * @return True if it intersects
      */
-	//FIXME: obey border (on the edges of max hsize of the root) nodes
-
     public boolean contains (
     		double [] xyz,
     		double [] half_whd) {
-    	for (int dm = 0; dm < center.length; dm++) {
-    		if ((xyz[dm] - half_whd[dm]) < (center[dm] - hsize)) { // semiinterval
-    			return false;
+    	if (infinity == 0) { // this branch is just for performance, it may be removed 
+    		for (int dm = 0; dm < center.length; dm++) {
+    			if ((xyz[dm] - half_whd[dm]) < (center[dm] - hsize)) { // semiinterval
+    				return false;
+    			}
+    			if ((xyz[dm] + half_whd[dm]) >= (center[dm] + hsize)) {
+    				return false;
+    			}
     		}
-    		if ((xyz[dm] + half_whd[dm]) >= (center[dm] + hsize)) {
-    			return false;
+    	} else {
+    		for (int dm = 0; dm < center.length; dm++) {
+    			if (((xyz[dm] - half_whd[dm]) < (center[dm] - hsize)) && (((infinity >> (2 * dm)) & 1 ) == 0)){ // semiinterval
+    				return false;
+    			}
+    			if (((xyz[dm] + half_whd[dm]) >= (center[dm] + hsize)) && (((infinity >> (2 * dm + 1)) & 1 ) == 0)){
+    				return false;
+    			}
     		}
     	}
     	return true;
@@ -500,7 +547,7 @@ public class LwocOctree implements Serializable {
      * @param check_existed Add only if the same mesh did not exist
      * @return number of nodes it was added to (intersecting)
      */
-    public boolean addMeshCenter( // returns 0 and adds to pendingMeshes if needs growing
+    public boolean addMeshCenter( // returns 0 and adds to pendingMeshes if needs growing. Obeys infinity
     		LwocMesh              mesh,
     		boolean               check_existed
     		) {
@@ -554,7 +601,7 @@ public class LwocOctree implements Serializable {
     public int addMesh(
     		LwocMesh mesh,
     		boolean check_existed) {
-    	if (!intersects(
+    	if (!intersects( // supports infinity
     			mesh.getCenter(),
     			mesh.getDims())) {
     		return 0;
@@ -605,7 +652,7 @@ public class LwocOctree implements Serializable {
     }
     
     /**
-     * Restore pointers to .parent and .world
+     * Restore pointers to .parent and .world after de-serialization
      * @param world
      * @param parent
      */
