@@ -44,6 +44,7 @@ import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.ImageDttParameters;
 import com.elphel.imagej.tileprocessor.IntersceneLmaParameters;
 import com.elphel.imagej.tileprocessor.IntersceneMatchParameters;
+import com.elphel.imagej.tileprocessor.LWIRWorldParameters;
 import com.elphel.imagej.tileprocessor.MeasuredLayersFilterParameters;
 import com.elphel.imagej.tileprocessor.OpticalFlowParameters;
 import com.elphel.imagej.tileprocessor.PoleProcessorParameters;
@@ -372,7 +373,8 @@ public class CLTParameters {
 	                                                         // to the next sequence and saved with corr-xml configuration. It is always
 	                                                         // propagated when calibration is run manually with photo_en = true
 	public int        photo_num_full =                3;     // Number of full recalibrations with re-processing of the images  
-	public int        photo_num_refines =             3;     // Calibrate, remove outliers, recalibrate, ... 
+	public int        photo_num_refines =             3;     // Calibrate, remove outliers, recalibrate, ...
+	public int        photo_min_good =             1000;     // Minimal number of good pixels for photometric calibration
 	public double     photo_min_strength =            0.0;   // maybe add to filter out weak tiles
 	public double     photo_max_diff =                40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
 	public int        photo_order =                   2;     // Approximation order: 0 - just offset, 1 - linear, 2 - quadratic
@@ -1016,6 +1018,7 @@ public class CLTParameters {
 	public IntersceneMatchParameters      imp =     new IntersceneMatchParameters();
 	public IntersceneLmaParameters        ilp =     new IntersceneLmaParameters();
 	public InterNoiseParameters           inp =     new InterNoiseParameters();
+	public LWIRWorldParameters            lwp =     new LWIRWorldParameters();
 			
 	public HashMap<String,Double> z_corr_map = new HashMap<String,Double>(); //old one
 	public HashMap<String,Double> infinity_distace_map = new HashMap<String,Double>(); //new one
@@ -1395,6 +1398,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"photo_to_main",              this.photo_to_main+"");       // boolean
 		properties.setProperty(prefix+"photo_num_full",             this.photo_num_full+"");      // int
 		properties.setProperty(prefix+"photo_num_refines",          this.photo_num_refines+"");   // int
+		properties.setProperty(prefix+"photo_min_good",             this.photo_min_good+"");   // int
 		properties.setProperty(prefix+"photo_min_strength",         this.photo_min_strength+"");  // double
 		properties.setProperty(prefix+"photo_max_diff",             this.photo_max_diff+"");      // double
 		properties.setProperty(prefix+"photo_order",                this.photo_order+"");         // int
@@ -1999,6 +2003,7 @@ public class CLTParameters {
 		imp.setProperties     (prefix+"_imp_",    properties);
 		ilp.setProperties     (prefix+"_ilp_",    properties);
 		inp.setProperties     (prefix+"_inp_",    properties);
+		lwp.setProperties     (prefix+"_lwp_",    properties);
 
 	}
 
@@ -2295,6 +2300,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"photo_to_main")!=null)        this.photo_to_main=Boolean.parseBoolean(properties.getProperty(prefix+"photo_to_main"));		
 		if (properties.getProperty(prefix+"photo_num_full")!=null)       this.photo_num_full=Integer.parseInt(properties.getProperty(prefix+"photo_num_full"));
 		if (properties.getProperty(prefix+"photo_num_refines")!=null)    this.photo_num_refines=Integer.parseInt(properties.getProperty(prefix+"photo_num_refines"));
+		if (properties.getProperty(prefix+"photo_min_good")!=null)       this.photo_min_good=Integer.parseInt(properties.getProperty(prefix+"photo_min_good"));
+				
 		if (properties.getProperty(prefix+"photo_min_strength")!=null)   this.photo_min_strength=Double.parseDouble(properties.getProperty(prefix+"photo_min_strength"));
 		if (properties.getProperty(prefix+"photo_max_diff")!=null)       this.photo_max_diff=Double.parseDouble(properties.getProperty(prefix+"photo_max_diff"));
 		if (properties.getProperty(prefix+"photo_order")!=null)          this.photo_order=Integer.parseInt(properties.getProperty(prefix+"photo_order"));		
@@ -2915,6 +2922,7 @@ public class CLTParameters {
 		imp.getProperties     (prefix+"_imp_",    properties);
 		ilp.getProperties     (prefix+"_ilp_",    properties);
 		inp.getProperties     (prefix+"_inp_",    properties);
+		lwp.getProperties     (prefix+"_lwp_",    properties);
 	}
 
 	public boolean showJDialog() {
@@ -3337,6 +3345,9 @@ public class CLTParameters {
 				"Full recalibratrions include re-importing raw images with updated offsets/gains");
 		gd.addNumericField("Refines",                                this.photo_num_refines, 0,3,"",
 				"Calculate calibration, remove outliers (e.g. FG/BG) and repeat");
+		gd.addNumericField("Minimal number of good pixels",          this.photo_min_good, 0,3,"",
+				"Minimal number of good pixels for photomeric calibration.");
+		
 		gd.addNumericField("Minimal DSI strength",                   this.photo_min_strength, 5,7,"",
 				"Do not use weak tiles.");
 		gd.addNumericField("Maximal channel mismatch",               this.photo_max_diff, 5,7,"",
@@ -4090,6 +4101,8 @@ public class CLTParameters {
 		this.ofp.dialogQuestions(gd);
 
 		this.imp.dialogQuestions(gd);
+
+		this.lwp.dialogQuestions(gd);
 		
 		gd.addTab         ("Inter-LMA", "parameters for the interscene LMA fitting");
 		this.ilp.dialogQuestions(gd);
@@ -4423,6 +4436,7 @@ public class CLTParameters {
  		this.photo_to_main =            gd.getNextBoolean();
 		this.photo_num_full =     (int) gd.getNextNumber();
 		this.photo_num_refines =  (int) gd.getNextNumber();
+		this.photo_min_good =     (int) gd.getNextNumber();
 		this.photo_min_strength =       gd.getNextNumber();
 		this.photo_max_diff =           gd.getNextNumber();
 		this.photo_order =        (int) gd.getNextNumber();
@@ -4982,6 +4996,7 @@ public class CLTParameters {
 		this.lwir.dialogAnswers(gd);
 		this.ofp.dialogAnswers(gd);
 		this.imp.dialogAnswers(gd);
+		this.lwp.dialogAnswers(gd);
 		this.ilp.dialogAnswers(gd);
 		this.inp.dialogAnswers(gd);
 

@@ -3734,6 +3734,485 @@ public class OpticalFlow {
 		}		
 	}
 
+	/*
+		TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
+				// processing?
+				set_name, // String set_name
+				quadCLT_main, // QuadCLT quadCLT_main,
+				null, // QuadCLT quadCLT_aux,
+				clt_parameters, // EyesisCorrectionParameters.DCTParameters dct_parameters,
+				true, // boolean                                  skip_existing,
+				true, // false, // boolean                                  search_KML,
+				debugLevel);
+		quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // will conditionImageSet
+				set_name,
+				clt_parameters,
+				colorProcParameters, //
+				threadsMax,
+				debugLevel-2);
+		quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+	 */
+//	public static QuadCLT buildRefDSI(
+	public static void buildRefDSI(
+			CLTParameters                                 clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters  debayerParameters,
+			ColorProcParameters                           colorProcParameters,
+			EyesisCorrectionParameters.RGBParameters      rgbParameters,
+    		boolean                                       batch_mode,
+    		String                                        set_name,
+			QuadCLT                                       quadCLT_main, // tiles should be set
+			QuadCLT                                       quadCLT_ref, // tiles should be set
+			final int                                     threadsMax,  // maximal number of threads to launch
+			final boolean                                 updateStatus,
+			final int                                     debugLevel) {
+		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel; // copied from TQ
+//    	boolean  photo_en =                  clt_parameters.photo_en; //          false; // perform photogrammetric calibration to equalize pixel values
+    	boolean  photo_each =                clt_parameters.photo_each; //        true;  // perform photogrammetric calibration to equalize pixel values
+//		boolean  photo_to_main=              clt_parameters.photo_to_main; // maybe it will not be needed, it will apply this calibration to the next scene sequence
+
+    	int      photo_num_full =            clt_parameters.photo_num_full; //     1;    // Number of full recalibrations with re-processing of the images  
+    	int      photo_num_refines =         clt_parameters.photo_num_refines; //  3;    // Calibrate, remove outliers, recalibrate, ... 
+    	int      photo_min_good =            clt_parameters.photo_min_good;    //  1000;    // Minimal number of good pixels for photometric calibration 
+    	double   photo_min_strength =        clt_parameters.photo_min_strength; // 0.0;  // maybe add to filter out weak tiles
+    	double   photo_max_diff =            clt_parameters.photo_max_diff; //    40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
+    	int      photo_order =               clt_parameters.photo_order;
+    	double   photo_std_1 =               clt_parameters.photo_std_1; //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+    	double   photo_std_2 =               clt_parameters.photo_std_2; // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+    	int      photo_offs_set =            clt_parameters.photo_offs_set; //  0;    // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+    	double   photo_offs =                clt_parameters.photo_offs;     // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
+//    	boolean  photo_debug =               clt_parameters.photo_debug; //       false; // Generate images and text
+
+ 		double sky_highest_min =     clt_parameters.imp.sky_highest_min;
+ 		double cold_frac =           clt_parameters.imp.cold_frac;
+ 		double hot_frac =            clt_parameters.imp.hot_frac;
+ 		double cold_scale =          clt_parameters.imp.cold_scale;
+ 		double sky_seed =            clt_parameters.imp.sky_seed;
+ 		double lma_seed =            clt_parameters.imp.lma_seed;
+ 		int    sky_shrink =          clt_parameters.imp.sky_shrink;
+ 		int    sky_bottleneck =      clt_parameters.imp.sky_bottleneck;
+ 		int    seed_rows =           clt_parameters.imp.seed_rows;
+ 		double sky_lim =             clt_parameters.imp.sky_lim;
+ 		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
+ 		double min_strength =        clt_parameters.imp.min_strength;
+ 		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
+ 		double sky_bottom_override = clt_parameters.imp.sky_bottom_override;
+ 		int    sky_override_shrink = clt_parameters.imp.sky_override_shrink;
+		double disp_boost_min =      clt_parameters.imp.disp_boost_min; //  0.5;
+		double disp_boost_diff  =    clt_parameters.imp.disp_boost_diff; // 0.35;
+		int    disp_boost_neibs  =   clt_parameters.imp.disp_boost_neibs; // 2;
+		double disp_boost_amount  =  clt_parameters.imp.disp_boost_amount; // 2.0;
+		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
+		quadCLT_ref.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+				clt_parameters,
+				debayerParameters,
+				colorProcParameters,
+				rgbParameters,
+				threadsMax,  // maximal number of threads to launch
+				updateStatus,
+				debugLevelInner);
+		double [][] aux_last_scan = TileProcessor.getDSLMA(
+				quadCLT_ref.tp.clt_3d_passes.get( quadCLT_ref.tp.clt_3d_passes.size() -1),
+				false); // boolean force_final);
+		double [][] dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+		dsi[TwoQuadCLT.DSI_DISPARITY_AUX] =     aux_last_scan[0];
+		dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
+		dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA] = aux_last_scan[2];
+		dsi[TwoQuadCLT.DSI_SPREAD_AUX] =        aux_last_scan[3];
+		dsi[TwoQuadCLT.DSI_AVGVAL_AUX] =        aux_last_scan[4];
+
+		if (quadCLT_main.correctionsParameters.clt_batch_dsi_cm_strength) {
+			CLTPass3d scan = new CLTPass3d(quadCLT_ref.tp);
+			scan.setTileOpDisparity(aux_last_scan[0]); // measure w/o LMA, use just strength
+			quadCLT_ref.CLTMeas( // perform single pass according to prepared tiles operations and disparity
+					clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+					scan,           // final CLTPass3d   scan,
+					false,          // final boolean     save_textures,
+					false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
+					0,              // final int         clust_radius,
+					true,           // final boolean     save_corr,
+					false,          // final boolean     run_lma, // =    true;
+					0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+					-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+					threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
+					updateStatus,   // final boolean     updateStatus,
+					debugLevel-2);  // final int         debugLevel);
+			dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      scan.getStrength();
+			if (debugLevel > 1) {
+				quadCLT_ref.tp.showScan(
+						scan, // CLTPass3d   scan,
+						"test-strength");
+			}
+		} else {
+			dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
+		}
+		// perform photometric here, after first DSI
+		if (photo_each && (!quadCLT_ref.isPhotometricThis() || !batch_mode)) {
+			if (debugLevel > -3) {
+				System.out.println("**** Running photometric equalization for "+quadCLT_ref.getImageName()+
+						", current was from scene "+quadCLT_ref.getPhotometricScene()+" ****");
+			}
+		
+			// preparing same format as after combo, filling in only needed data
+			double [][] ds_photo = new double[TwoQuadCLT.DSI_LENGTH][];
+			ds_photo[OpticalFlow.COMBO_DSN_INDX_DISP] =        dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA];
+			ds_photo[OpticalFlow.COMBO_DSN_INDX_DISP_BG_ALL] = dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA];
+			ds_photo[OpticalFlow.COMBO_DSN_INDX_STRENGTH] =    dsi[TwoQuadCLT.DSI_STRENGTH_AUX];
+				
+			boolean photo_each_debug = !batch_mode; // false; // true; // false;
+			boolean photo_each_debug2 = !batch_mode; // false; // true; // false;
+			
+			for (int nrecalib = 0; nrecalib < photo_num_full; nrecalib++) { // maybe need to correct just offsets?
+				int poly_order = photo_order;
+				if ((poly_order > 1) && (nrecalib == 0)) {
+					poly_order = 1;
+				}
+				boolean ok = QuadCLT.calibratePhotometric2(
+						clt_parameters,           // CLTParameters     clt_parameters,
+						quadCLT_ref,      // final QuadCLT     ref_scene, will set photometric calibration to this scene
+						photo_min_strength,       // final double      min_strength,
+						photo_max_diff,           // final double      max_diff,    // 30.0
+						poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
+						photo_std_1,    // final double photo_std_1,   //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+						photo_std_2,    // final double photo_std_2,   // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+						photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+						photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
+						photo_num_refines,        // final int         num_refines, // 2
+					    photo_min_good, // final int         min_good,     // minimal number of "good" pixels
+						ds_photo,                 // combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
+						threadsMax,               // int               threadsMax,
+						photo_each_debug);        //final boolean     debug)
+				if (!ok) {
+					System.out.println("************** Failed calibratePhotometric2, restoring original");
+					quadCLT_ref.setLwirOffsets(quadCLT_main.getLwirOffsets());
+					quadCLT_ref.setLwirScales (quadCLT_main.getLwirScales ());
+					quadCLT_ref.setLwirScales2(quadCLT_main.getLwirScales2());
+					quadCLT_ref.setPhotometricScene(quadCLT_main.getPhotometricScene());
+					// Retry linear only
+					ok = QuadCLT.calibratePhotometric2(
+							clt_parameters,           // CLTParameters     clt_parameters,
+							quadCLT_ref,      // final QuadCLT     ref_scene, will set photometric calibration to this scene
+							photo_min_strength,       // final double      min_strength,
+							photo_max_diff,           // final double      max_diff,    // 30.0
+							1, // poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
+							photo_std_1,    // final double photo_std_1,   //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+							photo_std_2,    // final double photo_std_2,   // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+							photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+							photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
+							photo_num_refines,        // final int         num_refines, // 2
+						    photo_min_good, // final int         min_good,     // minimal number of "good" pixels
+							ds_photo,                 // combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
+							threadsMax,               // int               threadsMax,
+							photo_each_debug);        //final boolean     debug)
+					if (!ok) {
+						System.out.println("Failed even linear photometric on pass "+nrecalib+", abandoning calibration");
+						break;
+					}
+					
+				}
+				// copy offsets to the current to be saved with other properties. Is it correct/needed?
+				quadCLT_ref.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+						null, // String path,             // full name with extension or w/o path to use x3d directory
+						debugLevel+1);
+				quadCLT_ref.setDSI(dsi); // try to avoid saving, will complain on restoring, but keep
+
+				// Re-read reference and other scenes using new offsets	
+				quadCLT_ref.setQuadClt(); // should work even when the data is new for the same scene
+				/*
+				quadCLT_ref = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
+						set_name,
+						clt_parameters,
+						colorProcParameters, //
+						threadsMax,
+						debugLevel);
+				*/
+				quadCLT_ref.restoreFromModel(
+						clt_parameters,
+						colorProcParameters,
+						null,                 // double []    noise_sigma_level,
+						-1,                   // noise_variant, // <0 - no-variants, compatible with old code
+						null,                 // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
+						threadsMax,
+						debugLevel);
+
+				// Re-measure and update (is it needed?)
+				CLTPass3d scan = new CLTPass3d(quadCLT_ref.tp);
+				scan.setTileOpDisparity(dsi[TwoQuadCLT.DSI_DISPARITY_AUX]);
+				quadCLT_ref.setQuadClt(); // just in case ?
+				quadCLT_ref.CLTMeas( // perform single pass according to prepared tiles operations and disparity
+						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+						scan,           // final CLTPass3d   scan,
+						false,          // final boolean     save_textures,
+						false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
+						0,              // final int         clust_radius,
+						true,           // final boolean     save_corr,
+						true, // false,          // final boolean     run_lma, // =    true;
+						0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+						-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+						threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
+						updateStatus,   // final boolean     updateStatus,
+						debugLevel-2);  // final int         debugLevel);
+				double [][] aux_new_scan = TileProcessor.getDSLMA(
+						scan,
+						false); // boolean force_final);
+				dsi[TwoQuadCLT.DSI_DISPARITY_AUX] =     aux_new_scan[0]; // compare diffs
+				dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_new_scan[1];
+				dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA] = aux_new_scan[2];
+				// Re-measure and update from BG spread and average in dsi
+				CLTPass3d bgscan = new CLTPass3d(quadCLT_ref.tp);
+				bgscan.setTileOpDisparity(null);
+				quadCLT_ref.setQuadClt(); // just in case ?
+				quadCLT_ref.CLTMeas( // perform single pass according to prepared tiles operations and disparity
+						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+						bgscan,           // final CLTPass3d   scan,
+						true, // false,          // final boolean     save_textures,
+						true, // false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
+						0,              // final int         clust_radius,
+						true,           // final boolean     save_corr, IS IT NEEDED?
+						false,          // final boolean     run_lma, // =    true;
+						0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+						-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+						threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
+						updateStatus,   // final boolean     updateStatus,
+						debugLevel-2);  // final int         debugLevel);
+				
+				if (photo_each_debug2) {
+					quadCLT_ref.tp.showScan(bgscan, quadCLT_ref.getImageName()+"-bgscan-"+nrecalib); // nrecalib
+					quadCLT_ref.tp.showScan(scan,   quadCLT_ref.getImageName()+"-scan-"+nrecalib);
+				}
+				dsi[TwoQuadCLT.DSI_SPREAD_AUX] = bgscan.getSecondMax(); //    //aux_bg_scan[3];
+				dsi[TwoQuadCLT.DSI_AVGVAL_AUX] = bgscan.getAvgVal(); //aux_bg_scan[4];
+				
+				quadCLT_ref.setDSI(dsi); // Restore known dsi
+				quadCLT_ref.setBlueSky(ref_blue_sky);
+				quadCLT_ref.setDSRBG(
+						clt_parameters, // CLTParameters  clt_parameters,
+						threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+						updateStatus,   // boolean        updateStatus,
+						debugLevel);    // int            debugLevel)
+			}
+			
+			
+			
+		} else {
+			System.out.println("(Re)using photometric calibration from this sequence reference "+quadCLT_ref.getPhotometricScene());
+			quadCLT_ref.setQuadClt(); // just in case ?
+		}
+
+		boolean retry=false;
+		while (true) {
+			quadCLT_ref.setBlueSky  (
+					sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+					lma_seed,
+					sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+					sky_shrink,         // int    sky_shrink, //  =       4;
+					sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
+					sky_bottleneck,     //int    sky_bottleneck, // 
+					cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
+					cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
+					hot_frac, // =         0.9;    // this and above will scale fom by 1.0
+					min_strength, // =     0.08;
+					seed_rows, // =        5; // sky should appear in this top rows 
+					lowest_sky_row,        //  =   50;// appears that low - invalid, remove completely
+					sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
+					sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
+					sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric)
+					disp_boost_min,        // double disp_boost_min,    //  = 0.5;
+					disp_boost_diff,       //double disp_boost_diff,   //  = 0.35;
+					disp_boost_neibs,   //int    disp_boost_neibs,  //  = 2;
+					disp_boost_amount,  //double disp_boost_amount, //  = 2.0;
+					dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
+					dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
+					dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], // double [] spread,
+					dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
+					batch_mode? -1: 1); /// debugLevel);        // int debugLevel)
+			if (!retry) {
+				break;
+			}
+		}
+		quadCLT_ref.saveDSIAll (
+				"-DSI_MAIN", // String suffix, // "-DSI_MAIN"
+				dsi);
+		quadCLT_ref.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+				null, // String path,             // full name with extension or w/o path to use x3d directory
+				//							 	null, // Properties properties,   // if null - will only save extrinsics)
+				debugLevel);
+		// Copy source files to the model directory - they are needed for poses and interscene
+		/* ***** Already done ! - NOT ****
+		for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
+			TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
+					// processing?
+					set_channels[scene_index].set_name, // String set_name
+					quadCLT_main, // QuadCLT quadCLT_main,
+					null, // QuadCLT quadCLT_aux,
+					clt_parameters, // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					true, // boolean                                  skip_existing,					
+					true, // false, // boolean                                  search_KML,
+					debugLevel);
+		} // split cycles to remove output clutter
+        */
+		
+		quadCLT_ref.set_orient(0); // reset orientations
+		quadCLT_ref.set_accum(0);  // reset accumulations ("build_interscene") number
+//		earliest_scene = 0;  // reset failures, try to use again all scenes
+//		return quadCLT_ref; // it is now a different instance than input parameter
+	}
+	
+	public static void reuseRefDSI(
+			CLTParameters    clt_parameters,
+			QuadCLT          quadCLT_main, // tiles should be set
+			QuadCLT          quadCLT_ref, // tiles should be set
+			final int        debugLevel) {
+		boolean  photo_each =        clt_parameters.photo_each; //        true;  // perform photogrammetric calibration to equalize pixel values
+		boolean  photo_to_main=      clt_parameters.photo_to_main; // maybe it will not be needed, it will apply this calibration to the next scene sequence
+		double sky_highest_min =     clt_parameters.imp.sky_highest_min;
+		double cold_frac =           clt_parameters.imp.cold_frac;
+		double hot_frac =            clt_parameters.imp.hot_frac;
+		double cold_scale =          clt_parameters.imp.cold_scale;
+		double sky_seed =            clt_parameters.imp.sky_seed;
+		double lma_seed =            clt_parameters.imp.lma_seed;
+		int    sky_shrink =          clt_parameters.imp.sky_shrink;
+		int    sky_bottleneck =      clt_parameters.imp.sky_bottleneck;
+		int    seed_rows =           clt_parameters.imp.seed_rows;
+		double sky_lim =             clt_parameters.imp.sky_lim;
+		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
+		double min_strength =        clt_parameters.imp.min_strength;
+		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
+		double sky_bottom_override = clt_parameters.imp.sky_bottom_override;
+		int    sky_override_shrink = clt_parameters.imp.sky_override_shrink;
+		double disp_boost_min =      clt_parameters.imp.disp_boost_min; //  0.5;
+		double disp_boost_diff  =    clt_parameters.imp.disp_boost_diff; // 0.35;
+		int    disp_boost_neibs  =   clt_parameters.imp.disp_boost_neibs; // 2;
+		double disp_boost_amount  =  clt_parameters.imp.disp_boost_amount; // 2.0;
+		
+		// if (build_ref_dsi) {
+		// need to read photometric from reference scene -INTERFRAME.corr-xml, and if it exists - set and propagate to main?
+		if (photo_each  && !quadCLT_ref.isPhotometricThis()) {
+			if (debugLevel > -3) {
+				System.out.println("Per-sequence photogrammetric calibration is required, but it does not exist");
+			}
+			if (photo_to_main) {
+				quadCLT_main.setLwirOffsets(quadCLT_ref.getLwirOffsets());
+				quadCLT_main.setLwirScales (quadCLT_ref.getLwirScales ());
+				quadCLT_main.setLwirScales2(quadCLT_ref.getLwirScales2());
+				quadCLT_main.setPhotometricScene(quadCLT_ref.getPhotometricScene());
+				if (debugLevel > -3) {
+					System.out.println("Propagating per-sequence photogrammetric calibration to main instance, will apply to next sequence and config file");
+				}
+			}
+		} else {
+			System.out.println("Without building reference DSI: (re)using photometric calibration from this sequence reference "+quadCLT_ref.getPhotometricScene());
+		}
+		// read DSI_MAIN
+		double [][] dsi = quadCLT_ref.readDsiMain();
+		if (dsi[TwoQuadCLT.DSI_SPREAD_AUX] == null) {
+			System.out.println("DSI_MAIN file has old format and does not have spread data, will recalculate.");
+		} else {
+			quadCLT_ref.setBlueSky  (
+					sky_seed,                              // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+					lma_seed,                              //          2.0;  // seed - disparity_lma limit
+					sky_lim,                               // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+					sky_shrink,                            // int    sky_shrink, //  =       4;
+					sky_expand_extra,                      // int    sky_expand_extra, //  = 100; // 1?
+					sky_bottleneck,       //int    sky_bottleneck, // 
+					cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
+					cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
+					hot_frac, // =         0.9;    // this and above will scale fom by 1.0
+					min_strength, // =     0.08;
+					seed_rows, // =        5; // sky should appear in this top rows
+					lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+					sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
+					sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
+					sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric)
+					disp_boost_min,        // double disp_boost_min,    //  = 0.5;
+					disp_boost_diff,       //double disp_boost_diff,   //  = 0.35;
+					disp_boost_neibs,      //int    disp_boost_neibs,  //  = 2;
+					disp_boost_amount,     //double disp_boost_amount, //  = 2.0;
+					dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
+					dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
+					dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], //double [] disp_lma,
+					dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
+					debugLevel);        // int debugLevel)
+		}
+	}
+
+	public static void runPhotometric(
+			CLTParameters       clt_parameters,
+			ColorProcParameters colorProcParameters,
+    		String              set_name,
+			QuadCLT[]           quadCLTs,
+			int                 earliest_scene,
+			int                 ref_index,
+			double [][]         combo_dsn_final_filtered,
+			int                 threadsMax,  // maximal number of threads to launch
+			boolean             updateStatus,
+			int                 debugLevel) {
+    	int      photo_num_full =            clt_parameters.photo_num_full; //     1;    // Number of full recalibrations with re-processing of the images  
+    	int      photo_num_refines =         clt_parameters.photo_num_refines; //  3;    // Calibrate, remove outliers, recalibrate, ... 
+    	int      photo_min_good =            clt_parameters.photo_min_good;    //  1000;    // Minimal number of good pixels for photometric calibration 
+    	double   photo_min_strength =        clt_parameters.photo_min_strength; // 0.0;  // maybe add to filter out weak tiles
+    	double   photo_max_diff =            clt_parameters.photo_max_diff; //    40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
+    	int      photo_order =               clt_parameters.photo_order;
+    	double   photo_std_1 =               clt_parameters.photo_std_1; //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+    	double   photo_std_2 =               clt_parameters.photo_std_2; // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+    	int      photo_offs_set =            clt_parameters.photo_offs_set; //  0;    // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+    	double   photo_offs =                clt_parameters.photo_offs;     // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
+    	boolean  photo_debug =               clt_parameters.photo_debug; //       false; // Generate images and text
+    	boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
+		for (int nrecalib = 0; nrecalib < photo_num_full; nrecalib++) {
+			int poly_order = photo_order;
+			if ((poly_order > 1) && (nrecalib == 0)) {
+				poly_order = 1;
+			}
+			QuadCLT.calibratePhotometric2(
+					clt_parameters,           // CLTParameters     clt_parameters,
+					quadCLTs[ref_index],      // final QuadCLT     ref_scene, will set photometric calibration to this scene
+					photo_min_strength,       // final double      min_strength,
+					photo_max_diff,           // final double      max_diff,    // 30.0
+					poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
+					photo_std_1,  // final double      photo_std_1,  //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
+					photo_std_2,  // final double      photo_std_2,	// 200.0;   // Minimal standard deviation of the filtered values for poly order 2
+					photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
+					photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
+					photo_num_refines,        // final int         num_refines, // 2
+				    photo_min_good, // final int         min_good,     // minimal number of "good" pixels
+					combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
+					threadsMax,               // int               threadsMax,
+					photo_debug);             //final boolean     debug)
+			// copy offsets to the current to be saved with other properties. Is it correct/needed?
+			quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+					null, // String path,             // full name with extension or w/o path to use x3d directory
+					debugLevel+1);
+			quadCLTs[ref_index].setBlueSky(ref_blue_sky);
+			quadCLTs[ref_index].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					debugLevel);    // int            debugLevel)
+///			ErsCorrection ers_reference = quadCLTs[ref_index].getErsCorrection();
+		}
+		// propagate to other scenes in this sequence
+		for (int scene_index =  ref_index - 1; scene_index >= earliest_scene ; scene_index--) {
+			//						quadCLTs[scene_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
+			// to include ref scene photometric calibration
+			/*
+			quadCLTs[scene_index] = quadCLTs[ref_index].spawnNoModelQuadCLT( // restores image data
+					set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel-2);
+			*/
+			// keep original names and whole instances
+			quadCLTs[scene_index].restoreNoModel(
+					clt_parameters,
+					colorProcParameters,
+					null,                 // double []    noise_sigma_level,
+					-1,                   // noise_variant, // <0 - no-variants, compatible with old code
+					null,                 // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
+					threadsMax,
+					debugLevel-2);
+		}
+	}
 	
 	/**
 	 * Build series of poses from just a single (reference) scene.
@@ -3787,21 +4266,7 @@ public class OpticalFlow {
     	boolean export_dsi_image =           clt_parameters.imp.export_ranges;
     	boolean export_ml_files =            clt_parameters.imp.export_ml_files;
 
-    	//boolean calibrate_photometric =      true;
     	boolean  photo_en =                  clt_parameters.photo_en; //          false; // perform photogrammetric calibration to equalize pixel values
-    	boolean  photo_each =                clt_parameters.photo_each; //        true;  // perform photogrammetric calibration to equalize pixel values
-		boolean  photo_to_main=              clt_parameters.photo_to_main; // maybe it will not be needed, it will apply this calibration to the next scene sequence
-
-    	int      photo_num_full =            clt_parameters.photo_num_full; //     1;    // Number of full recalibrations with re-processing of the images  
-    	int      photo_num_refines =         clt_parameters.photo_num_refines; //  3;    // Calibrate, remove outliers, recalibrate, ... 
-    	double   photo_min_strength =        clt_parameters.photo_min_strength; // 0.0;  // maybe add to filter out weak tiles
-    	double   photo_max_diff =            clt_parameters.photo_max_diff; //    40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
-    	int      photo_order =               clt_parameters.photo_order;
-    	double   photo_std_1 =               clt_parameters.photo_std_1; //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
-    	double   photo_std_2 =               clt_parameters.photo_std_2; // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
-    	int      photo_offs_set =            clt_parameters.photo_offs_set; //  0;    // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
-    	double   photo_offs =                clt_parameters.photo_offs;     // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
-    	boolean  photo_debug =               clt_parameters.photo_debug; //       false; // Generate images and text
     	
     	boolean show_dsi_image =             clt_parameters.imp.show_ranges && !batch_mode;
     	boolean show_images =                clt_parameters.imp.show_images && !batch_mode;
@@ -3827,16 +4292,6 @@ public class OpticalFlow {
 		boolean generate_mapped =            clt_parameters.imp.generate_mapped &&
 				(gen_seq_mono_color[0] || gen_seq_mono_color[1]);   // generate sequences - Tiff and/or video
 		boolean export3d =           clt_parameters.imp.export3d; //  true;
-		/*
-		final double     tex_disp_adiffo = clt_parameters.tex_disp_adiffo; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
-		final double     tex_disp_rdiffo = clt_parameters.tex_disp_rdiffo; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
-		final double     tex_disp_adiffd = clt_parameters.tex_disp_adiffd; // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
-		final double     tex_disp_rdiffd = clt_parameters.tex_disp_rdiffd; // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
-		final double     tex_disp_fof =    clt_parameters.tex_disp_fof;    // 1.5;  // Increase tolerance for friend of a friend
-		final double     tex_fg_bg =       clt_parameters.tex_fg_bg;       // 0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
-		final double     tex_distort =     clt_parameters.tex_distort;     // 0.1;  // Maximal texture distortion to accumulate multiple scenes
-		*/
-		
 		
 		boolean [] annotate_mono_color = {clt_parameters.imp.annotate_mono,clt_parameters.imp.annotate_color}; 
 		boolean annotate_transparent_mono = clt_parameters.imp.annotate_transparent_mono;
@@ -3888,33 +4343,8 @@ public class OpticalFlow {
 		int     test_ers0 =          clt_parameters.imp.test_ers0; // try adjusting a pair of scenes with ERS. Reference scene index
 		int     test_ers1 =          clt_parameters.imp.test_ers1; // try adjusting a pair of scenes with ERS. Other scene index
 		test_ers &= (test_ers0 >= 0) && (test_ers1 >= 0);
-		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel; // copied from TQ
-		
 		double  min_ref_str =        clt_parameters.imp.min_ref_str;
-		
- 		double sky_highest_min =     clt_parameters.imp.sky_highest_min;
- 		double cold_frac =           clt_parameters.imp.cold_frac;
- 		double hot_frac =            clt_parameters.imp.hot_frac;
- 		double cold_scale =          clt_parameters.imp.cold_scale;
- 		double sky_seed =            clt_parameters.imp.sky_seed;
- 		double lma_seed =            clt_parameters.imp.lma_seed;
- 		int    sky_shrink =          clt_parameters.imp.sky_shrink;
- 		int    sky_bottleneck =      clt_parameters.imp.sky_bottleneck;
- 		int    seed_rows =           clt_parameters.imp.seed_rows;
- 		double sky_lim =             clt_parameters.imp.sky_lim;
- 		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
- 		double min_strength =        clt_parameters.imp.min_strength;
- 		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
- 		double sky_bottom_override = clt_parameters.imp.sky_bottom_override;
- 		int    sky_override_shrink = clt_parameters.imp.sky_override_shrink;
-		double disp_boost_min =      clt_parameters.imp.disp_boost_min; //  0.5;
-		double disp_boost_diff  =    clt_parameters.imp.disp_boost_diff; // 0.35;
-		int    disp_boost_neibs  =   clt_parameters.imp.disp_boost_neibs; // 2;
-		double disp_boost_amount  =  clt_parameters.imp.disp_boost_amount; // 2.0;
-
-		
 		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
-		
 		if (reuse_video) { // disable all other options
 			generate_mapped = false;
 			export_images = false;
@@ -3951,8 +4381,6 @@ public class OpticalFlow {
 		QuadCLT [] quadCLTs = new QuadCLT [ref_index+1]; //  [set_channels.length];
 		
 		//start_index
-		
-		
 		double [][][] scenes_xyzatr =      new double [quadCLTs.length][][]; // previous scene relative to the next one
 		scenes_xyzatr[ref_index] = new double[2][3]; // all zeros
 		// See if build_ref_dsi is needed
@@ -3992,226 +4420,21 @@ public class OpticalFlow {
 						threadsMax,
 						debugLevel-2);
 				quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
-				quadCLTs[ref_index].preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						clt_parameters,
-						debayerParameters,
-						colorProcParameters,
-						rgbParameters,
-						threadsMax,  // maximal number of threads to launch
-						updateStatus,
-						debugLevelInner);
-				double [][] aux_last_scan = TileProcessor.getDSLMA(
-						quadCLTs[ref_index].tp.clt_3d_passes.get( quadCLTs[ref_index].tp.clt_3d_passes.size() -1),
-						false); // boolean force_final);
-				double [][] dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
-				dsi[TwoQuadCLT.DSI_DISPARITY_AUX] =     aux_last_scan[0];
-				dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
-				dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA] = aux_last_scan[2];
-				dsi[TwoQuadCLT.DSI_SPREAD_AUX] =        aux_last_scan[3];
-				dsi[TwoQuadCLT.DSI_AVGVAL_AUX] =        aux_last_scan[4];
-
-				if (quadCLT_main.correctionsParameters.clt_batch_dsi_cm_strength) {
-					CLTPass3d scan = new CLTPass3d(quadCLTs[ref_index].tp);
-					scan.setTileOpDisparity(aux_last_scan[0]); // measure w/o LMA, use just strength
-					quadCLTs[ref_index].CLTMeas( // perform single pass according to prepared tiles operations and disparity
-							clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-							scan,           // final CLTPass3d   scan,
-							false,          // final boolean     save_textures,
-							false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
-							0,              // final int         clust_radius,
-							true,           // final boolean     save_corr,
-							false,          // final boolean     run_lma, // =    true;
-							0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
-							-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
-							threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
-							updateStatus,   // final boolean     updateStatus,
-							debugLevel-2);  // final int         debugLevel);
-					dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      scan.getStrength();
-					if (debugLevel > 1) {
-						quadCLTs[ref_index].tp.showScan(
-								scan, // CLTPass3d   scan,
-								"test-strength");
-					}
-				} else {
-					dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
-				}
-				// perform photometric here, after first DSI
-				
-				
-
-				if (photo_each && (!quadCLTs[ref_index].isPhotometricThis() || !batch_mode)) {
-					if (debugLevel > -3) {
-						System.out.println("**** Running photometric equalization for "+quadCLTs[ref_index].getImageName()+
-								", current was from scene "+quadCLTs[ref_index].getPhotometricScene()+" ****");
-					}
-				
-					// preparing same format as after combo, filling in only needed data
-					double [][] ds_photo = new double[TwoQuadCLT.DSI_LENGTH][];
-					ds_photo[OpticalFlow.COMBO_DSN_INDX_DISP] =        dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA];
-					ds_photo[OpticalFlow.COMBO_DSN_INDX_DISP_BG_ALL] = dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA];
-					ds_photo[OpticalFlow.COMBO_DSN_INDX_STRENGTH] =    dsi[TwoQuadCLT.DSI_STRENGTH_AUX];
-						
-					boolean photo_each_debug = !batch_mode; // false; // true; // false;
-					boolean photo_each_debug2 = !batch_mode; // false; // true; // false;
-					for (int nrecalib = 0; nrecalib < photo_num_full; nrecalib++) { // maybe need to correct just offsets?
-						int poly_order = photo_order;
-						if ((poly_order > 1) && (nrecalib == 0)) {
-							poly_order = 1;
-						}
-						boolean ok = QuadCLT.calibratePhotometric2(
-								clt_parameters,           // CLTParameters     clt_parameters,
-								quadCLTs[ref_index],      // final QuadCLT     ref_scene, will set photometric calibration to this scene
-								photo_min_strength,       // final double      min_strength,
-								photo_max_diff,           // final double      max_diff,    // 30.0
-								poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
-								photo_std_1,    // final double photo_std_1,   //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
-								photo_std_2,    // final double photo_std_2,   // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
-								photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
-								photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
-								photo_num_refines,        // final int         num_refines, // 2
-								ds_photo,                 // combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
-								threadsMax,               // int               threadsMax,
-								photo_each_debug);        //final boolean     debug)
-						if (!ok) {
-							System.out.println("************** Failed calibratePhotometric2, restoring original");
-							quadCLTs[ref_index].setLwirOffsets(quadCLT_main.getLwirOffsets());
-							quadCLTs[ref_index].setLwirScales (quadCLT_main.getLwirScales ());
-							quadCLTs[ref_index].setLwirScales2(quadCLT_main.getLwirScales2());
-							quadCLTs[ref_index].setPhotometricScene(quadCLT_main.getPhotometricScene());
-							// Retry linear only
-							QuadCLT.calibratePhotometric2(
-									clt_parameters,           // CLTParameters     clt_parameters,
-									quadCLTs[ref_index],      // final QuadCLT     ref_scene, will set photometric calibration to this scene
-									photo_min_strength,       // final double      min_strength,
-									photo_max_diff,           // final double      max_diff,    // 30.0
-									1, // poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
-									photo_std_1,    // final double photo_std_1,   //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
-									photo_std_2,    // final double photo_std_2,   // 200.0;   // Minimal standard deviation of the filtered values for poly order 2
-									photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
-									photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
-									photo_num_refines,        // final int         num_refines, // 2
-									ds_photo,                 // combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
-									threadsMax,               // int               threadsMax,
-									photo_each_debug);        //final boolean     debug)
-							
-							
-							
-							
-						}
-						// copy offsets to the current to be saved with other properties. Is it correct/needed?
-						quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
-								null, // String path,             // full name with extension or w/o path to use x3d directory
-								debugLevel+1);
-						quadCLTs[ref_index].setDSI(dsi); // try to avoid saving, will complain on restoring, but keep
-
-						// Re-read reference and other scenes using new offsets	
-						quadCLTs[ref_index].setQuadClt(); // should work even when the data is new for the same scene
-						quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
-								set_channels[ref_index].set_name,
-								clt_parameters,
-								colorProcParameters, //
-								threadsMax,
-								debugLevel);
-						// Re-measure and update (is it needed?)
-						CLTPass3d scan = new CLTPass3d(quadCLTs[ref_index].tp);
-						scan.setTileOpDisparity(dsi[TwoQuadCLT.DSI_DISPARITY_AUX]);
-						quadCLTs[ref_index].setQuadClt(); // just in case ?
-						quadCLTs[ref_index].CLTMeas( // perform single pass according to prepared tiles operations and disparity
-								clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-								scan,           // final CLTPass3d   scan,
-								false,          // final boolean     save_textures,
-								false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
-								0,              // final int         clust_radius,
-								true,           // final boolean     save_corr,
-								true, // false,          // final boolean     run_lma, // =    true;
-								0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
-								-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
-								threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
-								updateStatus,   // final boolean     updateStatus,
-								debugLevel-2);  // final int         debugLevel);
-						double [][] aux_new_scan = TileProcessor.getDSLMA(
-								scan,
-								false); // boolean force_final);
-						dsi[TwoQuadCLT.DSI_DISPARITY_AUX] =     aux_new_scan[0]; // compare diffs
-						dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_new_scan[1];
-						dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA] = aux_new_scan[2];
-						// Re-measure and update from BG spread and average in dsi
-						CLTPass3d bgscan = new CLTPass3d(quadCLTs[ref_index].tp);
-						bgscan.setTileOpDisparity(null);
-						quadCLTs[ref_index].setQuadClt(); // just in case ?
-						quadCLTs[ref_index].CLTMeas( // perform single pass according to prepared tiles operations and disparity
-								clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-								bgscan,           // final CLTPass3d   scan,
-								true, // false,          // final boolean     save_textures,
-								true, // false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
-								0,              // final int         clust_radius,
-								true,           // final boolean     save_corr, IS IT NEEDED?
-								false,          // final boolean     run_lma, // =    true;
-								0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
-								-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
-								threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
-								updateStatus,   // final boolean     updateStatus,
-								debugLevel-2);  // final int         debugLevel);
-						
-						if (photo_each_debug2) {
-							quadCLTs[ref_index].tp.showScan(bgscan, quadCLTs[ref_index].getImageName()+"-bgscan-"+nrecalib); // nrecalib
-							quadCLTs[ref_index].tp.showScan(scan,   quadCLTs[ref_index].getImageName()+"-scan-"+nrecalib);
-						}
-						dsi[TwoQuadCLT.DSI_SPREAD_AUX] = bgscan.getSecondMax(); //    //aux_bg_scan[3];
-						dsi[TwoQuadCLT.DSI_AVGVAL_AUX] = bgscan.getAvgVal(); //aux_bg_scan[4];
-						
-						quadCLTs[ref_index].setDSI(dsi); // Restore known dsi
-						quadCLTs[ref_index].setBlueSky(ref_blue_sky);
-						quadCLTs[ref_index].setDSRBG(
-								clt_parameters, // CLTParameters  clt_parameters,
-								threadsMax,     // int            threadsMax,  // maximal number of threads to launch
-								updateStatus,   // boolean        updateStatus,
-								debugLevel);    // int            debugLevel)
-					}
-				} else {
-					System.out.println("(Re)using photometric calibration from this sequence reference "+quadCLTs[ref_index].getPhotometricScene());
-					quadCLTs[ref_index].setQuadClt(); // just in case ?
-				}
-
-				boolean retry=false;
-				while (true) {
-					quadCLTs[ref_index].setBlueSky  (
-							sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
-							lma_seed,
-							sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
-							sky_shrink,         // int    sky_shrink, //  =       4;
-							sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
-							sky_bottleneck,     //int    sky_bottleneck, // 
-							cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
-							cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
-							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
-							min_strength, // =     0.08;
-							seed_rows, // =        5; // sky should appear in this top rows 
-							lowest_sky_row,        //  =   50;// appears that low - invalid, remove completely
-							sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
-							sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
-							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric)
-							disp_boost_min,        // double disp_boost_min,    //  = 0.5;
-							disp_boost_diff,       //double disp_boost_diff,   //  = 0.35;
-							disp_boost_neibs,   //int    disp_boost_neibs,  //  = 2;
-							disp_boost_amount,  //double disp_boost_amount, //  = 2.0;
-							dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
-							dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
-							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], // double [] spread,
-							dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
-							batch_mode? -1: 1); /// debugLevel);        // int debugLevel)
-					if (!retry) {
-						break;
-					}
-				}
-				quadCLTs[ref_index].saveDSIAll (
-						"-DSI_MAIN", // String suffix, // "-DSI_MAIN"
-						dsi);
-				quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
-						null, // String path,             // full name with extension or w/o path to use x3d directory
-						//							 	null, // Properties properties,   // if null - will only save extrinsics)
-						debugLevel);
-				// Copy source files to the model directory - they are needed for poses and interscene
+//				quadCLTs[ref_index] = 
+				buildRefDSI( // returned is a different instance than input -FIXED
+						clt_parameters,                   // CLTParameters                                 clt_parameters,
+						debayerParameters,                // EyesisCorrectionParameters.DebayerParameters  debayerParameters,
+						colorProcParameters,              // ColorProcParameters                           colorProcParameters,
+					    rgbParameters, // EyesisCorrectionParameters.RGBParameters      rgbParameters,
+						batch_mode,                       // boolean                             batch_mode,
+						set_channels[ref_index].set_name, // String                              set_name,
+						quadCLT_main,                     // QuadCLT                             quadCLT_main, // tiles should be set
+						quadCLTs[ref_index],              // QuadCLT                             quadCLT_ref, // tiles should be set
+					    threadsMax,                       // final int                                     threadsMax,  // maximal number of threads to launch
+					    updateStatus,                     // final boolean    updateStatus,
+					    debugLevel);                      // final int        debugLevel);
+				earliest_scene = 0;  // reset failures, try to use again all scenes
+				// Copy source files for other scenes
 				for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
 					TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
 							// processing?
@@ -4223,61 +4446,20 @@ public class OpticalFlow {
 							true, // false, // boolean                                  search_KML,
 							debugLevel);
 				} // split cycles to remove output clutter
-
-				quadCLTs[ref_index].set_orient(0); // reset orientations
-				quadCLTs[ref_index].set_accum(0);  // reset accumulations ("build_interscene") number
-				earliest_scene = 0;  // reset failures, try to use again all scenes
+				
+				
+				
 			} else {// if (build_ref_dsi) {
 				// need to read photometric from reference scene -INTERFRAME.corr-xml, and if it exists - set and propagate to main?
-				if (photo_each  && !quadCLTs[ref_index].isPhotometricThis()) {
-					if (debugLevel > -3) {
-						System.out.println("Per-sequence photogrammetric calibration is required, but it does not exist");
-					}
-					if (photo_to_main) {
-						quadCLT_main.setLwirOffsets(quadCLTs[ref_index].getLwirOffsets());
-						quadCLT_main.setLwirScales (quadCLTs[ref_index].getLwirScales ());
-						quadCLT_main.setLwirScales2(quadCLTs[ref_index].getLwirScales2());
-						quadCLT_main.setPhotometricScene(quadCLTs[ref_index].getPhotometricScene());
-						if (debugLevel > -3) {
-							System.out.println("Propagating per-sequence photogrammetric calibration to main instance, will apply to next sequence and config file");
-						}
-					}
-				} else {
-					System.out.println("Without building reference DSI: (re)using photometric calibration from this sequence reference "+quadCLTs[ref_index].getPhotometricScene());
-				}
-				// read DSI_MAIN
-				double [][] dsi = quadCLTs[ref_index].readDsiMain();
-				if (dsi[TwoQuadCLT.DSI_SPREAD_AUX] == null) {
-					System.out.println("DSI_MAIN file has old format and does not have spread data, will recalculate.");
-				} else {
-					quadCLTs[ref_index].setBlueSky  (
-							sky_seed,                              // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
-							lma_seed,                              //          2.0;  // seed - disparity_lma limit
-							sky_lim,                               // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
-							sky_shrink,                            // int    sky_shrink, //  =       4;
-							sky_expand_extra,                      // int    sky_expand_extra, //  = 100; // 1?
-							sky_bottleneck,       //int    sky_bottleneck, // 
-							cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
-							cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
-							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
-							min_strength, // =     0.08;
-							seed_rows, // =        5; // sky should appear in this top rows
-							lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
-							sky_bottom_override,   // double sky_temp_override,     // really cold average seed - ignore lowest_sky_row filter
-							sky_override_shrink,   // int    shrink_for_temp,       // shrink before finding hottest sky
-							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric)
-							disp_boost_min,        // double disp_boost_min,    //  = 0.5;
-							disp_boost_diff,       //double disp_boost_diff,   //  = 0.35;
-							disp_boost_neibs,      //int    disp_boost_neibs,  //  = 2;
-							disp_boost_amount,     //double disp_boost_amount, //  = 2.0;
-							dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
-							dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
-							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], //double [] disp_lma,
-							dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
-							debugLevel);        // int debugLevel)
-				}
+				reuseRefDSI(
+						clt_parameters,      // CLTParameters  clt_parameters,
+						quadCLT_main,        // QuadCLT        quadCLT_main, // tiles should be set
+						quadCLTs[ref_index], // QuadCLT        quadCLT_ref, // tiles should be set
+						debugLevel);         // int            debugLevel)
 			}
+			
 		} // while (blue_sky == null) 
+		
 		ref_blue_sky = quadCLTs[ref_index].getBlueSky();
 		
 		quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
@@ -4562,6 +4744,7 @@ public class OpticalFlow {
 						0, // int         num_slices, // (0 - all)
 						null); // int []      wh);
 			}
+			
 			double [][] combo_dsn_final_filtered = 
 					conditionComboDsnFinal(
 							true,                // boolean        use_conf,       // use configuration parameters, false - use following  
@@ -4569,61 +4752,19 @@ public class OpticalFlow {
 							combo_dsn_final,     // double [][]    combo_dsn_final, // dls,
 							quadCLTs[ref_index], // QuadCLT        scene,
 							debugLevel); // int            debugLevel);// > 0
-			for (int nrecalib = 0; nrecalib < photo_num_full; nrecalib++) {
-				int poly_order = photo_order;
-				if ((poly_order > 1) && (nrecalib == 0)) {
-					poly_order = 1;
-				}
-				QuadCLT.calibratePhotometric2(
-						clt_parameters,           // CLTParameters     clt_parameters,
-						quadCLTs[ref_index],      // final QuadCLT     ref_scene, will set photometric calibration to this scene
-						photo_min_strength,       // final double      min_strength,
-						photo_max_diff,           // final double      max_diff,    // 30.0
-						poly_order,               // final int         photo_order, // 0 - offset only, 1 - linear, 2 - quadratic
-						photo_std_1,  // final double      photo_std_1,  //  50.0;   // Minimal standard deviation of the filtered values for poly order 1
-						photo_std_2,  // final double      photo_std_2,	// 200.0;   // Minimal standard deviation of the filtered values for poly order 2
-						photo_offs_set, // final int    photo_offs_set,// 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
-						photo_offs,     // final double photo_offs,    // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
-						photo_num_refines,        // final int         num_refines, // 2
-						combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
-						threadsMax,               // int               threadsMax,
-						photo_debug);             //final boolean     debug)
-				// copy offsets to the current to be saved with other properties. Is it correct/needed?
-				quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
-						null, // String path,             // full name with extension or w/o path to use x3d directory
-						debugLevel+1);
-//				quadCLT_main.setLwirOffsets(quadCLTs[ref_index].getLwirOffsets());
-//				quadCLT_main.setLwirScales (quadCLTs[ref_index].getLwirScales ());
-//				quadCLT_main.setLwirScales2(quadCLTs[ref_index].getLwirScales2());
-//				quadCLT_main.setPhotometricScene(quadCLTs[ref_index].getPhotometricScene());
-				
-				// Re-read reference and other scenes using new offsets	
-				quadCLTs[ref_index].setQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
-				quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
-						set_channels[ref_index].set_name,
-						clt_parameters,
-						colorProcParameters, //
-						threadsMax,
-						debugLevel);
-				quadCLTs[ref_index].setBlueSky(ref_blue_sky);
-				quadCLTs[ref_index].setDSRBG(
-						clt_parameters, // CLTParameters  clt_parameters,
-						threadsMax,     // int            threadsMax,  // maximal number of threads to launch
-						updateStatus,   // boolean        updateStatus,
-						debugLevel);    // int            debugLevel)
-				ers_reference = quadCLTs[ref_index].getErsCorrection();
-			}
-			// propagate to other scenes in this sequence
-			for (int scene_index =  ref_index - 1; scene_index >= earliest_scene ; scene_index--) {
-				//						quadCLTs[scene_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
-				// to include ref scene photometric calibration
-				quadCLTs[scene_index] = quadCLTs[ref_index].spawnNoModelQuadCLT( // restores image data
-						set_channels[scene_index].set_name,
-						clt_parameters,
-						colorProcParameters, //
-						threadsMax,
-						debugLevel-2);
-			}
+			// replace
+			runPhotometric(
+					clt_parameters,                   // CLTParameters       clt_parameters,
+					colorProcParameters,              // ColorProcParameters colorProcParameters,
+					set_channels[ref_index].set_name, // String set_name
+					quadCLTs,                         // QuadCLT[]           quadCLTs,
+					earliest_scene,                   // int                 earliest_scene,
+					ref_index,                        // int                 ref_index,
+					combo_dsn_final_filtered,         // double [][]         combo_dsn_final_filtered,
+					threadsMax,                       // int                 threadsMax,  // maximal number of threads to launch
+					updateStatus,                     //  boolean             updateStatus,
+					debugLevel);                      // int                 debugLevel);
+
 		} else {
 			if (debugLevel> -3) {
 				System.out.println("Using photometric calibration from scene "+quadCLTs[ref_index].getPhotometricScene());
@@ -5111,7 +5252,7 @@ public class OpticalFlow {
 		// debugging 3D model
 
 		if (export3d) {
-			boolean ok_3d = TexturedModel.output3d(
+			boolean ok_3d = TexturedModel.output3d( // quadCLTs have same image name, and everything else
 					clt_parameters,      // CLTParameters                            clt_parameters,
 					colorProcParameters, // ColorProcParameters                      colorProcParameters,
 					rgbParameters,       // EyesisCorrectionParameters.RGBParameters rgbParameters,
@@ -6135,11 +6276,17 @@ public class OpticalFlow {
     							treat_serch_fpn,     // true,                // boolean            all_fpn,        // do not lower thresholds for non-fpn (used during search)
     							clt_parameters.imp.debug_level, // int                imp_debug_level,
     							clt_parameters.imp.debug_level); // 1); // -1); // int debug_level);
+    					// may return null if failed to match
+    					if (coord_motion == null) {
+    			    		System.out.println("Failed to find a match between the reference scene ("+reference_QuadClt.getImageName() +
+    			    				") and a previous one ("+scene_QuadClt.getImageName()+"), coord_motion == null");
+    			    		return null;
+    					}
     					int num_defined = 0;
     					double sum_strength = 0.0;
     					// calculate average vector and standard deviation for its components
     					double swx=0.0,swy = 0.0, swx2 = 0.0, swy2 = 0.0, sw2=0.0 ; 
-    					
+    					// coord_motion may be null here
     					for (int i = 0; i < coord_motion[1].length; i++) if (coord_motion[1][i] != null){
     						swx +=  coord_motion[1][i][2] * coord_motion[1][i][0];
     						swx2 += coord_motion[1][i][2] * coord_motion[1][i][0] * coord_motion[1][i][0];

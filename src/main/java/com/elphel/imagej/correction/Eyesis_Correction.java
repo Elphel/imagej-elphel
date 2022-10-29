@@ -104,6 +104,7 @@ import com.elphel.imagej.tileprocessor.MultisceneLY;
 import com.elphel.imagej.tileprocessor.QuadCLT;
 import com.elphel.imagej.tileprocessor.SymmVector;
 import com.elphel.imagej.tileprocessor.TwoQuadCLT;
+import com.elphel.imagej.tileprocessor.lwoc.LwirWorld;
 
 import ij.CompositeImage;
 import ij.IJ;
@@ -142,7 +143,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 //	private static final long serialVersionUID = -1507307664341265263L;
 	private Panel panel1, panel2, panel3, panel4, panel5, panel5a, panel6, panel7, panelPostProcessing1,
 			panelPostProcessing2, panelPostProcessing3, panelDct1, panelClt1, panelClt2, panelClt3, panelClt4,
-			panelClt5, panelClt5aux, panelClt_GPU, panelLWIR, panelLWIR16;
+			panelClt5, panelClt5aux, panelClt_GPU, panelLWIR, panelLWIR16, panelLWIRWorld;
 	JP46_Reader_camera JP4_INSTANCE = null;
 
 //   private deBayerScissors debayer_instance;
@@ -507,7 +508,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		plugInFrame.addKeyListener(IJ.getInstance());
 //		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0) + (GPU_MODE?1:0) +(LWIR_MODE?2:0);
 		int menuRows = 4 + (ADVANCED_MODE ? 4 : 0) + (MODE_3D ? 3 : 0) + (DCT_MODE ? 7 : 0) + (GPU_MODE ? 1 : 0)
-				+ (LWIR_MODE ? 2 : 0);
+				+ (LWIR_MODE ? 3 : 0);
 		plugInFrame.setLayout(new GridLayout(menuRows, 1));
 		panel6 = new Panel();
 		panel6.setLayout(new GridLayout(1, 0, 5, 5));
@@ -811,9 +812,14 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			addButton("Illustrations Configure", panelLWIR16, color_conf_process);
 			addButton("Footage Organize", panelLWIR16, color_conf_process);
 			addButton("Super batch",     panelLWIR16, color_process);
-
 			plugInFrame.add(panelLWIR16);
 
+			panelLWIRWorld = new Panel();
+			panelLWIRWorld.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("Aux Build Series", panelLWIRWorld, color_stop);
+			addButton("Build World", panelLWIRWorld, color_process);
+			plugInFrame.add(panelLWIRWorld);
+			
 		}
 		plugInFrame.pack();
 //"LWIR batch"
@@ -5491,6 +5497,14 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				}
 			}
 			(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp_sel);
+			return;
+		} else if (label.equals("Build World")) {
+			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
+			EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+			CLT_PARAMETERS.batch_run = true;
+			buildLWIRWorld(true);
+			return;
+	
 //JTabbedTest
 // End of buttons code
 		}
@@ -6787,7 +6801,100 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		return true;
 	}
 	
+	public boolean buildLWIRWorld(boolean use_aux) {
+		long startTime = System.nanoTime();
+		// load needed sensor and kernels files
+		if (!prepareRigImages())
+			return false;
+		String configPath = getSaveCongigPath();
+		if (configPath.equals("ABORT"))
+			return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated,
+										// others should be set here
+		if (DEBUG_LEVEL > -2) {
+			System.out.println("++++++++++++++ Building series from scratch ++++++++++++++");
+		}
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} // final int debugLevel);
+			}
+			if (use_aux) {
+				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is
+																										// needed
+					try {
+						GPU_QUAD_AUX = new GpuQuad(//
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX, CLT_PARAMETERS.gpu_debug_level);
+					} catch (Exception e) {
+						System.out.println("Failed to initialize GpuQuad class");
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						return false;
+					} // final int debugLevel);
+					QUAD_CLT_AUX.setGPU(GPU_QUAD_AUX);
+				}
+			} else {
+				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+					try {
+						GPU_QUAD = new GpuQuad(GPU_TILE_PROCESSOR, QUAD_CLT, CLT_PARAMETERS.gpu_debug_level);
+					} catch (Exception e) {
+						System.out.println("Failed to initialize GpuQuad class");
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						return false;
+					} // final int debugLevel);
+					QUAD_CLT.setGPU(GPU_QUAD);
+				}
+			}
 
+		}
+		QuadCLT quadCLT = use_aux ? QUAD_CLT_AUX : QUAD_CLT;
+		ColorProcParameters colorProcParameters = use_aux ? COLOR_PROC_PARAMETERS_AUX : COLOR_PROC_PARAMETERS;
+		CLT_PARAMETERS.setColorProcParameters(COLOR_PROC_PARAMETERS,     false);
+		CLT_PARAMETERS.setColorProcParameters(COLOR_PROC_PARAMETERS_AUX, true);
+		CLT_PARAMETERS.setRGBParameters(RGB_PARAMETERS);
+		
+		try {
+			LwirWorld.buildWorld(
+					quadCLT, // QUAD_CLT, // QuadCLT quadCLT_main,
+					-1, // int  ref_index,
+					0,  // int  ref_step, 
+					// QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+					CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					DEBAYER_PARAMETERS, // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters, // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
+											// colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS, // CorrectionColorProc.ColorGainsParameters channelGainParameters,
+					RGB_PARAMETERS, // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters
+												// equirectangularParameters,
+					PROPERTIES, // Properties properties,
+					true, // false, // boolean reset_from_extrinsics,
+					THREADS_MAX, // final int threadsMax, // maximal number of threads to launch
+					UPDATE_STATUS, // final boolean updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} // final int debugLevel);
+		saveTimestampedProperties( // save config again
+				configPath, // full path or null
+				null, // use as default directory if path==null
+				true, PROPERTIES);
+		System.out.println("buildLWIRWorld(): Processing finished at "
+				+ IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3) + " sec, --- Free memory="
+				+ Runtime.getRuntime().freeMemory() + " (of " + Runtime.getRuntime().totalMemory() + ")");
+		return true;
+	}
+
+	
+	
 	public boolean testInterLMA(boolean use_aux) {
 		long startTime = System.nanoTime();
 		// load needed sensor and kernels files

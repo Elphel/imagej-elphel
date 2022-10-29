@@ -1025,10 +1025,6 @@ public class QuadCLTCPU {
 		ers.getPropertiesERS(prefix,    properties);
 		ers.getPropertiesScenes(prefix, properties);
 		ers.getPropertiesLineTime(prefix, properties); // will set old value if not in the file
-		
-		
-		
-		
 		System.out.println("Restored interframe properties from :"+path);
 		return properties;
 	}
@@ -1348,7 +1344,7 @@ public class QuadCLTCPU {
 				this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				correctionsParameters.jp4SubDir,
 				true,  // smart,
-				true);  //newAllowed, // save
+				true); // false); // true);  //newAllowed, // save
 		String [] sourceFiles = correctionsParameters.selectSourceFileInSet(jp4_copy_path, debugLevel);
 		if (sourceFiles.length < getNumSensors()) {
 			if (sourceFiles.length > 0) {
@@ -1390,22 +1386,6 @@ public class QuadCLTCPU {
 					threadsMax,
 					1); // debugLevel); // final int       debug_level)
 		}
-		/*
-		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
-		if (restoreDSI(
-				"-DSI_INTER",
-				true // silent
-				) < 0) { 
-			restoreDSI(
-					"-DSI_MAIN",  // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
-					false); // silent
-		}
-		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
-				null, // String path,             // full name with extension or null to use x3d directory
-				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
-				debugLevel);
-//		showDSIMain();
-       */
  		return this; //  can only be QuadCLT instance
 	}
 	
@@ -4706,8 +4686,8 @@ public class QuadCLTCPU {
 		  return result;
 	  }
 
-	  class SetChannels{ // USED in lwir
-		  String set_name;    // set name (timestamp)
+	  public class SetChannels{ // USED in lwir
+		  public String set_name;    // set name (timestamp)
 		  int [] file_number; // array of file numbers for channels
 		  public SetChannels(String name, int[] fn){ // USED in lwir
 			  set_name = name;
@@ -4724,7 +4704,7 @@ public class QuadCLTCPU {
 		  }
 	  }
 
-	  SetChannels [] setChannels( // USED in lwir
+	  public SetChannels [] setChannels( // USED in lwir
 			  int debugLevel) {
 		  return setChannels(null, debugLevel);
 	  }

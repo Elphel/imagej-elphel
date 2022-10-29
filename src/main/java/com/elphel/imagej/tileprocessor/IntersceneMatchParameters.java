@@ -1,10 +1,9 @@
-package com.elphel.imagej.tileprocessor;
 /**
  **
  ** IntersceneMatchParameters - Class for handling multiple configuration parameters
  ** related to the interscene match 
  **
- ** Copyright (C) 202 Elphel, Inc.
+ ** Copyright (C) 2022 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
  **
@@ -23,7 +22,7 @@ package com.elphel.imagej.tileprocessor;
  ** -----------------------------------------------------------------------------**
  **
  */
-
+package com.elphel.imagej.tileprocessor;
 import java.awt.Color;
 import java.io.IOException;
 import java.util.Properties;
@@ -320,7 +319,7 @@ public class IntersceneMatchParameters {
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		//		gd.addMessage  ("Scene parameters selection");
 //		gd.addTab         ("Inter-Match", "Parameters for full-resolution (no decimation/macrotiles) scene matching");
-		gd.addTab         ("Scene Series", "Processing os series of scene and multi-series sets");
+		gd.addTab         ("Scene Series", "Processing series of scenes and multi-series sets");
 		gd.addMessage  ("Build series options");
 		gd.addCheckbox ("Force reference scene DSI calculation",     this.force_ref_dsi,
 				"Calculate reference scene DSI even if the file exists.");
@@ -847,11 +846,6 @@ public class IntersceneMatchParameters {
 		this.generate_fg =                    gd.getNextBoolean();
 		this.generate_bg =                    gd.getNextBoolean();
 		this.generate_stereo =                gd.getNextBoolean();
-		/*
-		for (int i = 0; i < stereo_bases.length; i++) {
-			this.generate_stereo_var[i] =     gd.getNextBoolean();
-		}
-		*/
 		for (int i = 0; i < stereo_views.length; i++) {
 			this.generate_stereo_var[i] =     gd.getNextBoolean();
 		}

@@ -2971,7 +2971,16 @@ if (debugLevel > -100) return true; // temporarily !
 	}
 
 
-
+	/**
+	 * Copy source files to the model directory (above versions) and optionally extract location data to *.kml file
+	 * @param set_name       set name (timestamp)
+	 * @param quadCLT_main   RGB QuadCLT instance
+	 * @param quadCLT_aux    secondary RGB or LWIR QuadCLT instance
+	 * @param clt_parameters CLT parameters
+	 * @param skip_existing  do not copy if destination files exist
+	 * @param search_KML     search fpr geo data and extract it to KML file if found
+	 * @param debugLevel     debug level
+	 */
 	public static void copyJP4src(
 			String                                   set_name,
 			QuadCLT                                  quadCLT_main,  // tiles should be set
@@ -2981,9 +2990,6 @@ if (debugLevel > -100) return true; // temporarily !
 			boolean                                  search_KML,
 			final int                                debugLevel) // throws Exception
 	{
-		//		  quadCLT_main.writeKml(debugLevel);
-		//		  quadCLT_main.writeRatingFile(debugLevel);
-
 
 		String [] sourceFiles_main=quadCLT_main.correctionsParameters.getSourcePaths();
 		//
@@ -8482,7 +8488,6 @@ if (debugLevel > -100) return true; // temporarily !
     	if (min_num_scenes < 1) {
     		min_num_scenes = 1;
     	}
-		
     	long start_time_all = System.nanoTime();
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
@@ -8499,6 +8504,7 @@ if (debugLevel > -100) return true; // temporarily !
 				num_seq = pathFirstLast.length; 
 			}
 		}
+		
 		class VideoSet {
 			String []    video_paths;
 			int []       stereo_widths;
@@ -8519,12 +8525,6 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		
 		ArrayList<VideoSet> video_sets_list = new ArrayList<VideoSet>();
-		
-//		String [][] video_lists =   new String [num_seq][];
-//		int [] earliest_scene_pointer = new int[1];
-//		int [][]    stereo_widths = new int  [num_seq][];
-		
-		
 		
 		for (int nseq = 0; nseq < num_seq; nseq++) {
 	    	long start_time_seq = System.nanoTime();
@@ -8608,6 +8608,10 @@ if (debugLevel > -100) return true; // temporarily !
 				ref_index = start_ref_pointers[0]; // continue from the same attached to the previous reference
 			}
 		}
+		
+		
+		
+		
 		
 		// combine videos if generated
 		if ((video_sets_list.size() > 1) &&

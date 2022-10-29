@@ -921,7 +921,7 @@ public class TexturedModel {
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 			}
 			double [][] dxyzatr_dt = null;
-			if (mb_en) {
+			if (mb_en) { // all scenes have the same name/path
 				dxyzatr_dt = OpticalFlow.getVelocities( // looks at previous/next scene poses
 						scenes,   // QuadCLT []     quadCLTs,
 						nscene);  // int            nscene)
@@ -976,7 +976,7 @@ public class TexturedModel {
 									if (slice_texture[tileY][tileX] != null) {
 										double w = 1.0;
 										if (tex_mb > 0.0) {
-											double mb_l2 = mb_tau2 * ( motion_blur[0][nTile]*motion_blur[0][nTile] +
+											double mb_l2 = mb_tau2 * ( motion_blur[0][nTile]*motion_blur[0][nTile] + // motion_blur == null;
 													motion_blur[1][nTile]*motion_blur[1][nTile]);
 											if (mb_l2 > 1.0) {
 												w /= mb_l2; // 1/(squared mb)

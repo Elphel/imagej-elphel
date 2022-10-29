@@ -127,11 +127,12 @@ public class LwocOctree implements Serializable {
     	infinity = 0;
     	double max_hsize = world.getMaxHsize();
     	LwocOctree lwoc_root = world.getLwocRoot();
+    	double [] root_center = (lwoc_root == null)?center:lwoc_root.center; 
     	for (int dm = 0; dm < center.length;  dm++) {
-    		if ((center[dm] - hsize) <= (lwoc_root.center[dm] - max_hsize)) {
+    		if ((center[dm] - hsize) <= (root_center[dm] - max_hsize)) {
     			infinity |= (1 << (2 * dm));
     		}
-    		if ((center[dm] + hsize) >= (lwoc_root.center[dm] + max_hsize)) {
+    		if ((center[dm] + hsize) >= (root_center[dm] + max_hsize)) {
     			infinity |= (1 << (2 * dm + 1));
     		}
     	}

@@ -92,7 +92,7 @@ public class QuadCLT extends QuadCLTCPU {
 	}
 	
 	
-	QuadCLT saveQuadClt() {
+	public QuadCLT saveQuadClt() {
 		if (gpuQuad == null) {
 			return null;
 		}
@@ -110,7 +110,7 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 	}
 
-	void setQuadClt() {
+	public void setQuadClt() {
 		if (gpuQuad != null) {
 			gpuQuad.updateQuadCLT(this); // to re-load new set of Bayer images to the GPU
 		}
@@ -845,6 +845,7 @@ public class QuadCLT extends QuadCLTCPU {
 			final int         photo_offs_set, // 0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
 			final double      photo_offs,     // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
 			final int         num_refines, // 2
+			final int         min_good,     // minimal number of "good" pixels
 			final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
 			int               threadsMax,
 			final boolean     debug)
@@ -918,6 +919,11 @@ public class QuadCLT extends QuadCLTCPU {
 					avg_img += avg_pix[i];
 					num_good++;
 				}
+			}
+			if (num_good < min_good) {
+				System.out.println("calibratePhotometric2(): Too few good pixels for calibration: "+
+			num_good+" < "+min_good+", abandoning photometric calibration.");
+				return false;
 			}
 			avg_img /= num_good;
 			double wavg_offs = photo_offs;
@@ -1021,6 +1027,10 @@ public class QuadCLT extends QuadCLTCPU {
 							s += pa_data[nsens][i][0] - pa_data[nsens][i][1]/b; 
 						}
 						c = -s/num_good*b;
+						if (Double.isNaN(c)) {
+							System.out.println("calibratePhotometric2().1 c=NaN");
+							return false;
+						}
 					} else {
 					// need to balance quadratic so their average is 0	
 					// linear or quadratic
@@ -1028,9 +1038,18 @@ public class QuadCLT extends QuadCLTCPU {
 						c = pa_coeff[nsens][0];
 						b = pa_coeff[nsens][1];
 						a = (pa_coeff[nsens].length > 2) ? pa_coeff[nsens][2] : 0.0;
+						if (Double.isNaN(c)) {
+							System.out.println("calibratePhotometric2().2 c=NaN");
+							return false;
+						}
 					}
 					double A = a;
 					double C = -c/b;
+					if (Double.isNaN(C)) {
+						System.out.println("calibratePhotometric2().3 C=NaN");
+						return false;
+					}
+
 					if (Math.abs(a) >= min_abs_a) {
 						double d2 = b*b - 4*a*c;
 						if (d2 < 0) {
@@ -1038,6 +1057,10 @@ public class QuadCLT extends QuadCLTCPU {
 							return false;
 						}
 						C = (-b + Math.sqrt(d2))/(2 * a);
+						if (Double.isNaN(C)) {
+							System.out.println("calibratePhotometric2().4 C=NaN");
+							return false;
+						}
 					}
 					double B = 2 * C * a + b;
 					scales2_new[nsens] = A;
@@ -1094,6 +1117,11 @@ public class QuadCLT extends QuadCLTCPU {
 						double b = pa_coeff[nsens][1];
 						scales_new [nsens] = b;
 						offs_new[nsens] =   -c/b;
+						if (Double.isNaN(offs_new[nsens])) {
+							System.out.println("calibratePhotometric2().5 offs_new[nsens]=NaN");
+							return false;
+						}
+
 					}
 					// re-normalize scales_new
 					double scales_avg = 1.0;
@@ -4270,7 +4298,6 @@ if (debugLevel < -100) {
 					null,                 // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 					threadsMax,
 					debugLevel);
-//			return quadCLT;
 		}
 
 	  

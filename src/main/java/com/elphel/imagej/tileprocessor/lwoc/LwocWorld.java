@@ -170,6 +170,14 @@ public class LwocWorld  implements Serializable {
 		lwoc_worlds.add(new_world);
 		return new_world;
 	}
+	
+	public static LwocWorld getWorld() {
+		return getWorld(lwoc_worlds.size()-1);
+	}
+	
+	public static LwocWorld getWorld(int indx) {
+		return lwoc_worlds.get(indx);
+	}
 
 	/**
 	 * Delete world from the universe (if existed)

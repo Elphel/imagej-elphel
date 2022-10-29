@@ -24,28 +24,33 @@
 
 package com.elphel.imagej.tileprocessor.lwoc;
 
-import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.io.Serializable;
+import java.util.HashMap;
 import com.elphel.imagej.tileprocessor.GeometryCorrection;
-
-public class LwocScene {
+import com.elphel.imagej.tileprocessor.QuadCLT;
+import com.elphel.imagej.tileprocessor.XyzAtr;
+//https://www.baeldung.com/java-treemap-vs-hashmap
+public class LwocScene implements Serializable {
 	private static final long    serialVersionUID = 1L;
-	static AtomicInteger SCENE_ID = new AtomicInteger();
-	static ArrayList<LwocScene> LWOC_SCENES;
-	
-	int       id;         // assign unique ID
+	static HashMap<String, LwocScene> LWOC_SCENES; 
+//	int       id;         // assign unique ID
 	String    stimestamp;
-	GeometryCorrection geometryCorrection;
+	GeometryCorrection geometryCorrection; // serialize?
 	double [] camera_xyz;
 	double [] camera_atr;
 	double [] camera_xyz_dt;
 	double [] camera_atr_dt;
-	double [][][] tile_layers_dsm; // per tile, per layer, {disparity, strength, mode}. For mode -
+	
+	HashMap<String, XyzAtr> other_scenes;
+	transient QuadCLT quadCLT; // use QuadCLT to restore
+	// will be stored as Tiff
+	transient double [][][] tile_layers_dsm; // per tile, per layer, {disparity, strength, mode}. For mode -
 	// interpret as Double doubleToLongBits(), [22] - used LMA, 0..15 - which sensors were used
 
 	public static void resetScenes() {
-		SCENE_ID.set(0);
-		LWOC_SCENES = new ArrayList<LwocScene>();
+//		SCENE_ID.set(0);
+//		LWOC_SCENES = new ArrayList<LwocScene>();
+		LWOC_SCENES = new HashMap<String, LwocScene>();
 	}
 	
 	public LwocScene (
@@ -64,8 +69,9 @@ public class LwocScene {
 		this.camera_xyz_dt =      camera_xyz_dt;
 		this.camera_atr_dt =      camera_atr_dt;
 		this.tile_layers_dsm =    tile_layers_dsm;
-		id = SCENE_ID.getAndIncrement();
-		LWOC_SCENES.add(this);
+//		id = SCENE_ID.getAndIncrement();
+//		LWOC_SCENES.add(this);
+		LWOC_SCENES.put(stimestamp, this);
 	};
 	// add functionality to save/restore
 	public double [] getCameraXYZ() {
