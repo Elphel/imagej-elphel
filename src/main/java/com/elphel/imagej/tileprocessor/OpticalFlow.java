@@ -4552,6 +4552,10 @@ public class OpticalFlow {
 					}
 					scenes_xyzatr[scene_index] = new double [][] {new double[3], use_atr};
 				} else { // assume linear motion
+					if (scene_index == debug_scene) {
+						System.out.println("adjusting orientation, scene_index="+scene_index);
+						System.out.println("adjusting orientation, scene_index="+scene_index);
+					}
 					int num_avg = 1; // 3;
 					double scale_xyz = 0.0; // 0.5;
 					int na = num_avg;
@@ -6228,6 +6232,8 @@ public class OpticalFlow {
     	double  maybe_fom =        clt_parameters.imp.maybe_fom;      //             3.0;   // good - 30, second good - 5
     	double  sure_fom =         clt_parameters.imp.sure_fom;       //            10.0;   // good - 30, second good - 10
     	boolean treat_serch_fpn =  clt_parameters.imp.treat_serch_fpn;// use FPN (higher) thresholds during search (even if offset is not small)
+
+    	boolean use_lma_dsi =      clt_parameters.imp.use_lma_dsi;
     	
 		double [][] pose = new double [2][3];
     	double angle_per_step = reference_QuadClt.getGeometryCorrection().getCorrVector().getTiltAzPerPixel() * pix_step;
@@ -6242,6 +6248,35 @@ public class OpticalFlow {
     	int num_good=0;
     	double [] use_atr = null;
     	int dbg_ntry = 61;
+    	
+    	 // testing switching to use interCorrPair() instead of interCorrPair_old():
+    	boolean use_new_mode = true;
+    	double []        ref_disparity = null;
+    	double [][]      pXpYD_ref = null;
+    	TpTask[]         tp_tasks_ref = null;
+    	if (use_new_mode) {
+    		ref_disparity = reference_QuadClt.getDLS()[use_lma_dsi?1:0];
+    		pXpYD_ref = transformToScenePxPyD( // full size - [tilesX*tilesY], some nulls
+    				null,               // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+    				ref_disparity,      // dls[0],  // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+    				ZERO3,              // final double []   scene_xyz, // camera center in world coordinates
+    				ZERO3,              // final double []   scene_atr, // camera orientation relative to world frame
+    				reference_QuadClt,  // final QuadCLT     scene_QuadClt,
+    				reference_QuadClt); // final QuadCLT     reference_QuadClt)
+    		tp_tasks_ref = setReferenceGPU (
+    				clt_parameters,     // CLTParameters      clt_parameters,			
+    				reference_QuadClt,  // QuadCLT            ref_scene,
+    				ref_disparity,      // double []          ref_disparity, // null or alternative reference disparity
+    				pXpYD_ref,          // double [][]        ref_pXpYD,
+    				reliable_ref,       // final boolean []   selection, // may be null, if not null do not  process unselected tiles
+    				margin,             // final int          margin,
+    				// motion blur compensation 
+    				0.0,                // double             mb_tau,      // 0.008; // time constant, sec
+    				0.0,                // double             mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+    				null,               // double [][]        mb_vectors,  // now [2][ntiles];
+    				debugLevel)[0];       // int                debug_level)
+    	}
+    	
     	try_around:
     		for (rad = 00; rad <= search_rad; rad++) {
     			for (dir = 0; dir < ((rad==0)?1:4); dir++) {
@@ -6260,22 +6295,45 @@ public class OpticalFlow {
     					if (ntry==dbg_ntry) {
     						System.out.println("ntry="+ntry);
     					}
-    					double [][][] coord_motion = interCorrPair_old( // new double [tilesY][tilesX][][];
-    							clt_parameters,      // CLTParameters  clt_parameters,
-    							reference_QuadClt,   // QuadCLT reference_QuadCLT,
-    							null, // double []        ref_disparity, // null or alternative reference disparity  
-    							scene_QuadClt,       // QuadCLT scene_QuadCLT,
-    							pose[0],             // camera_xyz0,         // xyz
-    							atr,                 // camera_atr0,         // pose[1], // atr
-    							reliable_ref, // null,                // final boolean [] selection, // may be null, if not null do not  process unselected tiles
-    							margin,              // final int        margin,
-    							sensor_mask_inter,   // final int        sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
-    							facc_2d_img,         // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
-    							null,                //	final float [][][] dbg_corr_fpn,
-    							false,               // boolean            near_important, // do not reduce weight of the near tiles
-    							treat_serch_fpn,     // true,                // boolean            all_fpn,        // do not lower thresholds for non-fpn (used during search)
-    							clt_parameters.imp.debug_level, // int                imp_debug_level,
-    							clt_parameters.imp.debug_level); // 1); // -1); // int debug_level);
+    					double [][][] coord_motion = null;
+    					if (use_new_mode) {
+    						coord_motion = interCorrPair( // new double [tilesY][tilesX][][];
+    								clt_parameters,      // CLTParameters  clt_parameters,
+    								reference_QuadClt,   // QuadCLT reference_QuadCLT,
+    								ref_disparity,       // null, // double []        ref_disparity, // null or alternative reference disparity
+    								pXpYD_ref,   // 			double [][]        pXpYD_ref,     // pXpYD for the reference scene	11653		
+    								tp_tasks_ref, // 			TpTask[]           tp_tasks_ref,  // only (main if MB correction) tasks for FPN correction
+    								scene_QuadClt,       // QuadCLT scene_QuadCLT,
+    								pose[0],             // camera_xyz0,         // xyz
+    								atr,                 // camera_atr0,         // pose[1], // atr
+    								reliable_ref, // null,                // final boolean [] selection, // may be null, if not null do not  process unselected tiles
+    								margin,              // final int        margin,
+    								sensor_mask_inter,   // final int        sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
+    								facc_2d_img,         // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+    								null,                //	final float [][][] dbg_corr_fpn,
+    								false,               // boolean            near_important, // do not reduce weight of the near tiles
+    								treat_serch_fpn,     // true,                // boolean            all_fpn,        // do not lower thresholds for non-fpn (used during search)
+    								null,                // double [][]        mb_vectors,  // now [2][ntiles];
+    								clt_parameters.imp.debug_level, // int                imp_debug_level,
+    								clt_parameters.imp.debug_level); // 1); // -1); // int debug_level);
+    					} else {
+    						coord_motion = interCorrPair_old( // new double [tilesY][tilesX][][];
+    								clt_parameters,      // CLTParameters  clt_parameters,
+    								reference_QuadClt,   // QuadCLT reference_QuadCLT,
+    								null, // double []        ref_disparity, // null or alternative reference disparity  
+    								scene_QuadClt,       // QuadCLT scene_QuadCLT,
+    								pose[0],             // camera_xyz0,         // xyz
+    								atr,                 // camera_atr0,         // pose[1], // atr
+    								reliable_ref, // null,                // final boolean [] selection, // may be null, if not null do not  process unselected tiles
+    								margin,              // final int        margin,
+    								sensor_mask_inter,   // final int        sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
+    								facc_2d_img,         // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+    								null,                //	final float [][][] dbg_corr_fpn,
+    								false,               // boolean            near_important, // do not reduce weight of the near tiles
+    								treat_serch_fpn,     // true,                // boolean            all_fpn,        // do not lower thresholds for non-fpn (used during search)
+    								clt_parameters.imp.debug_level, // int                imp_debug_level,
+    								clt_parameters.imp.debug_level); // 1); // -1); // int debug_level);
+    					}
     					// may return null if failed to match
     					if (coord_motion == null) {
     			    		System.out.println("Failed to find a match between the reference scene ("+reference_QuadClt.getImageName() +
@@ -11139,6 +11197,19 @@ public class OpticalFlow {
 					sensor_mask_inter,          // final int                 sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
 					THREADS_MAX,                 // final int                 threadsMax,       // maximal number of threads to launch
 					debug_level);               // final int                 globalDebugLevel);
+			if (show_render_ref) {
+				ImagePlus imp_render_ref = ref_scene.renderFromTD (
+						-1,                  // final int         sensor_mask,
+						false,               // boolean             merge_channels,
+						clt_parameters,                                 // CLTParameters clt_parameters,
+						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
+						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+						null, // int []  wh,
+						toRGB, // boolean toRGB,
+						true, //boolean use_reference
+						"GPU-SHIFTED-REF"); // String  suffix)
+				imp_render_ref.show();
+			}
 			if (show_render_scene) {
 				ImagePlus imp_render_scene = scene.renderFromTD (
 						-1,                  // final int         sensor_mask,
@@ -11150,7 +11221,6 @@ public class OpticalFlow {
 						toRGB, // boolean toRGB,
 						false, //boolean use_reference
 						"GPU-SHIFTED-SCENE"); // String  suffix)
-
 				imp_render_scene.show();
 			}
 			if (dbg_corr_fpn != null) { // 2*16 or 2*17 (average, individual)
@@ -11596,6 +11666,19 @@ public class OpticalFlow {
 					THREADS_MAX,                 // final int                 threadsMax,       // maximal number of threads to launch
 					debug_level);               // final int                 globalDebugLevel);
 		}
+		if (show_render_ref) {
+			ImagePlus imp_render_ref = ref_scene.renderFromTD (
+					-1,                  // final int         sensor_mask,
+					false,               // boolean             merge_channels,
+					clt_parameters,                                 // CLTParameters clt_parameters,
+					clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
+					clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+					null, // int []  wh,
+					toRGB, // boolean toRGB,
+					true, //boolean use_reference
+					"GPU-SHIFTED-REF"); // String  suffix)
+			imp_render_ref.show();
+		}
 		if (show_render_scene) { //set toRGB=false
 			ImagePlus imp_render_scene = scene.renderFromTD (
 					-1,                  // final int         sensor_mask,
@@ -11637,13 +11720,17 @@ public class OpticalFlow {
 		//all_fpn
 		double min_str =     all_fpn ? clt_parameters.imp.min_str_fpn : clt_parameters.imp.min_str;
 		double min_str_sum = all_fpn ? clt_parameters.imp.min_str_sum_fpn : clt_parameters.imp.min_str_sum;
+		double corr_fz_inter = clt_parameters.getGpuFatZeroInter(ref_scene.isMonochrome());
+		if (mb_en && (mb_vectors!=null)) { // increase fat zero when there is motion blur
+			corr_fz_inter *= 8;
+		}
 		coord_motion = image_dtt.clt_process_tl_interscene(       // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 				clt_parameters.img_dtt,            // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				fcorr_td,                          // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of all selected corr pairs
 				null,                              // float [][][]              num_acc,         // number of accumulated tiles [tilesY][tilesX][pair] (or null). Can be inner null if not used in tp_tasks
 				null,                              // double []                 dcorr_weight,    // alternative to num_acc, compatible with CPU processing (only one non-zero enough)
 				clt_parameters.gpu_corr_scale,     // final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
-				clt_parameters.getGpuFatZeroInter(ref_scene.isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
+				corr_fz_inter,                     // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
 				image_dtt.transform_size - 1,      // final int                 gpu_corr_rad,    // = transform_size - 1 ?
 				// The tp_tasks data should be decoded from GPU to get coordinates
 				// should it be reference or scene? Or any?
@@ -11758,7 +11845,7 @@ public class OpticalFlow {
 				}
 			}
 		}
-
+		// seems that fclt_corr and fclt_corr1 are both not needed w/o debug
 		float [][][] fclt_corr1 = ImageDtt.convertFcltCorr( // partial length, matching corr_indices = gpuQuad.getCorrIndices(); // also sets num_corr_tiles
 				dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 				fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
@@ -12888,7 +12975,7 @@ public class OpticalFlow {
 					imp_mbc_merged.show();
 				}
 			}
-			if (nscene == ref_index) { // set GPU reference CLT data
+			if (nscene == ref_index) { // set GPU reference CLT data - should be before other scenes
 				mb_vectors_ref = null;
 				if (mb_en) {
 					double [][] dxyzatr_dt_ref = getVelocities(
