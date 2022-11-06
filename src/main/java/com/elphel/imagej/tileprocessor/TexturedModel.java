@@ -921,10 +921,14 @@ public class TexturedModel {
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 			}
 			double [][] dxyzatr_dt = null;
+			// should get velocities from HashMap at reference scene from timestamp , not re-calculate.
 			if (mb_en) { // all scenes have the same name/path
-				dxyzatr_dt = OpticalFlow.getVelocities( // looks at previous/next scene poses
-						scenes,   // QuadCLT []     quadCLTs,
-						nscene);  // int            nscene)
+//				dxyzatr_dt = OpticalFlow.getVelocities( // looks at previous/next scene poses
+//						scenes,   // QuadCLT []     quadCLTs,
+//						nscene);  // int            nscene)
+				dxyzatr_dt = new double[][] { // for all, including ref
+					scenes[nscene].getErsCorrection().getErsXYZ_dt(),
+					scenes[nscene].getErsCorrection().getErsATR_dt()};				
 			}
 			scenes[nscene].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU)
 			for (int nslice = 0; nslice < num_slices; nslice++) { // prepare and measure textures for each combo textures

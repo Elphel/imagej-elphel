@@ -1277,6 +1277,28 @@ public class QuadCLT extends QuadCLTCPU {
 				debugLevel);
 	}	
 	
+	/**
+	 * Making scene_xyz==null or scene_atr==null to use uniform grid (for rendering raw images)
+	 * @param sensor_mask
+	 * @param merge_channels
+	 * @param full_woi_in
+	 * @param clt_parameters
+	 * @param disparity_ref
+	 * @param mb_tau
+	 * @param mb_max_gain
+	 * @param mb_vectors
+	 * @param scene_xyz
+	 * @param scene_atr
+	 * @param scene
+	 * @param ref_scene
+	 * @param toRGB
+	 * @param show_nan
+	 * @param suffix
+	 * @param threadsMax
+	 * @param debugLevel
+	 * @return
+	 */
+	
 	public static ImagePlus renderGPUFromDSI(
 			final int         sensor_mask,
 			final boolean     merge_channels,
@@ -1288,8 +1310,8 @@ public class QuadCLT extends QuadCLTCPU {
 			double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
 			double [][]       mb_vectors,  // now [2][ntiles];
 			
-			final double []   scene_xyz, // camera center in world coordinates
-			final double []   scene_atr, // camera orientation relative to world frame
+			double []         scene_xyz, // camera center in world coordinates. If null - no shift, no ers
+			double []         scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene,
 			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 			final boolean     toRGB,
@@ -1297,14 +1319,28 @@ public class QuadCLT extends QuadCLTCPU {
 			String            suffix,
 			int               threadsMax,
 			final int         debugLevel){
-		double [][] pXpYD =OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
-				full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
-				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
-				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
-				scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
-				scene,         // final QuadCLT     scene_QuadClt,
-				ref_scene,     // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
-				threadsMax);   // int               threadsMax)
+		double [][] pXpYD;
+		if ((scene_xyz == null) || (scene_atr == null)) {
+			scene_xyz = new double[3];
+			scene_atr = new double[3];
+			pXpYD=OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
+					full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+					disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
+					scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
+					scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
+					ref_scene,     // final QuadCLT     scene_QuadClt,
+					ref_scene,     // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+					threadsMax);   // int               threadsMax)
+		} else {
+			pXpYD=OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
+					full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+					disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
+					scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
+					scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
+					scene,         // final QuadCLT     scene_QuadClt,
+					ref_scene,     // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+					threadsMax);   // int               threadsMax)
+		}
 		int rendered_width = scene.getErsCorrection().getSensorWH()[0];
 		if (full_woi_in != null) {
 			rendered_width = full_woi_in.width * GPUTileProcessor.DTT_SIZE;
@@ -1429,7 +1465,7 @@ public class QuadCLT extends QuadCLTCPU {
 	
 	/**
 	 * Prepare 16x16 texture tiles using GPU from disparity reference. Includes motion blur correction
-	 * Does not use scene.saveQuadClt() to re-load new set of Bayer images to the GPU -- should be done by callaer
+	 * Does not use scene.saveQuadClt() to re-load new set of Bayer images to the GPU -- should be done by caller
 	 * @param clt_parameters processing parameters
 	 * @param disparity_ref disparity scene reference
 	 * @param mb_tau     	thermal constant

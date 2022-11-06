@@ -24,6 +24,7 @@
 
 package com.elphel.imagej.tileprocessor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -2147,8 +2148,15 @@ public class ErsCorrection extends GeometryCorrection {
 			xyz4[1] /= xyz4[2];
 			xyz4[2] =  1.0;
 		}
-		
-		Matrix dpscene_dxyz = dx_dpscene.inverse();
+		Matrix dpscene_dxyz = null;
+		try {
+			dpscene_dxyz = dx_dpscene.inverse();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			System.out.println("dx_dpscene is singular");
+			e.printStackTrace();
+			return null;
+		}
 		Matrix dpscene_dxyz_minus = dpscene_dxyz.times(-1.0); // negated to calculate /d{pX,pY,D) for the scene parameters
 		double[][] derivatives = new double[DP_NUM_PARS+1][]; // includes [0] - pXpYD vector
 		// scene pX, pY, Disparity

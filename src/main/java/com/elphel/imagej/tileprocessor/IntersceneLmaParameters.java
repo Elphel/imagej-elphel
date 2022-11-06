@@ -45,6 +45,13 @@ public class IntersceneLmaParameters {
 	public int        ilma_debug_level =       1;
 	public boolean    ilma_debug_adjust_series = false; // Debug images for series of pose and ers
 	public boolean    ilma_debug_invariant =     false; // Monitoring variations when restarting program (should be ilma_thread_invariant=true)
+	
+	public double     ilma_motion_filter =     3.5; // filter atr, xyz between consecutive scenes to get velocities
+	public double []  ilma_scale_xyz =         {1.0, 1.0, 1.0};
+	public double []  ilma_scale_atr =         {1.0, 1.0, 1.0}; // roll - minus?
+	public boolean    ilma_debug_ers =         false; // Debug ers-related operation
+	
+	
 
 	public IntersceneLmaParameters() {
 		ilma_lma_select[ErsCorrection.DP_DVAZ]=  true;
@@ -141,6 +148,18 @@ public class IntersceneLmaParameters {
 	    		"Generate debug images and text output to verify same results regardless of threads" );
 		gd.addNumericField("Debug level",                                 this.ilma_debug_level, 0,3,"",
 				"Debug level of interscene LMA operation.");
+		
+		gd.addMessage("Debug ERS-related operation");
+		gd.addNumericField("Motion filter (half number of scenes)",       this.ilma_motion_filter, 5,7,"",
+				"filter atr, xyz between consecutive scenes to get velocities.");
+		gd.addStringField ("XYZ scales", IntersceneMatchParameters.doublesToString(ilma_scale_xyz), 80,
+				"Scales for X, Y, and Z velocities, such as '1.0 1.0 1.0'.");
+		gd.addStringField ("ATR scales", IntersceneMatchParameters.doublesToString(ilma_scale_atr), 80,
+				"Scales for Azimuth, Tilt, and Roll velocities, such as '1.0 1.0 1.0'.");
+	    gd.addCheckbox    ("Debug ERS",                                  this.ilma_debug_ers,
+	    		"Debug ERS-related parameters during pose fitting." );
+		
+		
 	}
 	
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -164,6 +183,12 @@ public class IntersceneLmaParameters {
 		this.ilma_debug_adjust_series =           gd.getNextBoolean();
 		this.ilma_debug_invariant =               gd.getNextBoolean();
 		this.ilma_debug_level =             (int) gd.getNextNumber();
+		
+		this.ilma_motion_filter =                 gd.getNextNumber();
+		this.ilma_scale_xyz = IntersceneMatchParameters. StringToDoubles(gd.getNextString(), 3);
+		this.ilma_scale_atr = IntersceneMatchParameters. StringToDoubles(gd.getNextString(), 3);
+		this.ilma_debug_ers =                    gd.getNextBoolean();
+		
 	}
 	public void setProperties(String prefix,Properties properties){
 		properties.setProperty(prefix+"ilma_thread_invariant",  this.ilma_thread_invariant+"");	
@@ -184,6 +209,11 @@ public class IntersceneLmaParameters {
 		properties.setProperty(prefix+"ilma_debug_adjust_series",this.ilma_debug_adjust_series+"");	
 		properties.setProperty(prefix+"ilma_debug_invariant",    this.ilma_debug_invariant+"");	
 		properties.setProperty(prefix+"ilma_debug_level",        this.ilma_debug_level+"");	
+		
+		properties.setProperty(prefix+"ilma_motion_filter",      this.ilma_motion_filter+"");
+		properties.setProperty(prefix+"ilma_scale_xyz", IntersceneMatchParameters.doublesToString(ilma_scale_xyz));
+		properties.setProperty(prefix+"ilma_scale_atr", IntersceneMatchParameters.doublesToString(ilma_scale_atr));
+		properties.setProperty(prefix+"ilma_debug_ers",          this.ilma_debug_ers+"");	
 	}
 	public void getProperties(String prefix,Properties properties){
 		if (properties.getProperty(prefix+"ilma_thread_invariant")!=null)  this.ilma_thread_invariant=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_thread_invariant"));
@@ -206,6 +236,20 @@ public class IntersceneLmaParameters {
 		if (properties.getProperty(prefix+"ilma_debug_adjust_series")!=null)this.ilma_debug_adjust_series=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_debug_adjust_series"));
 		if (properties.getProperty(prefix+"ilma_debug_invariant")!=null)    this.ilma_debug_invariant=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_debug_invariant"));
 		if (properties.getProperty(prefix+"ilma_debug_level")!=null)        this.ilma_debug_level=Integer.parseInt(properties.getProperty(prefix+"ilma_debug_level"));
+
+		if (properties.getProperty(prefix+"ilma_motion_filter")!=null)      this.ilma_motion_filter=Double.parseDouble(properties.getProperty(prefix+"ilma_motion_filter"));
+		if (properties.getProperty(prefix+"ilma_scale_xyz")!=null) {
+			this.ilma_scale_xyz= IntersceneMatchParameters.StringToDoubles(
+					properties.getProperty(prefix+"ilma_scale_xyz"),3);
+		}
+		if (properties.getProperty(prefix+"ilma_scale_atr")!=null) {
+			this.ilma_scale_atr= IntersceneMatchParameters.StringToDoubles(
+					properties.getProperty(prefix+"ilma_scale_atr"),3);
+		}
+	
+	
+		if (properties.getProperty(prefix+"ilma_debug_ers")!=null)          this.ilma_debug_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_debug_ers"));
+	
 	}
 	
 	@Override
@@ -227,6 +271,12 @@ public class IntersceneLmaParameters {
 		ilp.ilma_debug_adjust_series = this.ilma_debug_adjust_series;
 		ilp.ilma_debug_invariant =     this.ilma_debug_invariant;
 		ilp.ilma_debug_level =         this.ilma_debug_level;
+		
+		ilp.ilma_motion_filter =       this.ilma_motion_filter;
+		ilp.ilma_scale_xyz =           this.ilma_scale_xyz.clone();
+		ilp.ilma_scale_atr =           this.ilma_scale_atr.clone();
+		ilp.ilma_debug_ers =           this.ilma_debug_ers;
+		
 		return ilp;
 	}	
 }

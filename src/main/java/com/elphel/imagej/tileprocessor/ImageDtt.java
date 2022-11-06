@@ -1331,7 +1331,7 @@ public class ImageDtt extends ImageDttCPU {
 			final double [][]         pXpYD,           // pXpYD for the reference scene 
 			final double [][]         fpn_offsets,     // null, or per-tile X,Y offset to be blanked
 			final double              fpn_radius,      // radius to be blanked around FPN offset center
-			final boolean             fpn_ignore_border, // only if fpn_mask != null - ignore tile if maximum touches fpn_mask			
+			final boolean             fpn_ignore_border, // NOT used! only if fpn_mask != null - ignore tile if maximum touches fpn_mask			
 			final double[][][]        motion_vectors,  // [tilesY*tilesX][][] -> [][num_sel_sensors+1 or 2][3]
 			final boolean             run_poly,        // polynomial max, if false - centroid
 			final boolean             use_partial,     // find motion vectors for individual pairs, false - for sum only

@@ -248,6 +248,7 @@ public class IntersceneMatchParameters {
 	public  boolean mb_en =                 true;
 	public  double  mb_tau =                0.008; // time constant, sec
 	public  double  mb_max_gain =           5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+	public  double  mb_max_gain_inter =     2.0;   // same for interscene correlation for pose adjustment
 	
 	
 	public  boolean stereo_merge =       true;
@@ -732,6 +733,8 @@ public class IntersceneMatchParameters {
 				"Sensor exponential decay in seconds.");
 		gd.addNumericField("Maximal gain",                           this.mb_max_gain, 5,7,"x",
 				"Maximal gain for motion blur correction (if needed more for 1 pixel, increase offset).");
+		gd.addNumericField("Maximal gain pose",                      this.mb_max_gain_inter, 5,7,"x",
+				"Maximal gain for motion blur correction during interscene correlation (if needed more for 1 pixel, increase offset).");
 		
 		gd.addTab("Stereo/Video","Parameters for stereo video generation");
 		gd.addMessage  ("Stereo");
@@ -1016,7 +1019,7 @@ public class IntersceneMatchParameters {
 		this.mb_en =                    gd.getNextBoolean();
 		this.mb_tau =                   gd.getNextNumber();    
 		this.mb_max_gain =              gd.getNextNumber();    
-		
+		this.mb_max_gain_inter =        gd.getNextNumber();    
 		if (stereo_views.length > 0) {
 			int i =                           gd.getNextChoiceIndex();
 			if (i > 0) {
@@ -1296,7 +1299,7 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"mb_en",                this.mb_en+"");               // boolean
 		properties.setProperty(prefix+"mb_tau",               this.mb_tau+"");              // double
 		properties.setProperty(prefix+"mb_max_gain",          this.mb_max_gain+"");         // double
-
+		properties.setProperty(prefix+"mb_max_gain_inter",    this.mb_max_gain_inter+"");   // double
 		properties.setProperty(prefix+"stereo_merge",         this.stereo_merge+"");        // boolean
 		properties.setProperty(prefix+"stereo_gap",           this.stereo_gap+"");          // int
 		properties.setProperty(prefix+"stereo_intereye",      this.stereo_intereye+"");     // double
@@ -1531,6 +1534,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"mb_en")!=null)                this.mb_en=Boolean.parseBoolean(properties.getProperty(prefix+"mb_en"));
 		if (properties.getProperty(prefix+"mb_tau")!=null)               this.mb_tau=Double.parseDouble(properties.getProperty(prefix+"mb_tau"));
 		if (properties.getProperty(prefix+"mb_max_gain")!=null)          this.mb_max_gain=Double.parseDouble(properties.getProperty(prefix+"mb_max_gain"));
+		if (properties.getProperty(prefix+"mb_max_gain_inter")!=null)    this.mb_max_gain_inter=Double.parseDouble(properties.getProperty(prefix+"mb_max_gain_inter"));
 		
 		if (properties.getProperty(prefix+"stereo_merge")!=null)         this.stereo_merge=Boolean.parseBoolean(properties.getProperty(prefix+"stereo_merge"));
 		if (properties.getProperty(prefix+"stereo_gap")!=null)           this.stereo_gap=Integer.parseInt(properties.getProperty(prefix+"stereo_gap"));
@@ -1782,6 +1786,7 @@ public class IntersceneMatchParameters {
 		imp.mb_en =                 this.mb_en;
 		imp.mb_tau =                this.mb_tau;
 		imp.mb_max_gain =           this.mb_max_gain;
+		imp.mb_max_gain_inter =     this.mb_max_gain_inter;
 
 		imp.stereo_merge          = this.stereo_merge;
 		imp.stereo_gap            = this.stereo_gap;
