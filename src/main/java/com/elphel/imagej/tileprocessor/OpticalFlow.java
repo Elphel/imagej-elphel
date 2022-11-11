@@ -4714,32 +4714,26 @@ public class OpticalFlow {
 						debugLevel+1);
 			}
 
-			//if (readjust_orient) {
 			if (quadCLTs[ref_index].getNumOrient() < min_num_orient) {
-				/*
-				if (!force_initial_orientations && !build_interscene) {
-					for (int nscene = 0; nscene < (quadCLTs.length -1); nscene++) {
-						quadCLTs[nscene] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
-								set_channels[nscene].set_name,
-								clt_parameters,
-								colorProcParameters, //
-								threadsMax,
-								debugLevel-2);
-					}
-				}
-				*/
 				boolean [] reliable_ref = null;
 				if (min_ref_str > 0.0) {
 					reliable_ref = quadCLTs[ref_index].getReliableTiles( // will be null if does not exist.
 							min_ref_str,   // double min_strength,
 							true);         // boolean needs_lma);
 				}
-				earliest_scene=reAdjustPairsLMAInterscene( // after combo dsi is available and preliminary poses are known
-						clt_parameters,     // CLTParameters  clt_parameters,
-						reliable_ref,       // boolean []     reliable_ref, // null or bitmask of reliable reference tiles
-						quadCLTs,           // QuadCLT []     quadCLTs,
-						!batch_mode, // boolean        test_motion_blur,
-						debugLevel) ;       // int            debugLevel)
+				// on last pass use final max MB correction same as for render (mb_max_gain - typical =5.0),
+				// for earlier - mb_max_gain_inter (which may be smaller - typical = 2.0)
+				double mb_max_gain = clt_parameters.imp.mb_max_gain;
+				if (quadCLTs[ref_index].getNumOrient() < (min_num_orient - 1)) {
+					mb_max_gain = clt_parameters.imp.mb_max_gain_inter;
+				}
+				earliest_scene = reAdjustPairsLMAInterscene( // after combo dsi is available and preliminary poses are known
+						clt_parameters, // CLTParameters  clt_parameters,
+						mb_max_gain,    // double         mb_max_gain,
+						reliable_ref,   // boolean []     reliable_ref, // null or bitmask of reliable reference tiles
+						quadCLTs,       // QuadCLT []     quadCLTs,
+						!batch_mode,    // boolean        test_motion_blur,
+						debugLevel) ;   // int            debugLevel)
 				// should update earliest_scene
 				if ((ref_index - earliest_scene + 1) < min_num_scenes) {
 					System.out.println("After reAdjustPairsLMAInterscene() total number of useful scenes = "+(ref_index - earliest_scene + 1)+
@@ -4939,18 +4933,14 @@ public class OpticalFlow {
 	        	}
 	        	boolean is_3d = mode3d > 0;
 	        	boolean gen_stereo = is_3d && generate_stereo;
-//	        	double [] baselines = (gen_stereo)? stereo_bases : new double[] {0.0};
 	        	double [][]  views = (gen_stereo)? stereo_views : new double [][] {{0.0,0.0,0.0}};
 	        	
-//	        	for (int ibase = 0; ibase < baselines.length; ibase++) if (!gen_stereo || generate_stereo_var[ibase]) {
 	        	for (int ibase = 0; ibase < views.length; ibase++) if (!gen_stereo || generate_stereo_var[ibase]) {
-	        		//    				double stereo_baseline = gen_stereo? stereo_bases[ibase] : 0.0;
 	        		double stereo_baseline = gen_stereo? views[ibase][0] : 0.0;
 	        		boolean is_stereo = gen_stereo && stereo_baseline > 0;
 	        		double  stereo_baseline_meters =    0.001 * stereo_baseline;
 	        		double  view_height_meters =        0.001 * views[ibase][1];
 	        		double  view_back_meters =          0.001 * views[ibase][2];
-	        		//    				double  stereo_back = 3.0; // 0; // -10.0; // meters
 	        		// col_mode: 0 - mono, 1 - color
 	        		for (int col_mode = 0; col_mode < 2; col_mode++) if (gen_seq_mono_color[col_mode]){ // skip if not needed
 	        			double[] selected_disparity = (mode3d > 1)?disparity_bg:((mode3d > 0)?disparity_fg: disparity_raw); 
@@ -6326,6 +6316,7 @@ public class OpticalFlow {
     					}
     					double [][][] coord_motion = interCorrPair( // new double [tilesY][tilesX][][];
     							clt_parameters,      // CLTParameters  clt_parameters,
+    							0,                   // mb_max_gain,         // double  mb_max_gain,
     							reference_QuadClt,   // QuadCLT reference_QuadCLT,
     							ref_disparity,       // null, // double []        ref_disparity, // null or alternative reference disparity
     							pXpYD_ref,   // 			double [][]        pXpYD_ref,     // pXpYD for the reference scene	11653		
@@ -11134,7 +11125,8 @@ public class OpticalFlow {
     }
 	
 	public double [][][]  interCorrPair( // return [tilesX*telesY]{ref_pXpYD, dXdYS}
-			CLTParameters      clt_parameters,			
+			CLTParameters      clt_parameters,
+			double             mb_max_gain,
 			QuadCLT            ref_scene,
 			double []          ref_disparity, // null or alternative reference disparity
 			double [][]        pXpYD_ref,     // pXpYD for the reference scene			
@@ -11197,7 +11189,7 @@ public class OpticalFlow {
 		
 		boolean mb_en =       clt_parameters.imp.mb_en ;
 		double  mb_tau =      clt_parameters.imp.mb_tau;      // 0.008; // time constant, sec
-		double  mb_max_gain = clt_parameters.imp.mb_max_gain_inter; // 2.0;   // motion blur maximal gain (if more - move second point more than a pixel
+///		double  mb_max_gain = clt_parameters.imp.mb_max_gain_inter; // 2.0;   // motion blur maximal gain (if more - move second point more than a pixel
 		
 		int tilesX =         tp.getTilesX();
 		int tilesY =         tp.getTilesY();
@@ -12456,11 +12448,13 @@ public class OpticalFlow {
 
 	public int  reAdjustPairsLMAInterscene( // after combo dgi is available and preliminary poses are known
 			CLTParameters  clt_parameters,
+			double         mb_max_gain,
 			boolean []     reliable_ref, // null or bitmask of reliable reference tiles			
     		QuadCLT []     quadCLTs,
     		boolean        test_motion_blur,
 			int            debugLevel)
-	{  
+	{ 
+		System.out.println("reAdjustPairsLMAInterscene(): using mb_max_gain="+mb_max_gain);
 //		boolean test_motion_blur = true;//false
         // Set up velocities from known coordinates, use averaging
         double  half_run_range =    clt_parameters.ilp.ilma_motion_filter; // 3.50; // make a parameter
@@ -12486,7 +12480,7 @@ public class OpticalFlow {
 //		int [][] dbg_scale_dt = {{-1,-1,-1},{1, 1,-1}}; // atRXYZ
 		boolean mb_en =       clt_parameters.imp.mb_en;
 		double  mb_tau =      clt_parameters.imp.mb_tau;      // 0.008; // time constant, sec
-		double  mb_max_gain = clt_parameters.imp.mb_max_gain_inter; // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+//		double  mb_max_gain = clt_parameters.imp.mb_max_gain_inter; // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
 		int     margin =      clt_parameters.imp.margin;
 
 		int earliest_scene = 0;
@@ -13118,7 +13112,7 @@ public class OpticalFlow {
 	}
 	
 	public double[][]  adjustPairsLMAInterscene( // assumes reference scene already set in GPU.
-			CLTParameters  clt_parameters,			
+			CLTParameters  clt_parameters,
 			QuadCLT        reference_QuadClt,
 			double []      ref_disparity, // null or alternative reference disparity
 			double [][]    pXpYD_ref,     // pXpYD for the reference scene
@@ -13156,6 +13150,7 @@ public class OpticalFlow {
 			// pass dxyzatr_dt, not mb_vectors? Or update velocities too?
 			coord_motion = interCorrPair( // new double [tilesY][tilesX][][];
 					clt_parameters,      // CLTParameters  clt_parameters,
+					mb_max_gain,         // double         mb_max_gain,					
 					reference_QuadClt,   // QuadCLT reference_QuadCLT,
 					ref_disparity,       // double []        ref_disparity, // null or alternative reference disparity
 					pXpYD_ref,           // double [][]        pXpYD_ref,     // pXpYD for the reference scene			
@@ -13222,6 +13217,7 @@ public class OpticalFlow {
 			float [][] dbg_corr_fpn = new float [fpn_dbg_titles.length][];
 			coord_motion = interCorrPair( // new double [tilesY][tilesX][][];
 					clt_parameters,      // CLTParameters  clt_parameters,
+					mb_max_gain,         // double         mb_max_gain,					
 					reference_QuadClt,   // QuadCLT reference_QuadCLT,
 					ref_disparity,       // double []        ref_disparity, // null or alternative reference disparity
 					pXpYD_ref,           // double [][]        pXpYD_ref,     // pXpYD for the reference scene			
@@ -13262,6 +13258,7 @@ public class OpticalFlow {
 			float [][] dbg_corr_fpn = new float [fpn_dbg_titles.length][];
 			coord_motion = interCorrPair( // new double [tilesY][tilesX][][];
 					clt_parameters,      // CLTParameters  clt_parameters,
+					mb_max_gain,         // double         mb_max_gain,					
 					reference_QuadClt,   // QuadCLT reference_QuadCLT,
 					ref_disparity,       // double []        ref_disparity, // null or alternative reference disparity
 					pXpYD_ref,           // double [][]        pXpYD_ref,     // pXpYD for the reference scene			

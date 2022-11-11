@@ -732,9 +732,9 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Sensor time constant",                   this.mb_tau, 5,7,"s",
 				"Sensor exponential decay in seconds.");
 		gd.addNumericField("Maximal gain",                           this.mb_max_gain, 5,7,"x",
-				"Maximal gain for motion blur correction (if needed more for 1 pixel, increase offset).");
+				"Maximal gain for motion blur correction (if needed more for 1 pixel, increase offset). Will be forced fro the last adjustment");
 		gd.addNumericField("Maximal gain pose",                      this.mb_max_gain_inter, 5,7,"x",
-				"Maximal gain for motion blur correction during interscene correlation (if needed more for 1 pixel, increase offset).");
+				"Maximal gain for motion blur correction during interscene correlation. Will be used for all but the last adjustment.");
 		
 		gd.addTab("Stereo/Video","Parameters for stereo video generation");
 		gd.addMessage  ("Stereo");
