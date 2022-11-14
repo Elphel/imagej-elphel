@@ -349,14 +349,15 @@ public class ImageDtt extends ImageDttCPU {
 		if (texture_img != null) {
 			Rectangle woi = new Rectangle(); // will be filled out to match actual available image
 			gpuQuad.execRBGA(
-					col_weights,                   // double [] color_weights,
-					isLwir(),         // boolean   is_lwir,
+					col_weights,    // double [] color_weights,
+					isLwir(),       // boolean   is_lwir,
 					min_shot,       // double    min_shot,           // 10.0
 					scale_shot,     // double    scale_shot,         // 3.0
 					diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
 					diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 					min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					dust_remove);   // boolean   dust_remove,
+					dust_remove,    // boolean   dust_remove,
+					0);             // int       keep_weights)
 			float [][] rbga = gpuQuad.getRBGA(
 					(isMonochrome() ? 1 : 3), // int     num_colors,
 					(texture_woi_pix != null)? texture_woi_pix : woi);
@@ -376,6 +377,7 @@ public class ImageDtt extends ImageDttCPU {
 				diff_threshold, // double    diff_threshold,     // pixel value/pixel change - never used in GPU ?
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+				0,              // int       keep_weights,       // 2 bits now, move to parameters
 				false,          // boolean   calc_textures,
 				true,           // boolean   calc_extra
 				false);         // boolean   linescan_order) // TODO: use true to avoid reordering of the low-res output 
@@ -427,6 +429,7 @@ public class ImageDtt extends ImageDttCPU {
 				diff_threshold, // double    diff_threshold,     // pixel value/pixel change - never used in GPU ?
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+				0,              // int       keep_weights,       // 2 bits now, move to parameters
 				true,           // boolean   calc_textures,
 				false,          // boolean   calc_extra
 				false);         // boolean   linescan_order) 
@@ -438,7 +441,7 @@ public class ImageDtt extends ImageDttCPU {
 					numcol,    // int     num_colors,
 		    		false);    // clt_parameters.keep_weights); // boolean keep_weights);
 
-			gpuQuad.doubleTextures(
+			GpuQuad.doubleTextures(
 		    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
 		    		texture_tiles,                       // double [][][][] texture_tiles, // null or [tilesY][tilesX]
 		    		texture_indices,                     // int []       indices,
@@ -663,7 +666,8 @@ public class ImageDtt extends ImageDttCPU {
 				double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
 				double    diff_threshold,     // pixel value/pixel change
 				double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-				boolean   dust_remove
+				boolean   dust_remove,
+				int       keep_weights       // 2 bits now, move to parameters
 			){
 		int numcol = isMonochrome()? 1 : 3;
 		double [] col_weights = new double[numcol];
@@ -684,6 +688,7 @@ public class ImageDtt extends ImageDttCPU {
 				diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,
+				keep_weights,   // int       keep_weights,       // 2 bits now, move to parameters
 				true,           // boolean   calc_textures,
 				false,          // boolean   calc_extra
 				false);         // boolean   linescan_order)
@@ -696,7 +701,7 @@ public class ImageDtt extends ImageDttCPU {
 		int tilesX = gpuQuad.img_width / GPUTileProcessor.DTT_SIZE;
 		int tilesY = gpuQuad.img_height / GPUTileProcessor.DTT_SIZE;
 		double [][][][] texture_tiles = new double [tilesY][tilesX][][];
-		gpuQuad.doubleTextures(
+		GpuQuad.doubleTextures(
 	    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
 	    		texture_tiles,                       // double [][][][] texture_tiles, // null or [tilesY][tilesX]
 	    		texture_indices,                     // int []       indices,
@@ -744,6 +749,7 @@ public class ImageDtt extends ImageDttCPU {
 				diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,
+				0,              // int       keep_weights,       // 2 bits now, move to parameters
 				false,          // boolean   calc_textures,
 				true,           // boolean   calc_extra
 				false);         // boolean   linescan_order)

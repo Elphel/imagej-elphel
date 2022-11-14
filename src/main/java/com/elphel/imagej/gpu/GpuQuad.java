@@ -190,7 +190,7 @@ public class GpuQuad{ // quad camera description
 	
 	
 	
-	int host_get_textures_shared_size( // in bytes
+	static int host_get_textures_shared_size( // in bytes
 			//__device__ int get_textures_shared_size( // in bytes
 			int                num_cams,     // actual number of cameras
 			int                num_colors,   // actual number of colors: 3 for RGB, 1 for LWIR/mono
@@ -440,7 +440,8 @@ public class GpuQuad{ // quad camera description
 		texture_stride = (int)(device_stride[0] / Sizeof.FLOAT);
 		int max_rgba_width  =  (tilesX + 1) * GPUTileProcessor.DTT_SIZE;
 		int max_rgba_height =  (tilesY + 1) * GPUTileProcessor.DTT_SIZE;
-		int max_rbga_slices =  num_colors + 1;
+//		int max_rbga_slices =  num_colors + 1; // num_cams
+		int max_rbga_slices =  num_colors + 1 + (num_colors * num_cams); // colors, alpha, colors per channel
 		cuMemAllocPitch (
 				gpu_textures_rgba,                     // CUdeviceptr dptr,
 				device_stride,                         // long[] pPitch,
@@ -2046,7 +2047,8 @@ public class GpuQuad{ // quad camera description
 			double    diff_sigma,         // pixel value/pixel change
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			boolean   dust_remove) {
+			boolean   dust_remove,
+			int       keep_weights) {
 		if (GPUTileProcessor.USE_DS_DP) {
 			execRBGA_DP(
 					color_weights,  // double [] color_weights,
@@ -2056,7 +2058,8 @@ public class GpuQuad{ // quad camera description
 					diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
 					diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 					min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					dust_remove);   // boolean   dust_remove);
+					dust_remove,    // boolean   dust_remove);
+					keep_weights);  // int       keep_weights)					
 		} else {
 			execRBGA_noDP(
 					color_weights,  // double [] color_weights,
@@ -2066,7 +2069,8 @@ public class GpuQuad{ // quad camera description
 					diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
 					diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 					min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					dust_remove);   // boolean   dust_remove);
+					dust_remove,    // boolean   dust_remove);
+					keep_weights);  // int       keep_weights)					
 		}
 	}
 	/**
@@ -2079,6 +2083,8 @@ public class GpuQuad{ // quad camera description
 	 * @param diff_threshold - never used?
 	 * @param min_agree  minimal number of channels to agree on a point (real number to work with fuzzy averages
 	 * @param dust_remove do not reduce average weight when only one image differs much from the average
+	 * @param keep_weights (since 11/13/2022). Now 2 separate bits: +1 - generate channel weights and combo metrics.
+	 *                     +2 replace port_weights with raw per-channel  (+1 is not used here for overlapping) 
 	 */
 	public void execRBGA_DP(
 			double [] color_weights,
@@ -2088,7 +2094,8 @@ public class GpuQuad{ // quad camera description
 			double    diff_sigma,         // pixel value/pixel change
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			boolean   dust_remove) {
+			boolean   dust_remove,
+			int       keep_weights) {
 		execCalcReverseDistortions(); // will check if it is needed first
 		if (this.gpuTileProcessor.GPU_RBGA_kernel == null) {
 			IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
@@ -2139,9 +2146,9 @@ public class GpuQuad{ // quad camera description
 				Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
 				Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
 				Pointer.to(new int[]   { idust_remove }),        // int               dust_remove,        // Do not reduce average weight when only one image differes much from the average
-				Pointer.to(new int[]   {0}),                     // int               keep_weights,       // return channel weights after A in RGBA
+				Pointer.to(new int[]   {keep_weights}),          // int               keep_weights,       // return channel weights after A in RGBA
 				Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
-				Pointer.to(gpu_textures_rgba));                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
+				Pointer.to(gpu_textures_rgba));                  // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
 
 		cuCtxSynchronize();
 		// Call the kernel function
@@ -2165,6 +2172,8 @@ public class GpuQuad{ // quad camera description
 	 * @param diff_threshold - never used?
 	 * @param min_agree  minimal number of channels to agree on a point (real number to work with fuzzy averages
 	 * @param dust_remove do not reduce average weight when only one image differs much from the average
+	 * @param keep_weights (since 11/13/2022). Now 2 separate bits: +1 - generate channel weights and combo metrics.
+	 *                     +2 replace port_weights with raw per-channel  (+1 is not used here for overlapping) 
 	 */
 	
 	public void execRBGA_noDP(
@@ -2175,7 +2184,8 @@ public class GpuQuad{ // quad camera description
 			double    diff_sigma,         // pixel value/pixel change
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			boolean   dust_remove) {
+			boolean   dust_remove,
+			int       keep_weights) {
 		execCalcReverseDistortions(); // will check if it is needed first
 		if (    (this.gpuTileProcessor.GPU_CLEAR_TEXTURE_LIST_kernel == null) &&
 				(this.gpuTileProcessor.GPU_MARK_TEXTURE_LIST_kernel == null) &&
@@ -2478,7 +2488,7 @@ public class GpuQuad{ // quad camera description
 						Pointer.to(new float[] {(float) min_agree}),     // float       min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 						Pointer.to(gpu_color_weights),                   // float       weights[3],     // scale for R,B,G (or {1.0,0.0,0.0}
 						Pointer.to(new int[]   {idust_remove}),          // int         dust_remove,        // Do not reduce average weight when only one image differes much from the average
-						Pointer.to(new int[]   {0}),                     // int         keep_weights,       // return channel weights after A in RGBA
+						Pointer.to(new int[]   {keep_weights}),           // int         keep_weights,       // return channel weights after A in RGBA
 						// combining both non-overlap and overlap (each calculated if pointer is not null )
 						Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
 						Pointer.to(gpu_textures_rgba),                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
@@ -2512,6 +2522,8 @@ public class GpuQuad{ // quad camera description
 	 * @param diff_threshold - never used?
 	 * @param min_agree  minimal number of channels to agree on a point (real number to work with fuzzy averages
 	 * @param dust_remove do not reduce average weight when only one image differs much from the average
+	 * @param keep_weights (since 11/13/2022). Now 2 separate bits: +1 - generate channel weights and combo metrics.
+	 *                     +2 replace port_weights with raw per-channel   
 	 * @param calc_textures calculate textures (false for macro-only output)
 	 * @param calc_extra calculate extra output - low-res for macro
 	 */
@@ -2524,6 +2536,7 @@ public class GpuQuad{ // quad camera description
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+			int       keep_weights,       // 2 bits now, move to parameters
 			boolean   calc_textures,
 			boolean   calc_extra,
 			boolean   linescan_order
@@ -2538,6 +2551,7 @@ public class GpuQuad{ // quad camera description
 					diff_threshold,     // pixel value/pixel change
 					min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 					dust_remove,        // Do not reduce average weight when only one image differs much from the average
+					keep_weights,       // int       keep_weights,       // 2 bits now, move to parameters
 					calc_textures,
 					calc_extra,
 					linescan_order);
@@ -2551,6 +2565,7 @@ public class GpuQuad{ // quad camera description
 					diff_threshold,     // pixel value/pixel change
 					min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 					dust_remove,        // Do not reduce average weight when only one image differs much from the average
+					keep_weights,       // int       keep_weights,       // 2 bits now, move to parameters
 					calc_textures,
 					calc_extra,
 					linescan_order);
@@ -2566,6 +2581,7 @@ public class GpuQuad{ // quad camera description
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+			int       keep_weights,       // 2 bits now, move to parameters
 			boolean   calc_textures,
 			boolean   calc_extra,
 			boolean   linescan_order)
@@ -2597,7 +2613,7 @@ public class GpuQuad{ // quad camera description
 		int iis_lwir =      (is_lwir)? 1:0;
 		int ilinescan_order = linescan_order? 1 : 0;
 		int idust_remove =  (dust_remove)? 1 : 0;
-
+//		int keep_weights = 0;     // 2 bits now, move to parameters
 		int [] GridFullWarps =    {1, 1, 1};
 		int [] ThreadsFullWarps = {1, 1, 1};
 
@@ -2618,6 +2634,7 @@ public class GpuQuad{ // quad camera description
 				Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
 				Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
 				Pointer.to(new int[] { idust_remove }),
+				Pointer.to(new int[] { keep_weights }),          // +1 : "keep_weights", +2 - replace port_weights with channel output				
 				Pointer.to(new int[] {calc_textures? texture_stride : 0}),
 				Pointer.to(gpu_textures),
 				Pointer.to(new int[]   {ilinescan_order}),       // 1, // int               linescan_order,     // if !=0 then output gpu_diff_rgb_combo in linescan order, else  - in gpu_texture_indices order
@@ -2642,6 +2659,7 @@ public class GpuQuad{ // quad camera description
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+			int       keep_weights,       // 2 bits now, move to parameters
 			boolean   calc_textures,
 			boolean   calc_extra,
 			boolean   linescan_order)
@@ -2656,7 +2674,7 @@ public class GpuQuad{ // quad camera description
 			IJ.showMessage("Error", "No GPU kernel(s)");
 			return;
 		}
-		int keep_texture_weights = 0; // pass as parameter?
+		int keep_texture_weights = keep_weights; // pass as parameter?
 		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
 		int num_colors = is_lwir? 1 : color_weights.length;
 		if (num_colors > 3) num_colors = 3;
@@ -3364,7 +3382,7 @@ public class GpuQuad{ // quad camera description
 		return textures;
 	}
 
-	public double [][][][] doubleTextures(
+	public static double [][][][] doubleTextures( // not used
 			Rectangle    woi,
 			int []       indices,
 			float [][][] ftextures,
@@ -3390,7 +3408,7 @@ public class GpuQuad{ // quad camera description
 		return textures;
 	}
 
-	public double [][][][] doubleTextures( // may be accelerated with multithreading if needed.
+	public static double [][][][] doubleTextures( // may be accelerated with multithreading if needed.
 			Rectangle    woi, // null or width and height match texture_tiles
 			double [][][][] texture_tiles, // null or [tilesY][tilesX]
 			int []       indices,

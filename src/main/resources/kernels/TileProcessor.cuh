@@ -2350,13 +2350,16 @@ extern "C" __global__ void generate_RBGA(
 	 int texture_width =        (*(woi + 2) + 1)* DTT_SIZE;
 	 int texture_tiles_height = (*(woi + 3) + 1) * DTT_SIZE;
 	 int texture_slices =       colors + 1;
+	 if (keep_weights & 2){
+		 texture_slices += colors * num_cams;
+	 }
 
 	 if (threadIdx.x == 0) {
 
 		    dim3 threads2((1 << THREADS_DYNAMIC_BITS), 1, 1);
 		    int blocks_x = (texture_width + ((1 << (THREADS_DYNAMIC_BITS + DTT_SIZE_LOG2 )) - 1)) >> (THREADS_DYNAMIC_BITS + DTT_SIZE_LOG2);
 		    dim3 blocks2 (blocks_x, texture_tiles_height * texture_slices, 1); // each thread - 8 vertical
-		    clear_texture_rbga<<<blocks2,threads2>>>( // illegal value error
+		    clear_texture_rbga<<<blocks2,threads2>>>( // add clearing of multi-sensor output (keep_weights & 2 !=0)
 		    		texture_width,
 					texture_tiles_height * texture_slices, // int               texture_slice_height,
 					texture_rbga_stride,                   // const size_t      texture_rbga_stride,     // in floats 8*stride
@@ -2378,7 +2381,7 @@ extern "C" __global__ void generate_RBGA(
 			    dim3 grid_texture((ntt + TEXTURE_TILES_PER_BLOCK-1) / TEXTURE_TILES_PER_BLOCK,1,1); // TEXTURE_TILES_PER_BLOCK = 1
 			    int ti_offset = (pass & 3) * (width * (tilesya >> 2)); //  (TILES-X * (TILES-YA >> 2));  // 1/4
 			    if (border_tile){
-			    	ti_offset += width * (tilesya >> 2) - ntt;; // TILES-X * (TILES-YA >> 2) - ntt;
+			    	ti_offset += width * (tilesya >> 2) - ntt; // TILES-X * (TILES-YA >> 2) - ntt;
 			    }
 #ifdef DEBUG12
 				printf("\ngenerate_RBGA() pass= %d, border_tile= %d, ti_offset= %d, ntt=%d\n",
@@ -2413,7 +2416,7 @@ extern "C" __global__ void generate_RBGA(
 						min_agree,                       // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 						weights,                         // float             weights[3],         // scale for R,B,G
 						dust_remove,                     // int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
-			    		0,                               // int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
+						keep_weights,                    // int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 			    // combining both non-overlap and overlap (each calculated if pointer is not null )
 						texture_rbga_stride,             // size_t      texture_rbg_stride, // in floats
 						gpu_texture_tiles,               // float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
@@ -3218,6 +3221,7 @@ __global__ void convert_correct_tiles(
  *   	  min_agree            minimal number of channels to agree on a point (real number to work with fuzzy averages) (3.0)
  * @param weights              scales for R,B,G {0.294118, 0.117647, 0.588235}
  * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
+ * @param keep_weights         Was not here before 10/12/2022. return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
  * @param texture_stride       output stride in floats (now 256*4 = 1024)
  * @param gpu_texture_tiles    output array (number of colors +1 + ?)*16*16 rgba texture tiles) float values. Will not be calculated if null
  * @param inescan_order        0 low-res tiles have the same order, as gpu_texture_indices, 1 - in linescan order
@@ -3228,7 +3232,6 @@ extern "C" __global__ void textures_nonoverlap(
 		int               num_cams,           // number of cameras
 		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats
 		int               num_tiles,          // number of tiles in task list
-//		int               num_tilesx,         // number of tiles in a row
 // declare arrays in device code?
 		int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 		int             * pnum_texture_tiles,  // returns total number of elements in gpu_texture_indices array
@@ -3240,6 +3243,7 @@ extern "C" __global__ void textures_nonoverlap(
 		float             params[5],
 		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
+		int               keep_weights,       // Was not here before 10/12/2022. return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 // combining both non-overlap and overlap (each calculated if pointer is not null )
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
 		float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles
@@ -3302,7 +3306,7 @@ extern "C" __global__ void textures_nonoverlap(
 				min_agree,                       // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				weights,                         // float             weights[3],         // scale for R,B,G
 				dust_remove,                     // int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
-				0,                               // int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
+				keep_weights,                    // int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 				// combining both non-overlap and overlap (each calculated if pointer is not null )
 				0,                               // size_t      texture_rbg_stride, // in floats
 				(float *) 0,                     // float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
@@ -3339,7 +3343,7 @@ extern "C" __global__ void textures_nonoverlap(
  * @param min_agree            minimal number of channels to agree on a point (real number to work with fuzzy averages) (3.0)
  * @param weights              scales for R,B,G {0.294118, 0.117647, 0.588235}
  * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
- * @param keep_weights         return channel weights after A in RGBA (was removed)
+ * @param keep_weights         return channel weights after A in RGBA (was removed). Now (11/12/2022): +1 - old meaning, +2 - replace port_weights with channel imclt
  * @param texture_rbg_stride   output stride for overlapped texture in floats, or 0 to skip
  * @param gpu_texture_rbg      output array (number of colors +1 + ?) * woi.height * output stride(first woi.width valid) float values (or 0)
  * @param texture_stride       output stride for non-overlapping texture tile output in floats (or 0 to skip)
@@ -3366,7 +3370,7 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
-		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
+		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)? Now +2 - output raw channels
 // combining both non-overlap and overlap (each calculated if pointer is not null )
 		size_t            texture_rbg_stride, // in floats
 		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
@@ -3433,7 +3437,7 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 	float * mclt_tiles =       &all_shared[offsets[0]] ; // [num_cams][colors][2*DTT_SIZE][DTT_SIZE21];  // 16*1*16*17=0x1100 | 4*3*16*17=0xcc0
 	float * clt_tiles  =       &all_shared[offsets[1]] ; // [num_cams][colors][4][DTT_SIZE][DTT_SIZE1]; // 16 * 1 * 4 * 8 * 9  = 0x1200 | 4 * 3 * 4 * 8 * 9 = 0xd80
 	float * mclt_debayer =     &all_shared[offsets[1]] ; // [num_cams][colors][MCLT_UNION_LEN]; //  16 * 1 * 16 * 18  = 0x1200 | 4 * 3 * 16 * 18 = 0xd80 | to align with clt_tiles
-	float * mclt_tmps =        &all_shared[offsets[2]] ; // [num_cams][colors][DTT_SIZE2][DTT_SIZE21]; // 16*1*16*17=0x1100 | 4*3*16*17=0xcc0
+	float * mclt_tmps =        &all_shared[offsets[2]] ; // [num_cams][colors][DTT_SIZE2][DTT_SIZE21]; // 16*1*16*17=0x1100 | 4*3*16*17=0xcc0. Used only with Bayer, not with mono
 	float * rgbaw =            &all_shared[offsets[2]] ; // [colors + 1 + num_cams + colors + 1][DTT_SIZE2][DTT_SIZE21];
 
 	float * port_offsets =     &all_shared[offsets[3]] ; // [num_cams][2];          // 16 * 2 = 0x20 | 4*2 = 0x8
@@ -3691,7 +3695,7 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 			min_agree,                 // float   min_agree,   NOT USED?   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			weights,                   // float * chn_weights,    // color channel weights, sum == 1.0
 			dust_remove,               // int     dust_remove,    // Do not reduce average weight when only one image differs much from the average
-			keep_weights,              // int     keep_weights,   // return channel weights and rms after A in RGBA (weight are always calculated)
+			(keep_weights & 1),        // int     keep_weights,   // return channel weights and rms after A in RGBA (weight are always calculated)
 			debug );  // int     debug );
 
 	__syncthreads(); // _syncthreads();1
@@ -3712,7 +3716,7 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 			float * rgba_i = rgbaw + i;
 			// always copy 3 (1) colors + alpha
 			if (colors == 3){
-				if (keep_weights) {
+				if (keep_weights & 1) {
 					for (int ncol = 0; ncol < colors + 1 + num_cams + colors + 1 ; ncol++) { // 12
 						*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
 					}
@@ -3721,8 +3725,15 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 						*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
 					}
 				}
+				if (keep_weights & 2) {
+					float * mclt_dst_i = mclt_debayer +  i;
+					float * gpu_texture_tile_raw_gi = gpu_texture_tile_gi + (colors + 1) * (DTT_SIZE2 * DTT_SIZE2); // skip colors + alpha
+					for (int ncam = 0; ncam < num_cams ; ncam++) { // 8
+						*(gpu_texture_tile_raw_gi + ncam * (DTT_SIZE2 * DTT_SIZE2)) = *(mclt_dst_i + (ncam * 3 + 2) * (MCLT_UNION_LEN)); // green colors
+					}
+				}
 			} else { // assuming colors = 1
-				if (keep_weights) {
+				if (keep_weights & 1) {
 					for (int ncol = 0; ncol < 1 + 1 + num_cams + 1 + 1 ; ncol++) { // 8
 						*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
 					}
@@ -3731,8 +3742,14 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 						*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
 					}
 				}
+				if (keep_weights & 2) {
+					float * mclt_dst_i = mclt_debayer +  i;
+					float * gpu_texture_tile_raw_gi = gpu_texture_tile_gi + (colors + 1) * (DTT_SIZE2 * DTT_SIZE2); // skip colors + alpha
+					for (int ncam = 0; ncam < num_cams ; ncam++) { // 8
+						*(gpu_texture_tile_raw_gi + ncam * (DTT_SIZE2 * DTT_SIZE2)) = *(mclt_dst_i + (ncam * 1 + 0) * (MCLT_UNION_LEN));
+					}
+				}
 			}
-
 		}
 #ifdef DEBUG7A
 		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
@@ -3747,8 +3764,8 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 	if (!tile_code){
 		return; // should not happen
 	}
-
-	if (gpu_texture_rbg && (texture_rbg_stride != 0)) { // generate RGBA
+	// if no extra and no overlap -> nothing remains, return
+	if (gpu_texture_rbg && (texture_rbg_stride != 0)) { // generate RGBA (overlapped) // keep_weights
 #ifdef DEBUG7A
 		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
 //			printf("\ntextures_accumulate accumulating tile = %d, tile_code= %d, border_tile=%d\n",
@@ -3766,7 +3783,7 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 		__syncthreads();// __syncwarp();
 #endif // DEBUG12
 		int alpha_mode = alphaIndex[tile_code]; // only 4 lowest bits
-		if (!alpha_mode){ // only multiply if needed, alpha_mode == 0 - keep as is.
+		if (!alpha_mode){ // only multiply if needed, alpha_mode == 0 - keep as is. FIXME: alpha_mode ???
 			for (int pass = 0; pass < 8; pass ++) {
 				int row = pass * 2 + (threadIdx.y >> 1);
 				int col = ((threadIdx.y & 1) << 3) + threadIdx.x;
@@ -3833,7 +3850,7 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 			// always copy 3 (1) colors + alpha
 			if (colors == 3){
 #pragma unroll
-				for (int ncol = 0; ncol < colors + 1; ncol++) { // 4
+				for (int ncol = 0; ncol < 3 + 1; ncol++) { // 4
 					*(gpu_texture_rbg_gi + ncol * slice_stride) += *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
 				}
 			} else { // assuming colors = 1
@@ -3842,7 +3859,36 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 					*(gpu_texture_rbg_gi + ncol * slice_stride) += *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
 				}
 			}
-///			}
+		}
+		if (keep_weights & 2){ // copy individual sensors output
+			for (int ncam = 0; ncam < num_cams; ncam++) {
+				float * mclt_dst_ncam = mclt_debayer +  (ncam * colors ) * (MCLT_UNION_LEN);
+				if (!alpha_mode){ // only multiply if needed, alpha_mode == 0 - keep as is. FIXME: alpha_mode ???
+					for (int pass = 0; pass < 8; pass ++) {
+						int row = pass * 2 + (threadIdx.y >> 1);
+						int col = ((threadIdx.y & 1) << 3) + threadIdx.x;
+						int i  = row * DTT_SIZE21 + col;
+						int gi = row * DTT_SIZE2  + col;
+						float * mclt_dst_i = mclt_dst_ncam +  i;
+						for (int ncol = 0; ncol < colors; ncol++) {
+							*(mclt_dst_i + ncol * (MCLT_UNION_LEN)) *= alphaFade[alpha_mode][gi]; // reduce [tile_code] by LUT
+						}
+					}
+				}
+				for (int pass = 0; pass < 8; pass ++) {
+					int row = pass * 2 + (threadIdx.y >> 1);          // row    inside a tile (0..15)
+					int col = ((threadIdx.y & 1) << 3) + threadIdx.x; // column inside a tile (0..15)
+					int g_row = row + tile_y0;
+					int g_col = col + tile_x0;
+					int i  = row * DTT_SIZE21 + col;
+					int gi = g_row * texture_rbg_stride  + g_col; // offset to the top left corner
+					float * gpu_texture_rbg_gi = gpu_texture_rbg + gi + (colors + 1 + colors * ncam) * slice_stride;
+					float * mclt_dst_i = mclt_dst_ncam +  i;
+					for (int ncol = 0; ncol < colors; ncol++) { // 4
+						*(gpu_texture_rbg_gi + ncol * slice_stride) += *(mclt_dst_i + ncol * (MCLT_UNION_LEN));
+					}
+				}
+			}
 		}
 	} // 	if (gpu_texture_rbg) { // generate RGBA
 	if (calc_extra){ // gpu_diff_rgb_combo

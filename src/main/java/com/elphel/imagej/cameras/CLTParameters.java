@@ -135,10 +135,11 @@ public class CLTParameters {
 	public double     diff_threshold =    1.5;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
 	public boolean    diff_gauss =        true;  // when averaging images, use Gaussian around average as weight (false - sharp all/nothing)
 	public double     min_agree =         3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-	public boolean    dust_remove =       true;  // Do not reduce average weight when only one image differes much from the average
+	public boolean    dust_remove =       true;  // Do not reduce average weight when only one image differs much from the average
 
 	public boolean    black_back =        true;  // use Black for backdrop outside of the FOV
 	public boolean    keep_weights =      true;  // add port weights to RGBA stack (debug feature)
+	public boolean    replace_weights =   false; //replace port weights with ports textures (16x16)
 	public boolean    sharp_alpha =       false; // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 	public double     alpha0 = 	          0.6; // > .525 Alpha channel 0.0 threshold (lower - transparent) (watch for far objects)
 	public double     alpha1 = 	          0.8; // Alpha channel 1.0 threshold (higher - opaque) (watch for window dust)
@@ -1195,6 +1196,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"dust_remove",                this.dust_remove+"");
 		properties.setProperty(prefix+"black_back",                 this.black_back+"");
 		properties.setProperty(prefix+"keep_weights",               this.keep_weights+"");
+		properties.setProperty(prefix+"replace_weights",            this.replace_weights+"");
 		properties.setProperty(prefix+"sharp_alpha",                this.sharp_alpha+"");
 
 		properties.setProperty(prefix+"alpha0",                     this.alpha0 +"");
@@ -2095,6 +2097,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"dust_remove")!=null)                   this.dust_remove=Boolean.parseBoolean(properties.getProperty(prefix+"dust_remove"));
 		if (properties.getProperty(prefix+"black_back")!=null)                    this.black_back=Boolean.parseBoolean(properties.getProperty(prefix+"black_back"));
 		if (properties.getProperty(prefix+"keep_weights")!=null)                  this.keep_weights=Boolean.parseBoolean(properties.getProperty(prefix+"keep_weights"));
+		if (properties.getProperty(prefix+"replace_weights")!=null)               this.replace_weights=Boolean.parseBoolean(properties.getProperty(prefix+"replace_weights"));
 		if (properties.getProperty(prefix+"sharp_alpha")!=null)                   this.sharp_alpha=Boolean.parseBoolean(properties.getProperty(prefix+"sharp_alpha"));
 		if (properties.getProperty(prefix+"alpha0")!=null)                        this.alpha0=Double.parseDouble(properties.getProperty(prefix+"alpha0"));
 		if (properties.getProperty(prefix+"alpha1")!=null)                        this.alpha1=Double.parseDouble(properties.getProperty(prefix+"alpha1"));
@@ -3033,6 +3036,7 @@ public class CLTParameters {
 		gd.addCheckbox    ("Do not reduce average weight when only one image differes much from the average",           this.dust_remove);
 		gd.addCheckbox    ("Use black for backdrop outside of the FOV",                                         this.black_back);
 		gd.addCheckbox    ("Add port weights to RGBA stack (debug feature)",                                    this.keep_weights);
+		gd.addCheckbox    ("Replace port weights with per-channel MIDCT (16x16) - were relevant",               this.replace_weights);
 		gd.addCheckbox    ("Alpha channel: use center 8x8 (unchecked - treat same as RGB)",                     this.sharp_alpha);
 		gd.addNumericField("Alpha channel 0.0 thereshold (lower - transparent)",                                this.alpha0,   3);
 		gd.addNumericField("Alpha channel 1.0 threshold (higher - opaque)",                                     this.alpha1,   3);
@@ -4238,6 +4242,7 @@ public class CLTParameters {
 		this.dust_remove=           gd.getNextBoolean();
 		this.black_back=            gd.getNextBoolean();
 		this.keep_weights=          gd.getNextBoolean();
+		this.replace_weights=       gd.getNextBoolean();
 		this.sharp_alpha=           gd.getNextBoolean();
 		this.alpha0=                gd.getNextNumber();
 		this.alpha1=                gd.getNextNumber();

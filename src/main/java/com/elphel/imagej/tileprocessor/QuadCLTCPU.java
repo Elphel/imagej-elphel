@@ -13730,7 +13730,8 @@ public class QuadCLTCPU {
 						  clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
 						  clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 						  clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-						  clt_parameters.dust_remove);   // boolean   dust_remove
+						  clt_parameters.dust_remove,    // boolean   dust_remove
+						  0);                            // int       keep_weights       // 2 bits now, move to parameters
 			  }
 			  if (save_diff || save_lowres) {
 				  image_dtt.get_diffs_lowres( // CUDA_ERROR_INVALID_VALUE (because no tiles)

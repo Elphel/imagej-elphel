@@ -144,6 +144,7 @@ extern "C" __global__ void textures_nonoverlap(
 		float             params[5],
 		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
+		int               keep_weights,       // Was not here before 10/12/2022. return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 // combining both non-overlap and overlap (each calculated if pointer is not null )
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)  // may be 0 if not needed
 		float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles    // may be 0 if not needed
