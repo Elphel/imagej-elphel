@@ -2290,10 +2290,10 @@ public class GpuQuad{ // quad camera description
 		int [] cpu_num_texture_tiles = new int[8];
 
 		//		cuMemcpyDtoH(Pointer.to(cpu_woi), gpu_woi,  cpu_woi.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed
-		cpu_woi[0] = width;
-		cpu_woi[1] = height;
-		cpu_woi[2] = 0;
-		cpu_woi[3] = 0;
+		cpu_woi[0] = width;   // larger than any x
+		cpu_woi[1] = height;  // larger than any y
+		cpu_woi[2] = 0;       // smaller or equal than any x
+		cpu_woi[3] = 0;       // smaller or equal than any y
 		cuMemcpyHtoD(gpu_woi, Pointer.to(cpu_woi),  cpu_woi.length * Sizeof.INT);
 //		cuMemcpyDtoH(Pointer.to(cpu_woi), gpu_woi,  cpu_woi.length * Sizeof.INT); //just for testing		
 		
@@ -2395,6 +2395,9 @@ public class GpuQuad{ // quad camera description
 		int texture_width =        (cpu_woi[2] + 1) * GPUTileProcessor.DTT_SIZE;
 		int texture_tiles_height = (cpu_woi[3] + 1) * GPUTileProcessor.DTT_SIZE;
 		int texture_slices =       num_colors + 1;
+		if ((keep_weights & 2) != 0) {
+			 texture_slices += num_colors * num_cams;
+		}
 
 		int blocks_x2 = ((texture_width + 
 				((1 << (GPUTileProcessor.THREADS_DYNAMIC_BITS + GPUTileProcessor.DTT_SIZE_LOG2 )) - 1)) >>
@@ -3382,6 +3385,7 @@ public class GpuQuad{ // quad camera description
 		return textures;
 	}
 
+	/*
 	public static double [][][][] doubleTextures( // not used
 			Rectangle    woi,
 			int []       indices,
@@ -3407,7 +3411,7 @@ public class GpuQuad{ // quad camera description
 		}
 		return textures;
 	}
-
+   */
 	public static double [][][][] doubleTextures( // may be accelerated with multithreading if needed.
 			Rectangle    woi, // null or width and height match texture_tiles
 			double [][][][] texture_tiles, // null or [tilesY][tilesX]

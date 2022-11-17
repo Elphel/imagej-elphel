@@ -1479,6 +1479,7 @@ public class QuadCLT extends QuadCLTCPU {
 	 * @param max_distortion maximal neighbor tiles offset as a fraction of tile size (8) 
 	 * @param cluster_index which cluster the tile belongs - to verify tile distortions
 	 * @param border        border tiles, may have neighbors (other border tiles) over discontinuity
+	 * @param keep_channels output per-channel Y(G) after YA (RBGA) 
 	 * @param debugLevel
 	 * @return
 	 */
@@ -1497,6 +1498,7 @@ public class QuadCLT extends QuadCLTCPU {
 			final double      max_distortion, // maximal neighbor tiles offset as a fraction of tile size (8) 
 			final int []      cluster_index,  // 
 			final boolean []  border, // border tiles
+			final boolean     keep_channels,
 			final int         debugLevel){
 		// FIXME: Move to clt_parameters;
 		final double max_overlap =    0.6; 
@@ -1647,6 +1649,7 @@ public class QuadCLT extends QuadCLTCPU {
 					OpticalFlow.THREADS_MAX,    // final int                 threadsMax,       // maximal number of threads to launch
 					debugLevel);                // final int                 globalDebugLevel);
 		}
+		// now obeys keep_weights 
 		final double [][][][] texture_tiles =  image_dtt.process_texture_tiles( // from transform domain all sensors to combined texture
 				clt_parameters.corr_red,       // double    corr_red,
 				clt_parameters.corr_blue,      // double    corr_blue,
@@ -1766,6 +1769,348 @@ public class QuadCLT extends QuadCLTCPU {
 		return texture_tiles;
 	}
 	
+	public static double [][][][] texturesNoOverlapGPUFromDSI(
+			CLTParameters     clt_parameters,
+			double []         disparity_ref,
+			// motion blur compensation 
+			double            mb_tau,      // 0.008; // time constant, sec
+			double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+			double [][]       mb_vectors,  // now [2][ntiles];
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final QuadCLT     scene,
+			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+			final boolean     filter_bg, // remove bg tiles (possibly occluded)
+			final double      max_distortion, // maximal neighbor tiles offset as a fraction of tile size (8) 
+			final int []      cluster_index,  // 
+			final boolean []  border, // border tiles
+			final boolean     keep_channels,
+			final int         debugLevel){
+		// FIXME: Move to clt_parameters;
+		final double max_overlap =    0.6; 
+		final double min_adisp_cam =  0.2;
+		final double min_rdisp_cam =  0.03;
+		int  keep_weights = 2; // (clt_parameters.replace_weights? 2 : 0); // just 0/2
+
+
+		double [][] pXpYD_prefilter =OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
+				null,          // full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
+				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
+				scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
+				scene,         // final QuadCLT     scene_QuadClt,
+				ref_scene,     // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+				OpticalFlow.THREADS_MAX);   // int               threadsMax)
+		double [][] pXpYD;
+		if (filter_bg) {
+			double [][] scene_ds = OpticalFlow.conditionInitialDS(
+					clt_parameters, // CLTParameters  clt_parameters,
+					scene, // QuadCLT        scene,
+					-1); // int debug_level);
+			if (scene_ds != null) {
+				double [] disparity_cam = scene_ds[0]; // null; // for now
+				pXpYD = OpticalFlow.filterBG (
+						ref_scene.getTileProcessor(), // final TileProcessor tp,
+						pXpYD_prefilter,       // final double [][] pXpYD,
+						max_overlap,           // final double max_overlap,
+						null, // disparity_cam,         // final double [] disparity_cam,
+						min_adisp_cam,         // final double min_adisp_cam,
+						min_rdisp_cam,         // final double min_rdisp_cam,
+						clt_parameters.tileX,  // final int    dbg_tileX,
+						clt_parameters.tileY,  // final int    dbg_tileY,
+						0); // 1); //debug_level);          // final int    debug_level);
+			} else {
+				pXpYD = pXpYD_prefilter;
+			}
+		} else {
+			pXpYD = pXpYD_prefilter;
+		}
+
+		int rendered_width = scene.getErsCorrection().getSensorWH()[0];
+		boolean showPxPyD = false;
+		if (showPxPyD) {
+			int dbg_width = rendered_width/GPUTileProcessor.DTT_SIZE;
+			int dbg_height = pXpYD.length/dbg_width;
+			double [][] dbg_img = new double [3 + ((mb_vectors!=null)? 2:0)][pXpYD.length];
+			String [] dbg_titles = (mb_vectors!=null)?
+					(new String[] {"pX","pY","Disparity","mb_X","mb_Y"}):
+						(new String[] {"pX","pY","Disparity"});
+			for (int i = 0; i < dbg_img.length; i++) {
+				Arrays.fill(dbg_img[i], Double.NaN);
+			}
+			for (int nTile = 0; nTile < pXpYD.length; nTile++){
+				if (pXpYD[nTile] != null) {
+					for (int i = 0; i < pXpYD[nTile].length; i++) {
+						dbg_img[i][nTile] = pXpYD[nTile][i];
+					}
+				}
+				if (mb_vectors!=null) {
+					for (int i = 0; i <2; i++) {
+						dbg_img[3 + i][nTile] =  mb_tau * mb_vectors[i][nTile];
+					}
+				}
+			}
+			ShowDoubleFloatArrays.showArrays( // out of boundary 15
+					dbg_img,
+					dbg_width,
+					dbg_height,
+					true,
+					scene.getImageName()+"-pXpYD",
+					dbg_titles);
+		}
+		TpTask[][] tp_tasks;
+		if (mb_vectors!=null) {
+			tp_tasks = GpuQuad.setInterTasksMotionBlur( // "true" reference, with stereo actual reference will be offset
+					scene.getNumSensors(),
+					rendered_width,           // should match output size, pXpYD.length
+					!scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+					pXpYD,                    // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+					null,                     // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+					// motion blur compensation 
+					mb_tau,                   // final double              mb_tau,      // 0.008; // time constant, sec
+					mb_max_gain,              // final double              mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+					mb_vectors,               //final double [][]         mb_vectors,  //
+					scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+					0.0,                      // final double              disparity_corr,
+					-1, // 0, // margin,      // final int                 margin,      // do not use tiles if their centers are closer to the edges
+					null,                     // final boolean []          valid_tiles,            
+					OpticalFlow.THREADS_MAX); // final int                 threadsMax)  // maximal number of threads to launch
+		} else {
+			tp_tasks = new TpTask[1][];
+			tp_tasks[0] =  GpuQuad.setInterTasks( // "true" reference, with stereo actual reference will be offset
+					scene.getNumSensors(),
+					rendered_width,           // should match output size, pXpYD.length
+					!scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+					pXpYD,                    // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+					null,                     // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+					scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+					0.0,                      // final double              disparity_corr,
+					-1, // 0, // margin,      // final int                 margin,      // do not use tiles if their centers are closer to the edges
+					null,                     // final boolean []          valid_tiles,            
+					OpticalFlow.THREADS_MAX);              // final int                 threadsMax)  // maximal number of threads to launch
+		}
+		if (tp_tasks[0].length == 0) {
+			if (debugLevel > -1) {
+				System.out.println("texturesGPUFromDSI(): no tiles to process");
+				
+			}
+			return null;
+		}
+		
+		///		scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+		ImageDtt image_dtt = new ImageDtt(
+				scene.getNumSensors(),
+				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
+				scene.isAux(),
+				scene.isMonochrome(),
+				scene.isLwir(),
+				clt_parameters.getScaleStrength(scene.isAux()),
+				scene.getGPU());
+		boolean use_reference = false;
+		int                 erase_clt = 0; // show_nan ? 1:0;
+		if (mb_vectors!=null) {// && test1) {
+			image_dtt.setReferenceTDMotionBlur( // change to main?
+					erase_clt, //final int                 erase_clt,
+					null, // wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+					use_reference, // true, // final boolean             use_reference_buffer,
+					tp_tasks,               // final TpTask[]            tp_tasks,
+					clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+					clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+					OpticalFlow.THREADS_MAX,    // final int                 threadsMax,       // maximal number of threads to launch
+					debugLevel);                // final int                 globalDebugLevel);
+		} else {
+			image_dtt.setReferenceTD( // change to main?
+					erase_clt, //final int                 erase_clt,
+					null, // wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+					use_reference, // true, // final boolean             use_reference_buffer,
+					tp_tasks[0],               // final TpTask[]            tp_tasks,
+					clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+					clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+					OpticalFlow.THREADS_MAX,    // final int                 threadsMax,       // maximal number of threads to launch
+					debugLevel);                // final int                 globalDebugLevel);
+		}
+		// now obeys keep_weights
+		Rectangle woi = new Rectangle(); // will be filled out to match actual available image
+//		int       keep_weights = (clt_parameters.keep_weights? 1 : 0) + (clt_parameters.replace_weights? 2 : 0);
+//		int  keep_weights = (clt_parameters.replace_weights? 2 : 0); // just 0/2
+		int  text_colors = (scene.isMonochrome() ? 1 : 3);
+		int  texture_layers = (text_colors + 1)+((keep_weights != 0)?(text_colors * scene.getNumSensors()):0);   
+		double [] col_weights = new double[text_colors];
+		if (text_colors < 3) {
+			col_weights[0] = 1.0;
+		} else {
+			col_weights[2] = 1.0/(1.0 +  clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
+			col_weights[0] = clt_parameters.corr_red *  col_weights[2];
+			col_weights[1] = clt_parameters.corr_blue * col_weights[2];
+		}
+		scene.gpuQuad.execRBGA(
+				col_weights,                   // double [] color_weights,
+				scene.isLwir(),                // boolean   is_lwir,
+				clt_parameters.min_shot,       // double    min_shot,           // 10.0
+				clt_parameters.scale_shot,     // double    scale_shot,         // 3.0
+				clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+				clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				clt_parameters.dust_remove,    // boolean   dust_remove,
+				keep_weights);                            // int       keep_weights)
+		float [][] rbga = scene.gpuQuad.getRBGA(
+				texture_layers - 1, // (isMonochrome() ? 1 : 3), // int     num_colors,
+				woi); // woi in pixels
+		boolean show_rbga= false;
+		if (show_rbga) {
+			ShowDoubleFloatArrays.showArrays( // show slices RBGA (colors - 256, A - 1.0)
+					rbga,
+					woi.width,
+					woi.height,
+					true,
+					scene.getImageName()+"-RGBA-STACK-D"+clt_parameters.disparity+
+					":"+clt_parameters.gpu_woi_tx+":"+clt_parameters.gpu_woi_ty+
+					":"+clt_parameters.gpu_woi_twidth+":"+clt_parameters.gpu_woi_theight+
+					":"+(clt_parameters.gpu_woi_round?"C":"R")
+					//,new String[] {"R","B","G","A"}
+					);
+			show_rbga = false;
+		}
+		
+//		if (debugLevel > -1000) {
+//			return null;
+//		}
+		final int tilesX =    scene.getTileProcessor().getTilesX();
+		final int tilesY =    scene.getTileProcessor().getTilesY();
+		final int tiles =     tilesX*tilesY;
+		int tile_size =       scene.getTileProcessor().getTileSize();
+		int tile_len =        tile_size*tile_size;
+		final double [][][][] texture_tiles88 = new double [tilesY][tilesX][][]; // here - non-overlapped!
+		// copy from windowed output to 
+		final TpTask[] ftp_tasks =    tp_tasks[0];
+		final Rectangle fwoi =        woi;
+		final Thread[] threads =      ImageDtt.newThreadArray(OpticalFlow.THREADS_MAX);
+		final AtomicInteger ai =      new AtomicInteger(0);
+		final double [][][] tileXY =  new double [tilesY][tilesX][];
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int itile = ai.getAndIncrement(); itile < ftp_tasks.length; itile = ai.getAndIncrement()) {
+						TpTask task = ftp_tasks[itile];
+						if (task != null) {
+							int x0 = tile_size * task.tx - fwoi.x;
+							int y0 = tile_size * task.ty - fwoi.y;
+							if ((x0 >=0) && (y0>=0) && (x0 < fwoi.width) && (y0 < fwoi.height)) {
+								int sindx0 =  x0 + y0 * fwoi.width;
+								texture_tiles88[task.ty][task.tx] = new double [rbga.length][tile_len];
+								for (int nchn = 0; nchn < rbga.length; nchn++) {
+									int indx=0;
+									double [] tt = texture_tiles88[task.ty][task.tx][nchn];
+									for (int row = 0; row <tile_size; row++) {
+										int sindx = sindx0 + fwoi.width * row;
+										for (int col = 0; col <tile_size; col++) {
+											tt[indx++] = rbga[nchn][sindx++];
+										}
+									}
+								}
+							} else {
+								System.out.println("texturesNoneoverlapGPUFromDSI() task tile outside of texture:\n"+
+										"task.tx="+task.tx+", task.ty="+task.ty+", woi.x="+fwoi.x+", woi.y="+fwoi.y+
+												", woi.width="+fwoi.width+", woi.height="+fwoi.height);
+							}
+							tileXY[task.ty][task.tx] = task.getDoubleCenterXY();
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+
+		if (max_distortion > 0) {//  remove distorted tiles
+			double max_distortion2 = max_distortion * max_distortion; 
+			final TileNeibs tn =         new TileNeibs(tilesX, tilesY);
+			final boolean [] distorted = new boolean [tiles];
+			ai.set(0);
+			final double [] dbg_distort = (debugLevel>2)? (new double [tiles]):null;
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+							int tileX = nTile % tilesX;
+							int tileY = nTile / tilesX;
+							if (tileXY[tileY][tileX] != null) {
+								double [] centerXY =tileXY[tileY][tileX]; 
+								if ((centerXY != null) && (cluster_index[nTile] >= 0)){
+									// see if any tile
+									for (int dir = 0; dir < TileNeibs.DIRS; dir++) {
+										int tile1 = tn.getNeibIndex(nTile, dir);
+										if (tile1 >= 0) {
+											if (cluster_index[tile1] == cluster_index[nTile]) {
+												int tileX1 = tn.getX(tile1);
+												int tileY1 = tn.getY(tile1);
+												double [] thisXY = tileXY[tileY1][tileX1];
+												// border-border neighbor may have discontinuity even belonging to the same cluster
+												// (coming close AGAIN)
+												if ((thisXY != null) && !(border[nTile] && border[tile1])) {
+													double dx = thisXY[0] - centerXY[0] - tile_size * TileNeibs.getDX(dir);
+													double dy = thisXY[1] - centerXY[1] - tile_size * TileNeibs.getDY(dir);
+													double e2 = dx*dx+dy*dy;
+													if (dbg_distort != null) {
+														if (e2 > dbg_distort[nTile]) {
+															dbg_distort[nTile] = Math.sqrt(e2);
+														}
+													} else {
+														if (e2 > max_distortion2) {
+															distorted[nTile] = true;
+															break;
+														}
+													}
+												} else {
+													continue; // check why task is null here for >=0 cluster index 
+												}
+											}
+										}
+									}
+								} else {
+									if (debugLevel > -3) {
+										System.out.println("Non-null texture for no-cluster, nTile="+nTile+
+												", tileX="+tileX+", tileY="+tileY+", cluster_index["+nTile+"]="+cluster_index[nTile]);
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			ai.set(0);
+			if (dbg_distort != null) {
+				ShowDoubleFloatArrays.showArrays( // out of boundary 15
+						dbg_distort,
+						tilesX,
+						tilesY,
+						"test-distort");
+
+			}
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < distorted.length; nTile = ai.getAndIncrement()) if (distorted[nTile]){
+							int tileX = nTile % tilesX;
+							int tileY = nTile / tilesX;
+							if (texture_tiles88[tileY] != null) {
+								texture_tiles88[tileY][tileX] = null;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return texture_tiles88;
+	}
 	
 	
 	

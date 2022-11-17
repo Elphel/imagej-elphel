@@ -692,12 +692,14 @@ public class ImageDtt extends ImageDttCPU {
 				true,           // boolean   calc_textures,
 				false,          // boolean   calc_extra
 				false);         // boolean   linescan_order)
-		int    num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
+//		int    num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
+		int    num_src_slices = numcol + 1 + ((keep_weights!=0)?(getNumSensors() + numcol + 1):0);
+		int    num_out_slices = numcol + 1 + ((keep_weights!=0)?(getNumSensors()):0); // 18
 		int [] texture_indices = gpuQuad.getTextureIndices();
 		float [] flat_textures =  gpuQuad.getFlatTextures(
 				texture_indices.length,
-				numcol, // int     num_colors,
-	    		false); // clt_parameters.keep_weights); // boolean keep_weights);
+				numcol,               // int     num_colors,
+				(keep_weights != 0)); // clt_parameters.keep_weights); // boolean keep_weights);
 		int tilesX = gpuQuad.img_width / GPUTileProcessor.DTT_SIZE;
 		int tilesY = gpuQuad.img_height / GPUTileProcessor.DTT_SIZE;
 		double [][][][] texture_tiles = new double [tilesY][tilesX][][];
@@ -707,7 +709,7 @@ public class ImageDtt extends ImageDttCPU {
 	    		texture_indices,                     // int []       indices,
 	    		flat_textures,                       // float [][][] ftextures,
 	    		tilesX,                              // int          full_width,
-	    		isMonochrome()? 2: 4,                // rbga only /int          num_slices Same number
+	    		num_out_slices, // isMonochrome()? 2: 4,                // rbga only /int          num_slices Same number
 	    		num_src_slices                       // int          num_src_slices
 	    		);
 		return texture_tiles;
