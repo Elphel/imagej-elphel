@@ -145,8 +145,8 @@ public class GPUTileProcessor {
 	public static int TASK_TEXTURE_W_BIT =        3; // Texture with West  neighbor
 //	public static int TASK_TEXTURE_BIT =          3;  // bit to request texture calculation int task field of struct tp_task
 	
-	public static int LIST_TEXTURE_BIT =          7;  // bit to request texture calculation
-	public static int TEXT_NTILE_SHIFT =          8;  // split from CORR_NTILE_SHIFT
+	public static int LIST_TEXTURE_BIT =          8; // 7;  // bit to request texture calculation
+	public static int TEXT_NTILE_SHIFT =          9; // 8;  // split from CORR_NTILE_SHIFT
 //	public static int CORR_OUT_RAD =              4;  // output radius of the correlations (implemented)
 	public static double FAT_ZERO_WEIGHT =        0.0001; // add to port weights to avoid nan
 
