@@ -1782,7 +1782,7 @@ public class QuadCLT extends QuadCLTCPU {
 			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 			final boolean     filter_bg, // remove bg tiles (possibly occluded)
 			final double      max_distortion, // maximal neighbor tiles offset as a fraction of tile size (8) 
-			final int []      cluster_index,  // 
+			final int []      cluster_index,  // [tilesX*tilesY]
 			final boolean []  border, // border tiles
 			final boolean     keep_channels,
 			final int         debugLevel){
@@ -3386,7 +3386,7 @@ public class QuadCLT extends QuadCLTCPU {
 
 			if (debugLevel > -1) {
 		    	for (int indx = 0; indx < texture_indices.length; indx++) if ((texture_indices[indx] & (1 << GPUTileProcessor.LIST_TEXTURE_BIT)) != 0){
-		    		int tile = texture_indices[indx] >> GPUTileProcessor.CORR_NTILE_SHIFT;
+		    		int tile = texture_indices[indx] >> GPUTileProcessor.TEXT_NTILE_SHIFT;
 		    		int tileX = tile % tilesX;
 		    		int tileY = tile / tilesX;
 		    		if ((tileY == clt_parameters.tileY) && (tileX == clt_parameters.tileX)) {

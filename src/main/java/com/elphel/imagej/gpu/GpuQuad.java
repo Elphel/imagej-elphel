@@ -1303,68 +1303,6 @@ public class GpuQuad{ // quad camera description
 		return tp_tasks;		
 	}
 	
-	
-	
-
-	/**
-	 * Prepare contents pointers for calculation of the correlation pairs
-	 * @param tp_tasks array of tasks that contain masks of the required pairs
-	 * @return each element has (tile_number << 8) | (pair_number & 0xff)
-	 */
-	@Deprecated
-	public int [] getCorrTasks(
-			TpTask [] tp_tasks) {
-		int tilesX = img_width / GPUTileProcessor.DTT_SIZE;
-		int num_corr = 0;
-		int num_pairs = Correlation2d.getNumPairs(quadCLT.getNumSensors());
-		int task_mask = (1 << num_pairs) - 1;
-		for (TpTask tt: tp_tasks) {
-			int pm = (tt.task >> GPUTileProcessor.TASK_CORR_BITS) & task_mask;
-			if (pm != 0) {
-				for (int b = 0; b < num_pairs; b++) if ((pm & (1 << b)) != 0) {
-					num_corr++;    			}
-			}
-		}
-
-		int [] iarr = new int[num_corr];
-		num_corr = 0;
-		for (TpTask tt: tp_tasks) {
-			int pm = (tt.task >> GPUTileProcessor.TASK_CORR_BITS) & task_mask;
-			if (pm != 0) {
-				int tile = (tt.ty * tilesX +tt.tx);
-				for (int b = 0; b < num_pairs; b++) if ((pm & (1 << b)) != 0) {
-					iarr[num_corr++] = (tile << GPUTileProcessor.CORR_NTILE_SHIFT) | b;
-				}
-			}
-		}
-		return iarr;
-	}
-	/**
-	 * Prepare contents pointers for calculation of the texture tiles (RGBA, 16x16)
-	 * @param tp_tasks array of tasks that contain masks of the required pairs
-	 * @return each element has (tile_number << 8) | (1 << LIST_TEXTURE_BIT)
-	 */
-	@Deprecated
-	public int [] getTextureTasks(
-			TpTask [] tp_tasks) {
-		int tilesX = img_width / GPUTileProcessor.DTT_SIZE;
-		int num_textures = 0;
-		for (TpTask tt: tp_tasks) {
-			if ((tt.task & GPUTileProcessor.TASK_TEXTURE_BITS) !=0) {
-				num_textures++;
-			}
-		}
-		int [] iarr = new int[num_textures];
-		num_textures = 0;
-		int b = (1 << GPUTileProcessor.LIST_TEXTURE_BIT);
-		for (TpTask tt: tp_tasks) {
-			if ((tt.task & GPUTileProcessor.TASK_TEXTURE_BITS) !=0) {
-				int tile = (tt.ty * tilesX +tt.tx);
-				iarr[num_textures++] = (tile << GPUTileProcessor.CORR_NTILE_SHIFT) | b;
-			}
-		}
-		return iarr;
-	}
 
 	/**
 	 * Calculate rotation matrices and their derivatives
@@ -3284,8 +3222,8 @@ public class GpuQuad{ // quad camera description
 		int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
 		float [][] extra = new float[num_tile_extra][tilesX*tilesY];
 		for (int i = 0; i < texture_indices.length; i++) {
-			if (((texture_indices[i] >> GPUTileProcessor.CORR_TEXTURE_BIT) & 1) != 0) {
-				int ntile = (texture_indices[i] >>  GPUTileProcessor.CORR_NTILE_SHIFT);
+			if (((texture_indices[i] >> GPUTileProcessor.LIST_TEXTURE_BIT) & 1) != 0) {
+				int ntile = (texture_indices[i] >>  GPUTileProcessor.TEXT_NTILE_SHIFT);
 				for (int l = 0; l < num_tile_extra; l++) {
 					extra[l][ntile] = diff_rgb_combo[i * num_tile_extra + l];
 				}
@@ -3439,7 +3377,7 @@ public class GpuQuad{ // quad camera description
 
 		//        	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
 		for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << GPUTileProcessor.LIST_TEXTURE_BIT)) != 0){
-			int tile = (indices[indx] >> GPUTileProcessor.CORR_NTILE_SHIFT);
+			int tile = (indices[indx] >> GPUTileProcessor.TEXT_NTILE_SHIFT);
 			int tileX = tile % full_width;
 			int tileY = tile / full_width;
 			int wtileX = tileX - woi.x;

@@ -117,7 +117,7 @@ public class TileNeibs{
 	}
 
 	/**
-	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array
+	 * Get element index offset by dx and dy from the indx
 	 * @param indx start index
 	 * @param dx offset in x direction
 	 * @param dy offset in y direction

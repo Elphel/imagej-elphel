@@ -134,17 +134,19 @@ public class GPUTileProcessor {
 //	static int        TPTASK_SIZE =                 1+ 1+ NUM_CAMS * 2 + 1 + NUM_CAMS * 4 ; // tp_task structure size in floats
 	static int        CLTEXTRA_SIZE =               8;
 	static int        CORR_SIZE =                   (2* DTT_SIZE - 1) * (2* DTT_SIZE - 1); // 15x15
-	public static int CORR_NTILE_SHIFT =          8;  // also for texture tiles list
+	public static int CORR_NTILE_SHIFT =          8;  // also for texture tiles list - not anymore 11/18/2022
 	// FIXME: CORR_PAIRS_MASK will not work !!!	
 	public static int CORR_PAIRS_MASK =        0x3f;  // lower bits used to address correlation pair for the selected tile
-	public static int CORR_TEXTURE_BIT =          7;  // bit 7 used to request texture for the tile
+//	public static int CORR_TEXTURE_BIT =          7;  // bit 7 used to request texture for the tile GET RID !!!
 	public static int TASK_CORR_BITS =            4;  // start of pair mask
 	public static int TASK_TEXTURE_N_BIT =        0; // Texture with North neighbor
 	public static int TASK_TEXTURE_E_BIT =        1; // Texture with East  neighbor
 	public static int TASK_TEXTURE_S_BIT =        2; // Texture with South neighbor
 	public static int TASK_TEXTURE_W_BIT =        3; // Texture with West  neighbor
 //	public static int TASK_TEXTURE_BIT =          3;  // bit to request texture calculation int task field of struct tp_task
+	
 	public static int LIST_TEXTURE_BIT =          7;  // bit to request texture calculation
+	public static int TEXT_NTILE_SHIFT =          8;  // split from CORR_NTILE_SHIFT
 //	public static int CORR_OUT_RAD =              4;  // output radius of the correlations (implemented)
 	public static double FAT_ZERO_WEIGHT =        0.0001; // add to port weights to avoid nan
 
@@ -226,13 +228,14 @@ public class GPUTileProcessor {
         				"#define IMCLT_TILES_PER_BLOCK " +          IMCLT_TILES_PER_BLOCK+"\n"+
         				"#define CORR_NTILE_SHIFT " +               CORR_NTILE_SHIFT+"\n"+
 //        				"#define CORR_PAIRS_MASK " +                CORR_PAIRS_MASK+"\n"+
-        				"#define CORR_TEXTURE_BIT " +               CORR_TEXTURE_BIT+"\n"+
+//        				"#define CORR_TEXTURE_BIT " +               CORR_TEXTURE_BIT+"\n"+
         				"#define TASK_CORR_BITS " +                 TASK_CORR_BITS+"\n"+
         				"#define TASK_TEXTURE_N_BIT " +             TASK_TEXTURE_N_BIT+"\n"+
         				"#define TASK_TEXTURE_E_BIT " +             TASK_TEXTURE_E_BIT+"\n"+
         				"#define TASK_TEXTURE_S_BIT " +             TASK_TEXTURE_S_BIT+"\n"+
         				"#define TASK_TEXTURE_W_BIT " +             TASK_TEXTURE_W_BIT+"\n"+
         				"#define LIST_TEXTURE_BIT " +               LIST_TEXTURE_BIT+"\n"+
+        				"#define TEXT_NTILE_SHIFT " +               TEXT_NTILE_SHIFT+"\n"+
 //        				"#define CORR_OUT_RAD " +                   CORR_OUT_RAD+"\n" +
         				"#define FAT_ZERO_WEIGHT " +                FAT_ZERO_WEIGHT+"\n"+
         				"#define THREADS_DYNAMIC_BITS " +           THREADS_DYNAMIC_BITS+"\n"+

@@ -1299,6 +1299,561 @@ public class TexturedModel {
 	}
 
 	
+	public static double [][] processTexture(
+			final CLTParameters  clt_parameters,
+			final int            tilesX,
+			final double [][]    slice_disparities,
+			final double [][][]  sensor_texture,    // per-sensor texture value
+			final double [][]    combo_texture_in,  // average texture value
+			final String         dbg_prefix) {
+		final double var_radius =         3.5;   // for variance filter of the combo disparity
+		final double dir_radius =         1.5;   // averaging inter-sensor variance to view behind obstacles 
+		final double try_dir_var =       20.0;   // try directional if the intersensor variance exceeds this value
+		final int    dir_num_start =      7;     // start with this number of consecutive sensors
+		final int    dir_num_restart =    5;     // restart (from best direction) with this number of consecutive sensors
+		final double dir_worsen_rel =     0.15;  // add more sensors until variance grows by this relative
+		final double dir_var_max =       15.0;   // do not add more sensors if the variance would exceed this
+		final double max_disparity_lim = 100.0;  // do not allow stray disparities above this
+		final double min_trim_disparity =  2.0;  // do not try to trim texture outlines with lower disparities
+		final double fg_max_inter =       40.0;  // Trim FG tile if inter variance exceeds 
+		final double fg_max_rel =         2.0;   // Trim FG tile if inter variance to same variance exceeds
+		final int    trim_shrink =        2;
+		final int    trim_grow =          2;
+		final int    trim_shrink2 =       2;
+		final int    trim_edge =          9;
+		
+		
+		final int    num_slices = sensor_texture.length;
+		final int ivar_radius = (int) Math.floor(var_radius);
+		final int idir_radius = (int) Math.floor(dir_radius);
+		final double [][] var_weights = new double [ivar_radius+1][ivar_radius+1];
+		final double [][] dir_weights = new double [idir_radius+1][idir_radius+1];
+		for (int i = 0; i < var_weights.length; i++) {
+			for (int j = 0; j < var_weights[i].length; j++) {
+				var_weights[i][j] = Math.cos(0.5*Math.PI*i/var_radius) * Math.cos(0.5*Math.PI*j/var_radius);
+			}
+		}
+		for (int i = 0; i < dir_weights.length; i++) {
+			for (int j = 0; j < dir_weights[i].length; j++) {
+				dir_weights[i][j] = Math.cos(0.5*Math.PI*i/dir_radius) * Math.cos(0.5*Math.PI*j/dir_radius);
+			}
+		}
+		
+		final int transform_size = clt_parameters.transform_size;
+		final int width = tilesX * transform_size;
+		final int img_size = sensor_texture[0][0].length;
+		final int height =   img_size/width;
+		final int tilesY = height / transform_size;
+		final int tiles = tilesX * tilesY;
+		final int offset_tile_center = transform_size * transform_size / 2;
+
+		final int num_sensors = sensor_texture[0].length;
+		final double [][] gcombo_texture = (combo_texture_in != null) ? combo_texture_in : new double [num_slices][img_size];
+		final double [][] gvars_same =        new double [num_slices][];
+		final double [][] gvars_inter =       new double [num_slices][];
+		final double [][] out_textures = new double [num_slices][];
+
+		
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		if (combo_texture_in == null) {
+			for (int nslice = 0; nslice < num_slices; nslice++) {
+				final int fnslice = nslice;
+				Arrays.fill(gcombo_texture[fnslice], Double.NaN);
+				ai.set(0);
+				// calculate total number of connections (w/o fof) by combining opposite directions
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int indx = ai.getAndIncrement(); indx < img_size; indx = ai.getAndIncrement()) if (!Double.isNaN(sensor_texture[fnslice][0][indx])) {
+								double d = 0;
+								for (int nsens = 0; nsens < num_sensors; nsens++) {
+									d += sensor_texture[fnslice][nsens][indx];
+								}
+								gcombo_texture[fnslice][indx] = d/num_sensors;
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+		}
+		// get max disparity
+		final TileNeibs tn =     new TileNeibs(tilesX, tilesY);
+		final double [] th_max_disp = new double [threads.length];
+		final int tile_slices = tiles*num_slices;
+		final AtomicInteger ati = new AtomicInteger(0);
+		ai.set(0);
+		// calculate total number of connections (w/o fof) by combining opposite directions
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					int ti = ati.getAndIncrement();
+					for (int indx = ai.getAndIncrement(); indx < tile_slices; indx = ai.getAndIncrement()) {
+						int nslice = indx / tiles;
+						int tile =   indx % tiles;
+						if (!Double.isNaN(slice_disparities[nslice][tile])) {
+							if ((slice_disparities[nslice][tile] > th_max_disp[ti]) &&
+									(slice_disparities[nslice][tile] < max_disparity_lim)){
+								th_max_disp[ti] = slice_disparities[nslice][tile];
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		double disparity_max0 = 0.0;
+		for (int i = 0; i < th_max_disp.length; i++) {
+			disparity_max0 = Math.max(disparity_max0, th_max_disp[i]);
+		}
+		final double disparity_max = disparity_max0;
+		//	int getNeibIndex(int indx, int dx, int dy) {
+		final boolean [][] is_fg_tile =  new boolean [num_slices][tiles]; // nothing obscures this
+		final boolean [][] has_bg_tile = new boolean [num_slices][tiles]; // has tiles behind (at least directly)
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			int fnslice = nslice; 
+			ai.set(0);
+			// calculate total number of connections (w/o fof) by combining opposite directions
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (slice_disparities[fnslice][tile] > min_trim_disparity){ // checks for NaN too !
+							 // may be a FG tile that needs trimming (not considering yet tiles that both can be obscured and obscure).
+							if ((fnslice == 6) && (tile==2333)) {
+								System.out.println("fnslice="+fnslice+", tile="+tile);
+								System.out.println("fnslice="+fnslice+", tile="+tile);
+							}
+							is_fg_tile[fnslice][tile] = true;
+							for (int ns = 0; ns < num_slices; ns++)
+								if ((ns != fnslice) &&
+										(slice_disparities[ns][tile] < slice_disparities[fnslice][tile])) {
+									has_bg_tile[fnslice][tile] = true;
+									break;
+								}
+							search_obscuring:
+							{
+								int tile_range = (int) Math.ceil((disparity_max - slice_disparities[fnslice][tile])/Math.sqrt(2)/transform_size);
+								for (int dty = -tile_range; dty <= tile_range; dty++) {
+									for (int dtx = -tile_range; dtx <= tile_range; dtx++) {
+										int tile1 = tn.getNeibIndex(tile, dtx, dty);
+										if (tile1 >= 0) {
+											double dd = (Math.sqrt(dty*dty + dtx*dtx) + 0.0)*transform_size + slice_disparities[fnslice][tile]; // is it correct?
+											for (int ns = 0; ns < num_slices; ns++) if ((ns != fnslice) || (dty !=0 ) || (dtx != 0)) {
+												if (slice_disparities[ns][tile1] > dd) {
+													is_fg_tile[fnslice][tile] = false;
+													break search_obscuring;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		
+		if (dbg_prefix != null) {
+			String [] dbg_titles = new String[num_slices];
+			for (int i = 0; i < dbg_titles.length; i++) {
+				dbg_titles[i] = String.format("slice-%02d",i);
+			}
+			ShowDoubleFloatArrays.showArrays(
+					slice_disparities,
+					tilesX,
+					tilesY,
+					true,
+					dbg_prefix+"-slice_disparities",
+					dbg_titles);
+			double [][] dbg_fgbg= new double [num_slices][tiles];
+			for (int ns = 0; ns < num_slices; ns++) {
+				Arrays.fill(dbg_fgbg[ns],Double.NaN);
+				for (int tile = 0; tile< tiles; tile++) {
+					dbg_fgbg[ns][tile] = (is_fg_tile[ns][tile]?2:0) + (has_bg_tile[ns][tile]?1:0);
+				}
+				
+			}
+			ShowDoubleFloatArrays.showArrays(
+					dbg_fgbg,
+					tilesX,
+					tilesY,
+					true,
+					dbg_prefix+"-fgbg",
+					dbg_titles);
+			
+		}		
+		
+		
+		/*
+		final boolean [] is_bg = (is_bg_in != null) ? is_bg_in : new boolean [img_size];
+		if (is_bg_in == null) {	Arrays.fill(is_bg, true);}
+		final boolean [] is_fg = (is_fg_in != null) ? is_fg_in : new boolean [img_size];
+		if (is_fg_in == null) {	Arrays.fill(is_fg, true);}
+		
+		
+		final double [][] gvars_same =        new double [num_slices][];
+		final double [][] gvars_inter =       new double [num_slices][];
+
+		*/
+		
+		final TileNeibs pn =     new TileNeibs(width, height);
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			gvars_same[fnslice] =              new double [img_size];
+			gvars_inter[fnslice] =             new double [img_size];
+			final double [] combo_texture =    gcombo_texture[fnslice];
+			final double [] vars_same =        gvars_same[fnslice]; // new double [img_size];
+			final double [] vars_inter =       gvars_inter[fnslice]; // new double [img_size];
+			final double [] vars_ratio =       new double [img_size];
+			final double [] vars_dir_initial = new double [img_size];
+			final double [] dirs_initial =     new double [img_size];
+			final double [] vars_dir_final =   new double [img_size];
+			final double [] dirs_final =       new double [img_size];
+			final double [] dirs_len =         new double [img_size];
+			final double [] vars_dir_ratio =   new double [img_size];
+			final double [] dirs_avg =         new double [img_size];
+			final double [] dbg_is_fg =       (dbg_prefix != null) ? new double [img_size] : null; 
+			System.arraycopy(combo_texture, 0, dirs_avg, 0, img_size); 
+			Arrays.fill(vars_same,        Double.NaN);
+			Arrays.fill(vars_inter,       Double.NaN);
+			Arrays.fill(vars_ratio,       Double.NaN);
+			System.arraycopy(vars_inter, 0, vars_dir_initial, 0, img_size);
+			Arrays.fill(dirs_initial,     Double.NaN);
+			Arrays.fill(dirs_final,       Double.NaN);
+			Arrays.fill(dirs_len,         Double.NaN);
+			if (dbg_is_fg != null) Arrays.fill(dbg_is_fg,  Double.NaN);
+
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int cindx = ai.getAndIncrement(); cindx < img_size; cindx = ai.getAndIncrement())
+							if (!Double.isNaN(combo_texture[cindx])) {
+								int y0 = cindx / width;
+								int x0 = cindx % width;
+								double var_same = Double.NaN;
+								double var_inter = Double.NaN;
+								// calculate weighted variance
+								double sw = 0.0, swd=0.0, swd2 = 0.0;
+								for (int dvy = -ivar_radius; dvy <= ivar_radius; dvy++) {
+									for (int dvx = -ivar_radius; dvx <= ivar_radius; dvx++) {
+										int indx = pn.getIndex(x0+dvx, y0+dvy);
+										if ((indx >= 0) && !Double.isNaN(combo_texture[indx])) {
+											double w = var_weights[Math.abs(dvy)][Math.abs(dvx)]; // 1.0;
+											double d = combo_texture[indx];
+											sw += w;
+											swd += w * d;
+											swd2 += w * d*d;
+										}
+									}
+								}
+								if (sw > 0.0) { // always
+									double avg =  swd/sw;
+									double avg2 = swd2/sw;
+									var_same = Math.sqrt(avg2-avg*avg);
+									vars_same[cindx] = var_same;
+								}
+								// calculate inter-sensor variance (add local normalization?)
+								sw = 0.0; swd=0.0; swd2 = 0.0;
+								for (int nsens = 0; nsens< num_sensors; nsens++) {
+									double w = 1.0;
+									double d = sensor_texture[fnslice][nsens][cindx];
+									sw += w;
+									swd += w * d;
+									swd2 += w * d*d;
+								}
+								if (sw > 0.0) { // always
+									double avg =  swd/sw;
+									double avg2 = swd2/sw;
+									var_inter = Math.sqrt(avg2-avg*avg);
+									vars_inter[cindx] = var_inter;
+								}
+								vars_ratio[cindx] = var_same/var_inter;
+							}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			
+			
+			
+			
+			
+			System.arraycopy(vars_inter, 0,       vars_dir_final, 0, img_size);
+			System.arraycopy(vars_ratio, 0,       vars_dir_ratio, 0, img_size);
+			final int dir_samples = (2 * idir_radius + 1) * (2 * idir_radius + 1);
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						double [] dirvar = new double [num_sensors];
+						double [] sw =     new double[dir_samples];
+						double [] swd =    new double[dir_samples];
+						double [] swd2 =   new double[dir_samples];
+						for (int cindx = ai.getAndIncrement(); cindx < img_size; cindx = ai.getAndIncrement())
+							// is_fg_tile[fnslice][tile]
+							if (!Double.isNaN(combo_texture[cindx]))  {
+								int y0 = cindx / width;
+								int x0 = cindx % width;
+								int tileX = x0 / transform_size;
+								int tileY = y0 / transform_size;
+								int tile = tileX + tilesX * tileY;
+								if (dbg_is_fg != null) {
+									dbg_is_fg[cindx] =
+											(is_fg_tile[fnslice][tile]?2:0) + (has_bg_tile[fnslice][tile]?1:0);
+								}
+								// only trim if nothing obscures this and has some BG 
+								if (is_fg_tile[fnslice][tile] && has_bg_tile[fnslice][tile]) {
+									if (dbg_is_fg != null) {
+										dbg_is_fg[cindx] = 1000.0;
+									}
+									if (vars_inter[cindx] > fg_max_inter) {
+										dirs_avg[cindx] = Double.NaN;
+									}
+								} else if (vars_inter[cindx] > try_dir_var) { // try obscuring by others
+									Arrays.fill(sw,  0.0);
+									Arrays.fill(swd, 0.0);
+									Arrays.fill(swd2,0.0);
+									for (int dvy = -idir_radius; dvy <= idir_radius; dvy++) {
+										for (int dvx = -idir_radius; dvx <= idir_radius; dvx++) {
+											int pindx = pn.getIndex(x0+dvx, y0+dvy);
+											if ((pindx >= 0) && !Double.isNaN(combo_texture[pindx])) {
+												int vindx = (dvy + idir_radius) * (2 * idir_radius + 1) + (dvx + idir_radius);
+												for (int nsens = 0; nsens < dir_num_start; nsens++) {
+													double w = 1.0;
+													double d = sensor_texture[fnslice][nsens][pindx];
+													sw[vindx] +=   w;
+													swd[vindx] +=  w * d;
+													swd2[vindx] += w * d * d;
+												}
+											}
+										}
+									}
+									double svw = 0.0, svwd = 0.0;
+									for (int start_dir = 0; start_dir < num_sensors; start_dir++) {
+										for (int dvy = -idir_radius; dvy <= idir_radius; dvy++) {
+											for (int dvx = -idir_radius; dvx <= idir_radius; dvx++) {
+												int vindx = (dvy + idir_radius) * (2 * idir_radius + 1) + (dvx + idir_radius);
+												if (sw[vindx] > 0.0) {
+													double avg =  swd[vindx]/sw[vindx];
+													double avg2 = swd2[vindx]/sw[vindx];
+													double v = Math.sqrt(avg2-avg*avg);
+													double w = dir_weights[Math.abs(dvy)][Math.abs(dvx)];
+													svw +=  w;
+													svwd += w * v;
+												}
+											}
+										}
+										dirvar[start_dir] = svwd/svw; // weighted
+										if (start_dir == (num_sensors - 1)) {
+											break;
+										}
+										// remove previous values pointed by start_dir
+										// and add new values pointed by start_dir+dir_num_start
+										for (int dvy = -idir_radius; dvy <= idir_radius; dvy++) {
+											for (int dvx = -idir_radius; dvx <= idir_radius; dvx++) {
+												int pindx = pn.getIndex(x0+dvx, y0+dvy);
+												if ((pindx >= 0) && !Double.isNaN(combo_texture[pindx])) {
+													int vindx = (dvy + idir_radius) * (2 * idir_radius + 1) + (dvx + idir_radius);
+													double w0 = 1.0;
+													double d0 = sensor_texture[fnslice][start_dir][pindx];
+													sw[vindx] -=   w0;
+													swd[vindx] -=  w0 * d0;
+													swd2[vindx] -= w0 * d0 * d0;
+													int dir1 = (start_dir + dir_num_start) % num_sensors;
+													double w1 = 1.0;
+													sw[vindx] +=   w1;
+													double d1 = sensor_texture[fnslice][dir1][pindx];
+													swd[vindx] +=  w1 * d1;
+													swd2[vindx] += w1 * d1 * d1;
+												}
+											}
+										}
+									}
+									// find best direction
+									int best_dir = 0;
+									for (int dir = 1; dir < num_sensors; dir++) {
+										if (dirvar[dir] < dirvar[best_dir]) {
+											best_dir = dir;
+										}
+									}
+									double center_dir = best_dir + 0.5 * (dir_num_start - 1);
+									if (center_dir >= num_sensors) {
+										center_dir -= num_sensors;
+									}
+									vars_dir_initial[cindx] = dirvar[best_dir];
+									dirs_initial[cindx] =     center_dir;
+
+									// recalculate variance for the same direction but maybe different number of sensors
+									// dir_num_restart
+									// Use only center pixel, do not average variance
+									int dir_start = (int) Math.round(center_dir - 0.5 * (dir_num_restart - 1));
+									if (dir_start < 0) {
+										dir_start += num_sensors;
+									}
+									double scw = 0.0, scwd = 0.0, scwd2 = 0.0;
+									for (int i = 0; i < dir_num_restart; i++) {
+										int dir = dir_start +i;
+										if (dir >= num_sensors) {
+											dir -= num_sensors;
+										}
+										double w = 1.0;
+										double d = sensor_texture[fnslice][dir][cindx];
+										scw += w;
+										scwd += w * d;
+										scwd2 += w * d*d;
+									}
+									double avg =     scwd/scw;
+									double avg2 =    scwd2/scw;
+									double dir_var = Math.sqrt(avg2-avg*avg);
+									double max_var = Math.min(dir_var_max, dir_var*(1.0+dir_worsen_rel));
+									// add sensors from both ends (which is better) while variance stays below max_var
+									int dir_len ;
+									for (dir_len = dir_num_start; dir_len < num_sensors; dir_len++) {
+										// try CCW
+										int nsens0 = dir_start - 1; //) % num_sensors;
+										if (nsens0 < 0) {
+											nsens0 += num_sensors;
+										}
+										double w = 1.0;
+										double d = sensor_texture[fnslice][nsens0][cindx];
+										double sw_0 =   scw + w;
+										double swd_0 =  scwd + w*d;
+										double swd2_0 = scwd2 + w*d*d;
+										avg =  swd_0 / sw_0;
+										avg2 = swd2_0 / sw_0;
+										double var_0 = Math.sqrt(avg2 - avg * avg);
+										// try CW
+										int nsens1 = dir_start + dir_len;
+										if (nsens1 >=num_sensors) {
+											nsens1 -= num_sensors ;
+										}
+										w = 1.0;
+										d = sensor_texture[fnslice][nsens1][cindx];
+										double sw_1 =   scw + w;
+										double swd_1 =  scwd + w*d;
+										double swd2_1 = scwd2 + w*d*d;
+										avg =  swd_1 / sw_1;
+										avg2 = swd2_1 / sw_1;
+										double var_1 = Math.sqrt(avg2 - avg * avg);
+										if (Math.min(var_0, var_1) > max_var) {
+											break;
+										}
+										if (var_0 < var_1) {
+											dir_start = nsens0;
+											scw = sw_0;
+											scwd = swd_0;
+											scwd2 = swd2_0;
+											dir_var = var_0;
+										} else {
+											// dir_start stays the same
+											scw = sw_1;
+											scwd = swd_1;
+											scwd2 = swd2_1;
+											dir_var = var_1;
+										}
+									}
+									double dir_avg = scwd/scw;
+									double ddir = dir_start + 0.5 * (dir_len - 1);
+									if (ddir >= num_sensors) {
+										ddir -= num_sensors;
+									}
+									// fill arrays
+									dirs_final[cindx] =     ddir;
+									dirs_len[cindx] =       dir_len;
+									vars_dir_final[cindx] = dir_var; 
+									vars_dir_ratio[cindx] = vars_same[cindx]/dir_var; 
+									dirs_avg[cindx] =       dir_avg; 
+
+								} // } else if (vars_inter[cindx] > try_dir_var) { // try obscuring by others
+
+							}
+
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (dbg_prefix != null) {
+				double [][] dbg_img = {
+						vars_same,
+						vars_inter,
+						vars_dir_initial,
+						vars_dir_final,
+						dirs_initial,
+						dirs_final,
+						dirs_len,
+						vars_ratio,
+						vars_dir_ratio,
+						dbg_is_fg,
+						combo_texture,
+						dirs_avg,
+						sensor_texture[fnslice][ 0],
+						sensor_texture[fnslice][ 1],
+						sensor_texture[fnslice][ 2],
+						sensor_texture[fnslice][ 3],
+						sensor_texture[fnslice][ 4],
+						sensor_texture[fnslice][ 5],
+						sensor_texture[fnslice][ 6],
+						sensor_texture[fnslice][ 7],
+						sensor_texture[fnslice][ 8],
+						sensor_texture[fnslice][ 9],
+						sensor_texture[fnslice][10],
+						sensor_texture[fnslice][11],
+						sensor_texture[fnslice][12],
+						sensor_texture[fnslice][13],
+						sensor_texture[fnslice][14],
+						sensor_texture[fnslice][15]
+				};
+				String [] dbg_titles = {
+						"VAR_SAME",
+						"VAR_INTER",
+						"VAR_DIR_INITIAL",
+						"VAR_DIR_FINAL",
+						"DIR_INITIAL",
+						"DIR_FINAL",
+						"LEN",
+						"VAR_RATIO",
+						"DIR_RATIO",
+						"IS_FG",
+						"COMBO_TEXTURE",
+						"OUT_TEXTURE",
+						"T00",
+						"T01",
+						"T02",
+						"T03",
+						"T04",
+						"T05",
+						"T06",
+						"T07",
+						"T08",
+						"T09",
+						"T10",
+						"T11",
+						"T12",
+						"T13",
+						"T14",
+						"T15"
+				};
+				ShowDoubleFloatArrays.showArrays(
+						dbg_img,
+						width,
+						height,
+						true,
+						dbg_prefix+"-textures-"+fnslice,
+						dbg_titles);
+			}
+			out_textures[fnslice] = dirs_avg;
+		}
+		
+		return out_textures;
+	}
+	
+	
+	
+	
 	
 	public static ImagePlus[] getInterCombinedTexturesNew( // return ImagePlus[] matching tileClusters[], with alpha
 			final CLTParameters  clt_parameters,
@@ -1371,12 +1926,10 @@ public class TexturedModel {
 		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		final int num_slices = tileClusters.length;
 		double [][][]     inter_weights = new double [num_slices][tilesY][tilesX]; // per-tile texture weights for inter-scene accumulation;
-//		double [][][][][] inter_textures= new double [num_slices][tilesY][tilesX][][]; // [channel][256] - non-overlapping textures
 		// weighted sum
 		double [][][][][] inter_textures_wd= new double [num_slices][tilesY][tilesX][][]; // [channel][64] - overlapping textures
 		// weighted sum of squares
-		double [][][][][] inter_textures_wd2= new double [num_slices][tilesY][tilesX][][]; // [channel][64] - overlapping textures
-		
+///		double [][][][][] inter_textures_wd2= new double [num_slices][tilesY][tilesX][][]; // [channel][64] - overlapping textures
 		double [][][] ref_pXpYDs = new double [num_slices][][]; // individual for each slice
 		int    [][] cluster_indices = (max_distortion > 0.0) ? (new int [num_slices][]): null;
 		boolean [][] borders = new boolean [num_slices][];
@@ -1396,8 +1949,10 @@ public class TexturedModel {
 		}		
 		
 		final int num_sensors = parameter_scene.getNumSensors();
-		final int num_colors = parameter_scene.isMonochrome()?1:3; 
+		final int num_colors = parameter_scene.isMonochrome()?1:3;
 		
+		final double [][][] sensor_textures = new double [num_slices][num_sensors][];
+		final double [][] combo_textures = new double [num_slices][];
 		for (int nscene = earliestScene; nscene < scenes.length; nscene++) if ((scenes_sel == null) || scenes_sel[nscene]){
 			String ts = scenes[nscene].getImageName();
 			double []   scene_xyz = OpticalFlow.ZERO3;
@@ -1466,7 +2021,7 @@ public class TexturedModel {
 						true, //keep_channels,           // final boolean     keep_channels,
 						debug_level);            // final int         debugLevel);
 				
-				if (slice_texture88 != null) {
+				if (slice_texture88 != null) { // will just accumulate
 					// Use MB vectors for texture weights				
 					final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 					final AtomicInteger ai = new AtomicInteger(0);
@@ -1491,13 +2046,13 @@ public class TexturedModel {
 											inter_weights[fnslice][tileY][tileX] +=w;
 											if (inter_textures_wd[fnslice][tileY][tileX] == null) { // create if it did not exist
 												inter_textures_wd[fnslice][tileY][tileX] =  new double [slice_texture88[tileY][tileX].length + num_colors][slice_texture88[tileY][tileX][0].length];
-												inter_textures_wd2[fnslice][tileY][tileX] = new double [slice_texture88[tileY][tileX].length + num_colors][slice_texture88[tileY][tileX][0].length];
+///												inter_textures_wd2[fnslice][tileY][tileX] = new double [slice_texture88[tileY][tileX].length + num_colors][slice_texture88[tileY][tileX][0].length];
 											}
 											for (int nchn = 0; nchn < slice_texture88[tileY][tileX].length; nchn++) {
 												for (int i = 0; i < slice_texture88[tileY][tileX][nchn].length; i++) {
 													double d = slice_texture88[tileY][tileX][nchn][i];
 													inter_textures_wd [fnslice][tileY][tileX][nchn][i] += w * d; 	
-													inter_textures_wd2[fnslice][tileY][tileX][nchn][i] += w * d *d; 	
+///													inter_textures_wd2[fnslice][tileY][tileX][nchn][i] += w * d *d; 	
 												}
 											}
 										}
@@ -1521,13 +2076,25 @@ public class TexturedModel {
 		double [][][] faded_textures = new double [num_slices][][];
 		final double [][] dbg_weights = (debug_level > 0 )?(new double [num_slices][tiles]) : null;
 		final double [][] dbg_overlap = (debug_level > 0 )?(new double [num_slices*(num_colors+1)][]) : null;
+		final int width = tilesX * transform_size;
+		final int height = tilesY * transform_size;
+		final int y_color = num_colors-1;
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
 		for (int nslice = 0; nslice < num_slices; nslice++) {
+			for (int nsens = 0; nsens < num_sensors; nsens++) {
+				sensor_textures[nslice][nsens] = new double [width*height];
+				Arrays.fill(sensor_textures[nslice][nsens], Double.NaN);
+			}
+			combo_textures[nslice] = new double [width*height];
+			Arrays.fill(combo_textures[nslice], Double.NaN);
 			final int fnslice = nslice;
 			if (dbg_weights != null) {
 				Arrays.fill(dbg_weights[nslice], Double.NaN);
 			}
-			final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
-			final AtomicInteger ai = new AtomicInteger(0);
+//			final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+//			final AtomicInteger ai = new AtomicInteger(0);
+			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
@@ -1542,23 +2109,42 @@ public class TexturedModel {
 								for (int nchn = 0; nchn < inter_textures_wd[fnslice][tileY][tileX].length - num_colors; nchn++) {
 									for (int i = 0; i < inter_textures_wd[fnslice][tileY][tileX][nchn].length; i++) {
 										double d = inter_textures_wd[fnslice][tileY][tileX][nchn][i] * w; // average
-										double d2= inter_textures_wd2[fnslice][tileY][tileX][nchn][i] * w; // average of squared
+///										double d2= inter_textures_wd2[fnslice][tileY][tileX][nchn][i] * w; // average of squared
 										inter_textures_wd[fnslice][tileY][tileX][nchn][i] = d;
-										inter_textures_wd2[fnslice][tileY][tileX][nchn][i] = Math.sqrt(d2- d * d);
+///										inter_textures_wd2[fnslice][tileY][tileX][nchn][i] = Math.sqrt(d2- d * d);
 									}
 								}
 								for (int ncol = 0; ncol < num_colors; ncol++) {
 									int navg = inter_textures_wd[fnslice][tileY][tileX].length - num_colors + ncol;
 									for (int i = 0; i < tile_len; i++) {
 										inter_textures_wd[fnslice][tileY][tileX][navg][i] = 0;
-										inter_textures_wd2[fnslice][tileY][tileX][navg][i] = 0;
+///										inter_textures_wd2[fnslice][tileY][tileX][navg][i] = 0;
 										for (int nsens = 0; nsens < num_sensors; nsens++) {
 											inter_textures_wd[fnslice][tileY][tileX][navg][i] += 
 													inter_textures_wd[fnslice][tileY][tileX][1 + (nsens + 1) * num_colors][i]/num_sensors;
-											inter_textures_wd2[fnslice][tileY][tileX][navg][i] += 
-													inter_textures_wd2[fnslice][tileY][tileX][1 + (nsens + 1) * num_colors][i]/num_sensors;
+///											inter_textures_wd2[fnslice][tileY][tileX][navg][i] += 
+///													inter_textures_wd2[fnslice][tileY][tileX][1 + (nsens + 1) * num_colors][i]/num_sensors;
 										}
 									}
+								}
+								// important that texture is not overlapped here!
+								for (int row = 0; row < transform_size; row++) {
+									for (int nsens = 0; nsens < num_sensors; nsens++) {
+										System.arraycopy(
+												inter_textures_wd[fnslice][tileY][tileX][num_colors* (nsens + 1) + 1 + y_color],
+												row*transform_size,
+												sensor_textures[fnslice][nsens] ,// dbg_textures[n],
+												(tileY * transform_size + row) * width + (tileX * transform_size),
+												transform_size);
+									}
+									int navg = inter_textures_wd[fnslice][tileY][tileX].length - num_colors + y_color;
+									System.arraycopy(
+											inter_textures_wd[fnslice][tileY][tileX][navg],
+											row*transform_size,
+											combo_textures[fnslice] ,// dbg_textures[n],
+											(tileY * transform_size + row) * width + (tileX * transform_size),
+											transform_size);
+									
 								}
 							}
 						}
@@ -1566,14 +2152,11 @@ public class TexturedModel {
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
+			ai.set(0);
 			
+	/*		
 			// debug-display this slice here
 			if (debug_level > -10) {
-				int var_radius =         3;
-				double try_dir_var =    30.0;   // try directional if the intersensor variance exceeds this value
-				int dir_num_start =      5;     // start with this number of consecutive sensors
-				double dir_worsen_rel =  0.15;  // add more sensors until variance grows by this relative
-				double dir_var_max =    20.0;   // do not add more sensors if the variance would exceed this
 				int dbg_slices = num_colors + 1 +num_colors*num_sensors + num_colors;
 				int dbg_width = tilesX * transform_size;
 				int dbg_height = tilesY * transform_size;
@@ -1611,313 +2194,63 @@ public class TexturedModel {
 										dbg_textures[n],
 										(tileY * transform_size + row) * dbg_width + (tileX * transform_size),
 										transform_size);
-								System.arraycopy(
-										inter_textures_wd2[fnslice][tileY][tileX][n],
-										row*transform_size,
-										dbg_textures2[n],
-										(tileY * transform_size + row) * dbg_width + (tileX * transform_size),
-										transform_size);
+///								System.arraycopy(
+///										inter_textures_wd2[fnslice][tileY][tileX][n],
+///										row*transform_size,
+///										dbg_textures2[n],
+///										(tileY * transform_size + row) * dbg_width + (tileX * transform_size),
+///										transform_size);
 							}
 						}
 					}
 				}
-				
-				ShowDoubleFloatArrays.showArrays(
-						dbg_textures,
-						dbg_width,
-						dbg_height,
-						true,
-						ref_scene.getImageName()+"-combined_textures88-"+String.format("%02d", nslice),
-						dbg_titles);
-				ShowDoubleFloatArrays.showArrays(
-						dbg_textures2,
-						dbg_width,
-						dbg_height,
-						true,
-						ref_scene.getImageName()+"-combined_textures88-rmse-"+String.format("%02d", nslice),
-						dbg_titles);
-// get variance-same, variance-inter, variance-seme/variance-inter				
-				tindx = 0;
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "C"+ncol;
-				}
-				dbg_titles_v[tindx++] = "ALPHA";
-				for (int nsens = 0; nsens < num_sensors; nsens++) {
-					for (int ncol = 0; ncol < num_colors; ncol++) {
-						dbg_titles_v[tindx++] = "T"+nsens+((num_colors>1)?(":"+ncol):"");
-					}
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "AVG"+((num_colors>1)?(ncol):"");
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "VAR_SAME"+((num_colors>1)?(ncol):"");
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "VAR_INTER"+((num_colors>1)?(ncol):"");
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "VAR_RATIO"+((num_colors>1)?(ncol):"");
-				}
-				// debugging BG pixels obscured by the FG ones
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "DIR"+((num_colors>1)?(ncol):""); // direction (center, step 0.5)
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "LEN"+((num_colors>1)?(ncol):""); // number of consecutive sensors
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "DIRTEX"+((num_colors>1)?(ncol):""); // average texture value with subset of sensors
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "DIRVAR"+((num_colors>1)?(ncol):""); // variance for the subset of sensors
-				}
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					dbg_titles_v[tindx++] = "DIRRATIO"+((num_colors>1)?(ncol):""); // ratio of space variance to directional variance
-				}
-				
-				
-				
-				for (int n = 0; n < dbg_slices; n++) {
-					dbg_textures_v[n] = dbg_textures[n];
-				}
-				
-				for (int n = dbg_slices; n < dbg_slices_v; n++) {
-					dbg_textures_v[n] = new double[dbg_width*dbg_height];
-					Arrays.fill(dbg_textures_v[n], Double.NaN);
-				}
-				final TileNeibs pn =     new TileNeibs(tilesX*transform_size, tilesY*transform_size);
-				for (int ncol = 0; ncol < num_colors; ncol++) {
-					final int indx_mean = num_colors + 1 + num_sensors*num_colors; // average of channels //  ncol; //
-					final int indx_chn0 = num_colors + 1 + ncol; // + nsens*num_colors
-					final int indx_var_same = num_colors + 1 + num_sensors*num_colors + 1 + ncol;
-					final int indx_var_inter = indx_var_same + num_colors;
-					final int indx_var_ratio = indx_var_inter + num_colors;
-					final int indx_dir =       indx_var_ratio + 1 * num_colors;
-					final int indx_len =       indx_var_ratio + 2 * num_colors;
-					final int indx_dir_tex =   indx_var_ratio + 3 * num_colors;
-					final int indx_dir_var =   indx_var_ratio + 4 * num_colors;
-					final int indx_dir_ratio = indx_var_ratio + 5 * num_colors;
-					
-					ai.set(0);
-					for (int ithread = 0; ithread < threads.length; ithread++) {
-						threads[ithread] = new Thread() {
-							public void run() {
-								for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
-									int tileX = nTile % tilesX;
-									int tileY = nTile / tilesX;
-									for (int dy = 0; dy < transform_size; dy++) {
-										int y0 = tileY * transform_size + dy; 
-										for (int dx = 0; dx < transform_size; dx++) {
-											int x0 = tileX * transform_size + dx;
-											int indx0 = pn.getIndex(x0, y0);
-											double var_same = Double.NaN;
-											double var_inter = Double.NaN;
-											if ((indx0 >= 0) && !Double.isNaN(dbg_textures_v[indx_mean][indx0])) {
-												// calculate unweighted variance
-												double sw = 0.0, swd=0.0, swd2 = 0.0;
-												for (int dvy = -var_radius; dvy <= var_radius; dvy++) {
-													for (int dvx = -var_radius; dvx <= var_radius; dvx++) {
-														int indx = pn.getIndex(x0+dvx, y0+dvy);
-														if ((indx >= 0) && !Double.isNaN(dbg_textures_v[indx_mean][indx])) {
-															double w = 1.0;
-															double d = dbg_textures_v[indx_mean][indx];
-															sw += w;
-															swd += w * d;
-															swd2 += w * d*d;
-														}
-													}
-												}
-												if (sw > 0.0) { // always
-													double avg =  swd/sw;
-													double avg2 = swd2/sw;
-													var_same = Math.sqrt(avg2-avg*avg);
-													dbg_textures_v[indx_var_same][indx0] = var_same;
-												}
-												// calculate inter-sensor variance (add local normalization?)
-												sw = 0.0; swd=0.0; swd2 = 0.0;
-												for (int nsens = 0; nsens< num_sensors; nsens++) {
-													double w = 1.0;
-													double d = dbg_textures_v[indx_chn0 + nsens*num_colors][indx0];
-													sw += w;
-													swd += w * d;
-													swd2 += w * d*d;
-												}
-												if (sw > 0.0) { // always
-													double avg =  swd/sw;
-													double avg2 = swd2/sw;
-													var_inter = Math.sqrt(avg2-avg*avg);
-													dbg_textures_v[indx_var_inter][indx0] = var_inter;
-												}
-												dbg_textures_v[indx_var_ratio][indx0] = var_same/var_inter;
-												// try to improve var_inter for BG tiles by selecting sensor to look behind from one side
-												dbg_textures_v[indx_dir_tex][indx0] = dbg_textures_v[indx_mean][indx0];
-												dbg_textures_v[indx_dir_var][indx0] = var_inter;
-												dbg_textures_v[indx_dir_ratio][indx0] = var_same/var_inter;
-												double [] dirvar = new double [num_sensors];
-												
-												// extract to a separate method
-												// move color to outer cycle
-												// pass color-dependent array of relevant slices
-												// calculate array of variances dependent on dir_start and
-												// dir_len, and mix them according to neighbor weights, then find
-												// the best dir and length. Then use only for the center pixel.
-												// For BG tiles - only change Y, keep alpha = 1.0, for FG - cut transparent and maybe remove texture tiles at all?
-												
-												
-												
-												if (var_inter > try_dir_var) {
-													sw = 0.0; swd=0.0; swd2 = 0.0;
-													for (int i = 0; i < dir_num_start; i++) {
-														double w = 1.0;
-														double d = dbg_textures_v[indx_chn0 + i*num_colors][indx0];
-														sw += w;
-														swd += w * d;
-														swd2 += w * d*d;
-													}
-													double [] sw_dir =   new double[num_sensors];
-													double [] swd_dir =  new double[num_sensors];
-													double [] swd2_dir = new double[num_sensors];
-													for (int nsens = 0; nsens < num_sensors; nsens++) {
-														double avg =  swd/sw;
-														double avg2 = swd2/sw;
-														dirvar[nsens] = Math.sqrt(avg2-avg*avg);
-														sw_dir[nsens] =   sw;
-														swd_dir[nsens] =  swd;
-														swd2_dir[nsens] = swd2;
-														double w0 = 1.0;
-														double d0 = dbg_textures_v[indx_chn0 + nsens*num_colors][indx0];
-														sw -= w0;
-														swd -= w0 * d0;
-														swd2 -= w0 * d0 * d0;
-														int nsens1 = (nsens + dir_num_start) % num_sensors;
-														double w1 = 1.0;
-														double d1 = dbg_textures_v[indx_chn0 + nsens1 * num_colors][indx0];
-														sw += w1;
-														swd += w1 * d1;
-														swd2 += w1 * d1 * d1;
 
-													}
-													int dir_best = 0; // start of consecutive sensor numbers
-													for (int i = 1; i < num_sensors; i++) {
-														if (dirvar[i] < dirvar[dir_best]) {
-															dir_best = i;
-														}
-													}
-													// now try to increase number of averaged sensors
-													// try forward and backward, select best, verify it fits.
-													double dir_var = dirvar[dir_best];
-													double max_var = Math.min(dir_var_max, dir_var*(1.0+dir_worsen_rel));
-													sw =   sw_dir  [dir_best];
-													swd =  swd_dir [dir_best];
-													swd2 = swd2_dir[dir_best];
-													int dir_start = dir_best;
-													int dir_len ;
-													for (dir_len = dir_num_start; dir_len < num_sensors; dir_len++) {
-														int nsens0 = dir_start - 1; //) % num_sensors;
-														if (nsens0 < 0) {
-															nsens0 += num_sensors;
-														}
-														double w = 1.0;
-														double d = dbg_textures_v[indx_chn0 + nsens0 * num_colors][indx0];
-														double sw_0 =   sw + w;
-														double swd_0 =  swd + w*d;
-														double swd2_0 = swd2 + w*d*d;
-														double avg =  swd_0 / sw_0;
-														double avg2 = swd2_0 / sw_0;
-														double var_0 = Math.sqrt(avg2 - avg * avg);
-														int nsens1 = dir_start + dir_len;
-														if (nsens1 >=num_sensors) {
-															nsens1 -= num_sensors ;
-														}
-														w = 1.0;
-														d = dbg_textures_v[indx_chn0 + nsens1 * num_colors][indx0];
-														double sw_1 =   sw + w;
-														double swd_1 =  swd + w*d;
-														double swd2_1 = swd2 + w*d*d;
-														avg =  swd_1 / sw_1;
-														avg2 = swd2_1 / sw_1;
-														double var_1 = Math.sqrt(avg2 - avg * avg);
-														if (Math.min(var_0, var_1) > max_var) {
-															break;
-														}
-														if (var_0 < var_1) {
-															dir_start = nsens0;
-															sw = sw_0;
-															swd = swd_0;
-															swd2 = swd2_0;
-															dir_var = var_0;
-														} else {
-															// dir_start stays the same
-															sw = sw_1;
-															swd = swd_1;
-															swd2 = swd2_1;
-															dir_var = var_1;
-														}
-													}
-													double dir_avg = swd/sw;
-													double ddir = dir_start + 0.5 * (dir_len - 1);
-													if (ddir >= num_sensors) {
-														ddir -= num_sensors;
-													}
-													// fill arrays
-													dbg_textures_v[indx_dir][indx0] =       ddir;
-													dbg_textures_v[indx_len][indx0] =       dir_len;
-													dbg_textures_v[indx_dir_tex][indx0] =   dir_avg;
-													dbg_textures_v[indx_dir_var][indx0] =   dir_var;
-													dbg_textures_v[indx_dir_ratio][indx0] = var_same/dir_var;
-												}
-											}
-										}
-									}
-								}
-							}
-						};
-					}		      
-					ImageDtt.startAndJoin(threads);
-					
-					ShowDoubleFloatArrays.showArrays(
-							dbg_textures_v,
-							dbg_width,
-							dbg_height,
-							true,
-							ref_scene.getImageName()+"-textures88-variances-"+String.format("%02d", nslice),
-							dbg_titles_v);
+				int ncol = 0; // 2 for color
+				double [][] sensor_texture = new double [num_sensors][];
+				for (int nsens = 0; nsens < num_sensors; nsens++){
+			        sensor_texture[nsens] = dbg_textures[num_colors + 1 + ncol  + nsens * num_colors];
 				}
-				
-				
-			}		
-			
-			
-			
-			
-    // Process slice of textures: apply borders, convert to color or apply UM, add synthetic mesh, ...			
-	// 2 layers for mono, 4 layers - for color		
-	// First - merge overlapped and apply borders, alpha is the last slice
-			/*
-			faded_textures[nslice] = getFadedTextures( // get image from a single pass, return relative path for x3d // USED in lwir
-					clt_parameters,          // CLTParameters         clt_parameters,
-					inter_textures[fnslice], // final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}
-					tileClusters[fnslice],   // final TileCluster     tileCluster,    // disparities, borders, selections for texture passes
-					sharp_alpha,             // final boolean         sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
-					transform_size,          // final int             transform_size, // 
-					(num_colors+1),            // final int             num_channels,   // 4 for RGBA, 2 for Y (should match textures)
-					debug_level);            // final int             debugLevel)
-			
-			if (dbg_overlap != null) {
-				double [][] non_overlap =  combineYRBGATiles(
-						inter_textures[fnslice], // final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}
-						false, // final boolean         overlap,    // when false - output each tile as 16x16, true - overlap to make 8x8
-						sharp_alpha, // final boolean         sharp_alpha, // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
-						transform_size, // final int             transform_size, // 
-						(num_colors+1),            //final int             num_channels, // 4 for RGBA, 2 for Y (should match textures)
-						debug_level); // final int             debugLevel)
-				for (int i = 0; i < num_channels; i++) {
-				  dbg_overlap[fnslice*(num_colors+1)+i] = non_overlap[i];
-				}
+				// nslice
+				double [] processed_texture = processTexture(
+						clt_parameters,   // final CLTParameters  clt_parameters,
+						tilesX,             // final int            tilesX,
+						sensor_texture,    // final double [][]    sensor_texture,    // per-sensor texture value
+						null, // final double []      combo_texture_in,  // average texture value
+						null, // final boolean []     is_bg_in,          // pixel may be background - try to look from one side     
+						null, // final boolean []     is_fg_in,          // pixel is foreground - generate transparency (just NaN here?)
+						ref_scene.getImageName()+"-"+nslice); // final String         dbg_prefix);
 			}
 			*/
+		} // for (int nslice = 0; nslice < num_slices; nslice++) {	
+		
+		final double [][] slice_disparities = new double [num_slices][];
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			slice_disparities[nslice] = tileClusters[nslice].getDisparity();  // disparity in the reference view tiles (Double.NaN - invalid)
+		}		
+			
+		/*
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final double [] disparity_ref = tileClusters[nslice].getDisparity();  // disparity in the reference view tiles (Double.NaN - invalid)
+			double [] processed_texture = processTexture(
+					clt_parameters,   // final CLTParameters  clt_parameters,
+					tilesX,             // final int            tilesX,
+					sensor_textures[nslice],    // final double [][]    sensor_texture,    // per-sensor texture value
+					combo_textures[nslice],    // null, // final double []      combo_texture_in,  // average texture value
+					null, // final boolean []     is_bg_in,          // pixel may be background - try to look from one side     
+					null, // final boolean []     is_fg_in,          // pixel is foreground - generate transparency (just NaN here?)
+					ref_scene.getImageName()+"-"+nslice); // final String         dbg_prefix);
 		}
+		*/
+		double [][] processed_textures = processTexture(
+				clt_parameters,   // final CLTParameters  clt_parameters,
+				tilesX,             // final int            tilesX,
+				slice_disparities, // final double [][]    slice_disparities,
+				sensor_textures,    // final double [][]    sensor_texture,    // per-sensor texture value
+				combo_textures,    // null, // final double []      combo_texture_in,  // average texture value
+				ref_scene.getImageName()); // final String         dbg_prefix);
+
+		
+		
 		if (debug_level > -1000) {
 			return null;
 		}
