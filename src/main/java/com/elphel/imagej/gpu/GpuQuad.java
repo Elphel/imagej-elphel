@@ -991,6 +991,10 @@ public class GpuQuad{ // quad camera description
 							((out_images[nt] & 0x0f) << 0) |
 							((corr_mask [nt] & 0x3f) << 4)
 							); // task == 1 for now
+					// Old code, enabling all options
+					tp_tasks[indx]. setTextureEnable(true);
+					tp_tasks[indx]. setIntraCorrelationEnable(true);
+					tp_tasks[indx]. setInterCorrelationEnable(true);
 					indx++;
 				}
 			}
@@ -1091,6 +1095,10 @@ public class GpuQuad{ // quad camera description
 						((out_images[indx] & 0x0f) << 0) |
 						((corr_mask [indx] & 0x3f) << 4)
 						); // task == 1 for now
+				// Old code, enabling all options
+				tp_tasks[indx]. setTextureEnable(true);
+				tp_tasks[indx]. setIntraCorrelationEnable(true);
+				tp_tasks[indx]. setInterCorrelationEnable(true);
 				indx++;
 			}
 		}
@@ -1150,14 +1158,20 @@ public class GpuQuad{ // quad camera description
 								acorrs.set(true);
 							}
 						}
-						task_list.add(new TpTask(
+						TpTask tptask =	new TpTask(
 								num_cams,
 								tileX,
 								tileY,
 								(float) (disparity_array[tileY][tileX] + disparity_corr),
 								((img_mask  & 0x0f) << 0) |
 								((corr_mask_tp & 0x3f) << 4)
-								)); // task == 1 for now
+								); // task == 1 for now
+						// Old code, guessing options
+						if (img_mask != 0)     tptask. setTextureEnable(true);
+						if (corr_mask_tp != 0) tptask. setIntraCorrelationEnable(true);
+						if (corr_mask_tp != 0) tptask. setInterCorrelationEnable(true);
+						task_list.add(tptask);
+						
 						// mask out pairs that use missing channels
 					}
 
@@ -1252,6 +1266,8 @@ public class GpuQuad{ // quad camera description
 		int op = ImageDtt.setImgMask(0, 0xf); // use if tile_op is not provided
 		op =     ImageDtt.setPairMask(op,0xf);
 		op =     ImageDtt.setForcedDisparity(op,true);
+		// setting new (11/18/2022) bits
+		op |= (1 << GPUTileProcessor.TASK_CORR_EN) | (1 << GPUTileProcessor.TASK_INTER_EN) | (1 << GPUTileProcessor.TASK_TEXT_EN);
 		final int fop = op;
 		int tx = -1;
 		for (int i = 0; i < disparity_array.length; i++) if (disparity_array[i] != null) {
@@ -2169,7 +2185,7 @@ public class GpuQuad{ // quad camera description
 			test_ftasks0 = new float [test_tasks0.length * getTaskSize()];
 			cuMemcpyDtoH(Pointer.to(test_ftasks0),            gpu_ftasks,  test_ftasks0.length * Sizeof.FLOAT);
 			for (int i = 0; i < test_tasks0.length; i++) {
-				test_tasks0[i] = new TpTask(num_cams, test_ftasks0, i, false);	
+				test_tasks0[i] = new TpTask(num_cams, test_ftasks0, i, false);
 			}
 		}
 		
@@ -2286,7 +2302,7 @@ public class GpuQuad{ // quad camera description
 			float [] test_ftasks = new float [test_tasks.length * getTaskSize()];
 			cuMemcpyDtoH(Pointer.to(test_ftasks),            gpu_ftasks,  test_ftasks.length * Sizeof.FLOAT);
 			for (int i = 0; i < test_tasks.length; i++) {
-				test_tasks[i] = new TpTask(num_cams, test_ftasks, i, false);	
+				test_tasks[i] = new TpTask(num_cams, test_ftasks, i, false);
 			}
 
 			cuMemcpyDtoH(Pointer.to(cpu_num_texture_tiles), gpu_num_texture_tiles,  cpu_num_texture_tiles.length * Sizeof.INT);		
@@ -3594,7 +3610,10 @@ public class GpuQuad{ // quad camera description
 	{
 		int num_pairs = Correlation2d.getNumPairs(num_cams);
 		//change to fixed 511?
-		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
+//		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
+		
+		final int task_code = (1 << GPUTileProcessor.TASK_CORR_EN) |  (1 << GPUTileProcessor.TASK_INTER_EN);
+		
 		final double min_px = margin; 
 		final double max_px = geometryCorrection.getSensorWH()[0] - 1 - margin; // sensor width here, not window width
 		final double [] min_py = new double[num_cams] ;
@@ -3703,7 +3722,9 @@ public class GpuQuad{ // quad camera description
 		final double min_len = 0.1; // pix
 		int num_pairs = Correlation2d.getNumPairs(num_cams);
 		//change to fixed 511?
-		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
+//		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
+		final int task_code = (1 << GPUTileProcessor.TASK_CORR_EN) |  (1 << GPUTileProcessor.TASK_INTER_EN);
+
 		final double min_px = margin; 
 		final double max_px = geometryCorrection.getSensorWH()[0] - 1 - margin; // sensor width here, not window width
 		final double [] min_py = new double[num_cams] ;

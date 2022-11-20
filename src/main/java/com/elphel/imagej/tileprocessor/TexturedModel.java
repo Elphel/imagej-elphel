@@ -2137,7 +2137,7 @@ public class TexturedModel {
 												(tileY * transform_size + row) * width + (tileX * transform_size),
 												transform_size);
 									}
-									int navg = inter_textures_wd[fnslice][tileY][tileX].length - num_colors + y_color;
+									int navg = y_color; // inter_textures_wd[fnslice][tileY][tileX].length - num_colors + y_color;
 									System.arraycopy(
 											inter_textures_wd[fnslice][tileY][tileX][navg],
 											row*transform_size,

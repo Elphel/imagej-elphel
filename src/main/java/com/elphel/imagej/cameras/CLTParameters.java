@@ -121,7 +121,7 @@ public class CLTParameters {
 	// pixel location by quadratic approximation
 	public double     corr_border_contrast = 0.01; // contrast of dotted border on correlation results
 
-	public int        tile_task_op =      0xff;   // bitmask of operation modes applied to tiles (0 - nothing), bits TBD later
+	public int        tile_task_op =      0x7ff;   // bitmask of operation modes applied to tiles (0 - nothing), bits TBD later
 	// +(0..f) - images, +(00.f0) - process pairs + 256 - force disparity when combining images
 	// window to process tiles (later arbitrary masks will be generated to follow particular stages);
 	public int        tile_task_wl =      0;   //

@@ -1,7 +1,12 @@
 package com.elphel.imagej.gpu;
 
 public class TpTask {
-	public int        task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
+	public int        task;
+	// task bits 0..7 - texture neighbors (0 - N, 1 - NE, ..., 7 - NW)
+	// bit  8 (GPUTileProcessor.TASK_TEXT_EN) - enable texture generation
+	// bit  9 (GPUTileProcessor.TASK_CORR_EN) - enable intrascene correlations
+	// bit 10 (GPUTileProcessor.TASK_INTER_EN) - enable interscene correlations
+	// Old (still not updated for CPU): [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
 	public float      target_disparity;
     public int        num_sensors = 4;
 	public int        ty;
@@ -90,6 +95,36 @@ public class TpTask {
 			}
 		}
 	}
+	
+	public void setTextureEnable(boolean en) {
+		if (en) task |=  (1 << GPUTileProcessor.TASK_TEXT_EN);
+		else 	task &= ~(1 << GPUTileProcessor.TASK_TEXT_EN);
+	}
+	
+	public boolean getTextureEnable() {
+		return (task & (1 << GPUTileProcessor.TASK_TEXT_EN)) != 0;
+	}
+
+	public void setIntraCorrelationEnable(boolean en) {
+		if (en) task |=  (1 << GPUTileProcessor.TASK_CORR_EN);
+		else 	task &= ~(1 << GPUTileProcessor.TASK_CORR_EN);
+	}
+	
+	public boolean getIntraCorrelationEnable() {
+		return (task & (1 << GPUTileProcessor.TASK_CORR_EN)) != 0;
+	}
+	
+	public void setInterCorrelationEnable(boolean en) {
+		if (en) task |=  (1 << GPUTileProcessor.TASK_INTER_EN);
+		else 	task &= ~(1 << GPUTileProcessor.TASK_INTER_EN);
+	}
+	
+	public boolean getInterCorrelationEnable() {
+		return (task & (1 << GPUTileProcessor.TASK_INTER_EN)) != 0;
+	}
+	
+	
+	
 	public float [][] getDispDist(){
 		return disp_dist;
 	}

@@ -28,6 +28,8 @@ import java.awt.Rectangle;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.gpu.GPUTileProcessor;
+
 public class CLTPass3d{
 //	static double  max_overexposed = 0.8; // TODO: make parameter
 		public   double [][]    disparity; // per-tile disparity set for the pass[tileY][tileX]
@@ -1079,6 +1081,8 @@ public class CLTPass3d{
 			int op = ImageDtt.setImgMask(0, 0xf);
 			op =     ImageDtt.setPairMask(op,0xf);
 			op =     ImageDtt.setForcedDisparity(op,true);
+			// New as for 11/18/2022 - no CPU support yet 
+			op |= (1 << GPUTileProcessor.TASK_TEXT_EN) | (1 << GPUTileProcessor.TASK_CORR_EN) | (1 << GPUTileProcessor.TASK_INTER_EN);
 			return setTileOpDisparity(
 					op,         // int        tile_op,
 					selection,  // boolean [] selection,
@@ -1120,7 +1124,7 @@ public class CLTPass3d{
 			}
 			return num_op_tiles;
 		}
-		
+		/*
 		public void setTileOp(
 				int  tile_op)
 		{
@@ -1132,7 +1136,7 @@ public class CLTPass3d{
 				this.tile_op[ty][tx] = tile_op;
 			}
 		}
-
+*/
 		public double [] getDA() {
 			final int tilesX = tileProcessor.getTilesX();
 			final int tilesY = tileProcessor.getTilesY();

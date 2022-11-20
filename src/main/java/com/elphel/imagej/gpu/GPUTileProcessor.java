@@ -135,15 +135,28 @@ public class GPUTileProcessor {
 	static int        CLTEXTRA_SIZE =               8;
 	static int        CORR_SIZE =                   (2* DTT_SIZE - 1) * (2* DTT_SIZE - 1); // 15x15
 	public static int CORR_NTILE_SHIFT =          8;  // also for texture tiles list - not anymore 11/18/2022
-	// FIXME: CORR_PAIRS_MASK will not work !!!	
+	// FIXME: CORR_PAIRS_MASK will not work !!!	It is already removed from the GPU code
 	public static int CORR_PAIRS_MASK =        0x3f;  // lower bits used to address correlation pair for the selected tile
-//	public static int CORR_TEXTURE_BIT =          7;  // bit 7 used to request texture for the tile GET RID !!!
+	public static int TASK_INTER_EN =            10; // Task bit to enable interscene correlation
+	public static int TASK_CORR_EN =              9; // Task bit to enable intrascene correlation (pairs defined separately)
+	public static int TASK_TEXT_EN =              8; // task bit to enable texture generation
+
 	public static int TASK_CORR_BITS =            4;  // start of pair mask
+	
+	public static int TASK_TEXT_N_BIT =           0; // Texture with North neighbor
+	public static int TASK_TEXT_NE_BIT =          1; // Texture with North-East neighbor
+	public static int TASK_TEXT_E_BIT =           2; // Texture with East neighbor
+	public static int TASK_TEXT_SE_BIT =          3; // Texture with South-East neighbor
+	public static int TASK_TEXT_S_BIT =           4; // Texture with South neighbor
+	public static int TASK_TEXT_SW_BIT =          5; // Texture with South-West neighbor
+	public static int TASK_TEXT_W_BIT =           6; // Texture with West neighbor
+	public static int TASK_TEXT_NW_BIT =          7; // Texture with North-West neighbor
+	
+	
 	public static int TASK_TEXTURE_N_BIT =        0; // Texture with North neighbor
 	public static int TASK_TEXTURE_E_BIT =        1; // Texture with East  neighbor
 	public static int TASK_TEXTURE_S_BIT =        2; // Texture with South neighbor
 	public static int TASK_TEXTURE_W_BIT =        3; // Texture with West  neighbor
-//	public static int TASK_TEXTURE_BIT =          3;  // bit to request texture calculation int task field of struct tp_task
 	
 	public static int LIST_TEXTURE_BIT =          8; // 7;  // bit to request texture calculation
 	public static int TEXT_NTILE_SHIFT =          9; // 8;  // split from CORR_NTILE_SHIFT
@@ -155,8 +168,9 @@ public class GPUTileProcessor {
 	public static int RBYRDIST_LEN =           5001; //for double, 10001 - float;   // length of rByRDist to allocate shared memory
 	public static double RBYRDIST_STEP =          0.0004; //  for double, 0.0002 - for float; // to fit into GPU shared memory (was 0.001);
 	public static int TILES_PER_BLOCK_GEOM =     32/MAX_NUM_CAMS; // blockDim.x = NUM_CAMS; blockDim.x = TILES_PER_BLOCK_GEOM
-	public static int TASK_TEXTURE_BITS = ((1 << TASK_TEXTURE_N_BIT) | (1 << TASK_TEXTURE_E_BIT) | (1 << TASK_TEXTURE_S_BIT) | (1 << TASK_TEXTURE_W_BIT));
-
+	public static int TASK_TEXTURE_BITS = 
+			(       (1 << TASK_TEXT_N_BIT) | (1 << TASK_TEXT_NE_BIT) | (1 << TASK_TEXT_E_BIT) | (1 << TASK_TEXT_SE_BIT) |
+					(1 << TASK_TEXT_S_BIT) | (1 << TASK_TEXT_SW_BIT) | (1 << TASK_TEXT_W_BIT) | (1 << TASK_TEXT_NW_BIT));
 
     int DTTTEST_BLOCK_WIDTH =        32; // may be read from the source code
     int DTTTEST_BLOCK_HEIGHT =       16; // may be read from the source code
@@ -227,16 +241,22 @@ public class GPUTileProcessor {
         				"#define IMCLT_THREADS_PER_TILE " +         IMCLT_THREADS_PER_TILE+"\n"+
         				"#define IMCLT_TILES_PER_BLOCK " +          IMCLT_TILES_PER_BLOCK+"\n"+
         				"#define CORR_NTILE_SHIFT " +               CORR_NTILE_SHIFT+"\n"+
-//        				"#define CORR_PAIRS_MASK " +                CORR_PAIRS_MASK+"\n"+
-//        				"#define CORR_TEXTURE_BIT " +               CORR_TEXTURE_BIT+"\n"+
-        				"#define TASK_CORR_BITS " +                 TASK_CORR_BITS+"\n"+
-        				"#define TASK_TEXTURE_N_BIT " +             TASK_TEXTURE_N_BIT+"\n"+
-        				"#define TASK_TEXTURE_E_BIT " +             TASK_TEXTURE_E_BIT+"\n"+
-        				"#define TASK_TEXTURE_S_BIT " +             TASK_TEXTURE_S_BIT+"\n"+
-        				"#define TASK_TEXTURE_W_BIT " +             TASK_TEXTURE_W_BIT+"\n"+
+        				"#define TASK_INTER_EN "  +                 TASK_INTER_EN+"\n"+
+        				"#define TASK_CORR_EN "   +                 TASK_CORR_EN+"\n"+
+        				"#define TASK_TEXT_EN "    +                TASK_TEXT_EN+"\n"+
+
+        				"#define TASK_TEXT_N_BIT "  +               TASK_TEXT_N_BIT+"\n"+
+        				"#define TASK_TEXT_NE_BIT " +               TASK_TEXT_NE_BIT+"\n"+
+        				"#define TASK_TEXT_E_BIT "  +               TASK_TEXT_E_BIT+"\n"+
+        				"#define TASK_TEXT_SE_BIT " +               TASK_TEXT_SE_BIT+"\n"+
+        				"#define TASK_TEXT_S_BIT " +                TASK_TEXT_S_BIT+"\n"+
+        				"#define TASK_TEXT_SW_BIT " +               TASK_TEXT_SW_BIT+"\n"+
+        				"#define TASK_TEXT_W_BIT " +                TASK_TEXT_W_BIT+"\n"+
+        				"#define TASK_TEXT_NW_BIT " +               TASK_TEXT_NW_BIT+"\n"+
+
         				"#define LIST_TEXTURE_BIT " +               LIST_TEXTURE_BIT+"\n"+
         				"#define TEXT_NTILE_SHIFT " +               TEXT_NTILE_SHIFT+"\n"+
-//        				"#define CORR_OUT_RAD " +                   CORR_OUT_RAD+"\n" +
+
         				"#define FAT_ZERO_WEIGHT " +                FAT_ZERO_WEIGHT+"\n"+
         				"#define THREADS_DYNAMIC_BITS " +           THREADS_DYNAMIC_BITS+"\n"+
         				"#define RBYRDIST_LEN " +                   RBYRDIST_LEN+"\n"+

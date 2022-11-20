@@ -3982,6 +3982,8 @@ public class QuadCLT extends QuadCLTCPU {
 			  if ((scan.disparity == null) || (scan.tile_op == null)) {
 				  int d = ImageDtt.setImgMask(0, 0xf); // no correlations
 				  d =     ImageDtt.setForcedDisparity(d,true);
+				  // New as for 11/18/2022 - no CPU support yet 
+				  d |= (1 << GPUTileProcessor.TASK_TEXT_EN);
 				  scan.setTileOpDisparity(
 						  d,
 						  scan.getSelected(), // boolean [] selection,
