@@ -1607,9 +1607,6 @@ public class TexturedModel {
 								}
 								// only trim if nothing obscures this and has some BG 
 								if (is_fg_tile[fnslice][tile] && has_bg_tile[fnslice][tile]) {
-									if (dbg_is_fg != null) {
-										dbg_is_fg[cindx] = 1000.0;
-									}
 									if (vars_inter[cindx] > fg_max_inter) {
 										dirs_avg[cindx] = Double.NaN;
 									}
@@ -2246,7 +2243,7 @@ public class TexturedModel {
 				tilesX,             // final int            tilesX,
 				slice_disparities, // final double [][]    slice_disparities,
 				sensor_textures,    // final double [][]    sensor_texture,    // per-sensor texture value
-				combo_textures,    // null, // final double []      combo_texture_in,  // average texture value
+				null, // combo_textures,    // null, // final double []      combo_texture_in,  // average texture value
 				ref_scene.getImageName()); // final String         dbg_prefix);
 
 		
