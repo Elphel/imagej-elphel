@@ -391,6 +391,25 @@ public class TileNeibs{
 		for (int i = 0; i < tiles.length; i++) tiles[i] = !itiles[i];
 	}
 
+	
+	public boolean [] getEdgeSelection(
+			int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+			boolean [] tiles,
+			boolean [] prohibit)
+	{
+		boolean [] etiles = new boolean [tiles.length];
+		for (int i = 0; i < tiles.length; i++) etiles[i] = !tiles[i];
+		growSelection(
+				shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				etiles,
+				prohibit);
+		for (int i = 0; i < tiles.length; i++) etiles[i] &= tiles[i];
+		return etiles;
+	}
+	
+	
+	
+
 	public void growSelection(
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			boolean [] tiles,
@@ -630,7 +649,7 @@ public class TileNeibs{
 		}
 		return enum_clust_ordered;
 	}
-	public int getMax(
+	public static int getMax(
 			int [] data)
 	{
 		int mx = data[0];

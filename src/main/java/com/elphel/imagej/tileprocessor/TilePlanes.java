@@ -5662,7 +5662,7 @@ public class TilePlanes {
 								grown_sel, // boolean [] tiles,
 								false); // boolean ordered)
 
-						int num_clusters = tileNeibs.getMax(
+						int num_clusters = TileNeibs.getMax(
 								clusters); // int [] data)
 						if (num_clusters > 1){
 							boolean [] dbg_grown_sel =grown_sel.clone();
@@ -5699,7 +5699,7 @@ public class TilePlanes {
 							clusters = tileNeibs.enumerateClusters(
 									grown_sel, // boolean [] tiles,
 									false); // boolean ordered)
-							num_clusters = tileNeibs.getMax(
+							num_clusters = TileNeibs.getMax(
 									clusters);
 							if (num_clusters > 1){
 								boolean [][] cluster_sels = new boolean [num_clusters][selections[np].length];
