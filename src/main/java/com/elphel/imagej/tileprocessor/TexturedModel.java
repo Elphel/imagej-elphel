@@ -1364,7 +1364,7 @@ public class TexturedModel {
 		return disparity_max;
 	}
 	
-	public static boolean [][][] get_fg_has_bg(
+	public static boolean [][][] get_fg_has_bg_any(
 			final double [][] slice_disparities,
 			final double   	max_disparity_lim,
 			final double min_trim_disparity,
@@ -1376,6 +1376,7 @@ public class TexturedModel {
 		final int tilesY = tiles / tilesX;
 		final boolean [][] is_fg_tile =  new boolean [num_slices][tiles];
 		final boolean [][] has_bg_tile = new boolean [num_slices][tiles];
+		final boolean [][] has_tile =    new boolean [num_slices][tiles];
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double disparity_max = getMaxDisparity (
@@ -1389,19 +1390,22 @@ public class TexturedModel {
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
-						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (slice_disparities[fnslice][tile] > min_trim_disparity){ // checks for NaN too !
-							 // may be a FG tile that needs trimming (not considering yet tiles that both can be obscured and obscure).
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (!Double.isNaN(slice_disparities[fnslice][tile])){
+							// may be a FG tile that needs trimming (not considering yet tiles that both can be obscured and obscure).
 							if ((fnslice == -6) && (tile==2333)) {
 								System.out.println("fnslice="+fnslice+", tile="+tile);
 								System.out.println("fnslice="+fnslice+", tile="+tile);
 							}
-							is_fg_tile[fnslice][tile] = true;
-							for (int ns = 0; ns < num_slices; ns++)
-								if ((ns != fnslice) &&
-										(slice_disparities[ns][tile] < slice_disparities[fnslice][tile])) {
-									has_bg_tile[fnslice][tile] = true;
-									break;
-								}
+							has_tile[fnslice][tile] = true;
+							if (slice_disparities[fnslice][tile] > min_trim_disparity)	{						
+								is_fg_tile[fnslice][tile] = true;
+								for (int ns = 0; ns < num_slices; ns++)
+									if ((ns != fnslice) &&
+											(slice_disparities[ns][tile] < slice_disparities[fnslice][tile])) {
+										has_bg_tile[fnslice][tile] = true;
+										break;
+									}
+							}
 							search_obscuring:
 							{
 								int tile_range = (int) Math.ceil((disparity_max - slice_disparities[fnslice][tile])/Math.sqrt(2)/transform_size);
@@ -1420,14 +1424,13 @@ public class TexturedModel {
 									}
 								}
 							}
-							
 						}
 					}
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
 		}
-		return new boolean [][][] {is_fg_tile, has_bg_tile};
+		return new boolean [][][] {is_fg_tile, has_bg_tile, has_tile};
 	}	
 	
 //final double [][] slice_disparities,	
@@ -2063,7 +2066,173 @@ public class TexturedModel {
 		return result;
 	}
 	
+	public static double [][] generateAlphaTemplates(
+			final int transform_size,
+			boolean debug){
+		double [] fade1d = new double [transform_size];     // 8
+		double [][] alpha8 = new double [8][transform_size * transform_size];
+		double [][] alpha = new double [256][transform_size * transform_size];
+		for (int i = 0; i < fade1d.length; i++) {
+			fade1d[i] = 0.5 * (1 + Math.cos((0.0 + i) *Math.PI /transform_size)); //0.5
+		}
+		int tsm1 = transform_size -1;
+		for (int idir = 0; idir < 8; idir++) {
+			for (int y = 0; y < transform_size; y++) {
+				for (int x = 0; x < transform_size; x++) {
+					int indx = -1;
+					switch (idir ) {
+					case 0: indx =  tsm1 - y;     break;
+					case 1: indx =  x - y;        break;
+					case 2: indx =  x;            break;
+					case 3: indx =  x + y - tsm1; break;
+					case 4: indx =  y;            break;
+					case 5: indx = -x + y;        break;
+					case 6: indx =  tsm1 - x;     break;
+					case 7: indx = -x - y + tsm1; break;
+					}
+					if (indx >= 0) {
+						alpha8[idir][y * transform_size + x] = fade1d[indx];
+					} else {
+						alpha8[idir][y * transform_size + x] = 1.0;
+					}
+				}
+			}
+		}
+/*		
+		for (int mode = 0; mode < alpha.length; mode++) {
+			Arrays.fill(alpha[mode], 1.0);
+			for (int idir = 0; idir < alpha8.length; idir++) {
+				if ((mode & (1 << idir)) == 0) {
+					for (int i = 0; i < alpha8[idir].length; i++) {
+						alpha[mode][i] *= alpha8[idir][i];
+					}
+				}
+			}
+		}
+
+		for (int mode = 0; mode < alpha.length; mode++) {
+			Arrays.fill(alpha[mode], 1.0);
+			for (int idir = 0; idir < alpha8.length; idir++) {
+				if ((mode & (1 << idir)) == 0) {
+					for (int i = 0; i < alpha8[idir].length; i++) {
+						alpha[mode][i] = Math.min(alpha[mode][i],alpha8[idir][i]);
+					}
+				}
+			}
+		}
+		for (int imode = 0; imode < alpha.length; imode++) {
+			int mode = (imode | imode << 8) & 0x1ff;
+			for (int c = 2; c < 256; c <<=2){
+				int m = (c << 1) | (c >> 1);
+				if ((mode & m) != m) {
+					mode |= c;
+				}
+				
+			}
+			mode &= 0xff;
+			Arrays.fill(alpha[imode], 1.0);
+			for (int idir = 0; idir < alpha8.length; idir++) {
+				if ((mode & (1 << idir)) == 0) {
+					for (int i = 0; i < alpha8[idir].length; i++) {
+						alpha[imode][i] *= alpha8[idir][i];
+					}
+				}
+			}
+		}
+
+*/		
+
+		for (int imode = 0; imode < alpha.length; imode++) {
+			int mode = (imode | imode << 8) & 0x1ff;
+			Arrays.fill(alpha[imode], 1.0);
+			for (int idir = 0; idir < alpha8.length; idir++) {
+				if ((mode & (1 << idir)) == 0) {
+					if (((idir & 1) != 0) && ((mode & (1 << (idir -1))) == 0)  && ((mode & (1 << (idir +1))) == 0)) {
+						for (int i = 0; i < alpha8[idir].length; i++) {
+							int i1 = alpha8[0].length - 1 -i;
+							alpha[imode][i] = Math.min(alpha[imode][i],(1.0 - alpha8[idir][i1]));
+						}
+					} else {
+						for (int i = 0; i < alpha8[idir].length; i++) {
+							alpha[imode][i] = Math.min(alpha[imode][i], alpha8[idir][i]);
+						}
+					}
+				}
+			}
+		}
+		
+		
+		
+		if (debug) {
+			ShowDoubleFloatArrays.showArrays(
+					alpha8,
+					transform_size,
+					transform_size,
+					true,
+					"alpha8");
+			ShowDoubleFloatArrays.showArrays(
+					alpha,
+					transform_size,
+					transform_size,
+					true,
+					"alpha");
+		}
+		return alpha;
+	}
 	
+	public static double [][] generateTileAlphas(
+			boolean [][] texture_tiles,
+			int          width,
+			int          transform_size){
+		final double [][] alpha_templates =  generateAlphaTemplates(
+				transform_size, // final int transform_size,
+				false); // boolean debug)
+
+		final int num_slices =  texture_tiles.length;
+//		final int img_size = texture_tiles.length/transform_size/transform_size;
+		final int tilesX = width /transform_size;
+		final int tilesY = texture_tiles[0].length / tilesX;
+		final int tiles = tilesX * tilesY;
+		final int height = tilesY * transform_size; 
+		final TileNeibs tn =     new TileNeibs(tilesX, tilesY);
+		final double [][] alpha = new double [num_slices][width * height];
+		
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (texture_tiles[fnslice][tile]) {
+							int dir_mode = 0;
+							for (int dir = 0; dir < 8; dir++) {
+								int tile1 = tn.getNeibIndex(tile, dir);
+								if ((tile1 >= 0) && texture_tiles[fnslice][tile1]) {
+									dir_mode |= (1 << dir);
+								}
+								int x0 = (tile % tilesX) * transform_size; 
+								int y0 = (tile / tilesX) * transform_size;
+								int indx0 = x0 + width * y0;
+								for (int row = 0; row < transform_size; row++) {
+									System.arraycopy(
+											alpha_templates[dir_mode],
+											row * transform_size,
+											alpha[fnslice],
+											indx0+ row * width,
+											transform_size);
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return alpha;
+	}
+
 	
 	public static double [][] processTexture(
 			final CLTParameters  clt_parameters,
@@ -2102,7 +2271,7 @@ public class TexturedModel {
 		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [4][][] : null;
 
 
-		final boolean [][][] fg_has_bg = get_fg_has_bg(
+		final boolean [][][] fg_has_bg = get_fg_has_bg_any(
 				slice_disparities,  // final double [][] slice_disparities,
 				max_disparity_lim,  // final double   	max_disparity_lim,
 				min_trim_disparity, // final double min_trim_disparity,
@@ -2188,7 +2357,14 @@ public class TexturedModel {
 		applyTextureSelection(
 				texture_fg_filt, // final boolean [][]   selections,
 				out_textures);   // final double  [][]   combo_texture // will be modified - NaN where not selected
-		*/		
+		*/	
+		
+		double [][] tile_alpha = generateTileAlphas(
+				fg_has_bg[2],    // boolean [][] texture_tiles,
+				width,           // int          width,
+				transform_size); // int          transform_size)
+
+		
 		if (dbg_prefix != null) {
 			final double [][] gtext_fg_filt =              dbgBooleanTexture (texture_fg_filt, -1000, 1000); // texture filtered by fg trim 
 			final double [][] dbg_text_edge =              dbgBooleanTexture (texture_edge, -1000, 1000); 
@@ -2196,7 +2372,7 @@ public class TexturedModel {
 			
 			final double [][] dbg_fg_prefiltered =         dbgBooleanTexture (dbg_bool[1], -1000, 1000);
 			final double [][] dbg_fg_prefiltered_neibs =   dbgBooleanTexture (dbg_bool[2], -1000, 1000);
-			final double [][] dbg_fg_filtered =            dbgBooleanTexture (dbg_bool[3], -1000, 1000);
+//			final double [][] dbg_fg_filtered =            dbgBooleanTexture (dbg_bool[3], -1000, 1000);
 
 			final double [][] tdbg_is_fg =                 dbgBooleanTexture (fg_has_bg[1], fg_has_bg[0], 0,1,2,3);
 			final double [][] gdbg_is_fg =  new double [tdbg_is_fg.length][width*height];
@@ -2239,12 +2415,13 @@ public class TexturedModel {
 						dbg_text_en[nslice],
 						dbg_fg_prefiltered[nslice], //
 						dbg_fg_prefiltered_neibs[nslice],
-						dbg_fg_filtered[nslice],
+						gtext_fg_filt[nslice], //dbg_fg_filtered[nslice],
 						gdbg_is_fg[nslice],
 						gcombo_texture[nslice],
-						gtext_fg_filt[nslice],
+//						gtext_fg_filt[nslice], // ??
 						out_textures  [nslice], // dirs_avg,
 						dbg_out_textures[nslice],
+						tile_alpha[nslice],
 						sensor_texture[nslice][ 0],
 						sensor_texture[nslice][ 1],
 						sensor_texture[nslice][ 2],
@@ -2279,9 +2456,10 @@ public class TexturedModel {
 						"TEXTURE_FG_FILTERED",
 						"IS_FG",
 						"COMBO_TEXTURE",
-						"FG_FILTERED_TEXTURE",
+//						"FG_FILTERED_TEXTURE",
 						"OUT_TEXTURE_BG",
 						"OUT_TEXTURE_FG",
+						"TILE_ALPHA",
 						"T00",
 						"T01",
 						"T02",
@@ -2307,7 +2485,20 @@ public class TexturedModel {
 						dbg_prefix+"-textures-"+nslice,
 						dbg_titles);
 			}
+			ShowDoubleFloatArrays.showArrays(
+					out_textures,
+					width,
+					height,
+					true,
+					dbg_prefix+"-out_textures-"
+					);
+			
 		}
+		
+		double [][] alpha_templates = generateAlphaTemplates(
+				transform_size, // final int transform_size,
+				(dbg_prefix != null)); // boolean debug)
+
 		return out_textures; // need overall alpha. What about colors? 
 	}
 	
