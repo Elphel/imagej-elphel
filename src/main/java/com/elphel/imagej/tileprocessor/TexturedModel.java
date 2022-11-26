@@ -629,7 +629,7 @@ public class TexturedModel {
 		}
 		boolean        renormalize = true;// false - use normalizations from previous scenes to keep consistent colors
 		
-		getInterCombinedTexturesNew( // return ImagePlus[] matching tileClusters[], with alpha
+		ImagePlus[] combined_textures = getInterCombinedTexturesNew( // return ImagePlus[] matching tileClusters[], with alpha
 				clt_parameters,      // final CLTParameters  clt_parameters,
 				colorProcParameters, // ColorProcParameters  colorProcParameters,
 				rgbParameters,       // EyesisCorrectionParameters.RGBParameters rgbParameters,
@@ -642,7 +642,7 @@ public class TexturedModel {
 				//				final int            margin,
 				renormalize,  // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
 				debugLevel);         // final int            debug_level)
-		
+/*		
 		if (debugLevel > -1000) {
 			return false;
 		}
@@ -660,7 +660,7 @@ public class TexturedModel {
 				//				final int            margin,
 				renormalize,  // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
 				debugLevel);         // final int            debug_level)
-
+*/
 		boolean save_full_textures = true; // false; // true;
 		EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
 		String x3d_dir = ref_scene.getX3dDirectory();
@@ -676,9 +676,9 @@ public class TexturedModel {
 			}
 		}
 // ********************* just for testing	************************************	
-		if (debugLevel > -1000) {
-			return false;
-		}
+//		if (debugLevel > -1000) {
+//			return false;
+//		}
 		
 		
 		// Maybe will switch to combined textures (less files)
@@ -2098,49 +2098,6 @@ public class TexturedModel {
 				}
 			}
 		}
-/*		
-		for (int mode = 0; mode < alpha.length; mode++) {
-			Arrays.fill(alpha[mode], 1.0);
-			for (int idir = 0; idir < alpha8.length; idir++) {
-				if ((mode & (1 << idir)) == 0) {
-					for (int i = 0; i < alpha8[idir].length; i++) {
-						alpha[mode][i] *= alpha8[idir][i];
-					}
-				}
-			}
-		}
-
-		for (int mode = 0; mode < alpha.length; mode++) {
-			Arrays.fill(alpha[mode], 1.0);
-			for (int idir = 0; idir < alpha8.length; idir++) {
-				if ((mode & (1 << idir)) == 0) {
-					for (int i = 0; i < alpha8[idir].length; i++) {
-						alpha[mode][i] = Math.min(alpha[mode][i],alpha8[idir][i]);
-					}
-				}
-			}
-		}
-		for (int imode = 0; imode < alpha.length; imode++) {
-			int mode = (imode | imode << 8) & 0x1ff;
-			for (int c = 2; c < 256; c <<=2){
-				int m = (c << 1) | (c >> 1);
-				if ((mode & m) != m) {
-					mode |= c;
-				}
-				
-			}
-			mode &= 0xff;
-			Arrays.fill(alpha[imode], 1.0);
-			for (int idir = 0; idir < alpha8.length; idir++) {
-				if ((mode & (1 << idir)) == 0) {
-					for (int i = 0; i < alpha8[idir].length; i++) {
-						alpha[imode][i] *= alpha8[idir][i];
-					}
-				}
-			}
-		}
-
-*/		
 
 		for (int imode = 0; imode < alpha.length; imode++) {
 			int mode = (imode | imode << 8) & 0x1ff;
@@ -2232,9 +2189,41 @@ public class TexturedModel {
 		}
 		return alpha;
 	}
-
+	public static void generateFgAlphas(
+			final boolean [][] texture_en,   // non-transparent texture pixels     
+			final double  [][] alphas,       // or null will be updated
+			final int          edge,         // now should be 2 or 1
+			final double       border_alpha, // alpha along the border 
+			final int          width,
+			final int          transform_size){
+		final int num_slices =  texture_en.length;
+		final int img_size =    texture_en[0].length;
+		final TileNeibs pn =     new TileNeibs(width, img_size/width);
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nslice = ai.getAndIncrement(); nslice < texture_en.length; nslice = ai.getAndIncrement()) {
+						boolean [] texture_edge=pn.getEdgeSelection(
+								edge,          // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+								texture_en[nslice], // boolean [] tiles,
+								null);     // boolean [] prohibit);
+						for (int i = 0; i < texture_en[nslice].length; i++) {
+							if (texture_en[nslice][i]){
+								alphas[nslice][i] *= texture_edge[i] ? border_alpha : 1.0;
+							} else {
+								alphas[nslice][i] = 0.0;
+							}
+						}						
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+	}
 	
-	public static double [][] processTexture(
+	public static double [][][] processTexture(
 			final CLTParameters  clt_parameters,
 			final int            tilesX,
 			final double [][]    slice_disparities,
@@ -2257,6 +2246,9 @@ public class TexturedModel {
 		final int    trim_shrink =        2;
 		final int    trim_edge =          5; // trim FG edges - pixels from edge if tile center has no texture (2 for 1pix with diagonal)
 		final int    trim_edge_center =   2; // required number of texture pixels in the 2x2 tile center to keep edge
+		final int    edge_transparent =   2;
+		final double edge_weight =        0.7;
+		
 		final int    num_slices = sensor_texture.length;
 		final int    transform_size = clt_parameters.transform_size;
 		final int    width = tilesX * transform_size;
@@ -2267,7 +2259,7 @@ public class TexturedModel {
 				(combo_texture_in != null) ?
 						combo_texture_in :
 							getComboTexture (sensor_texture);
-		double [][][] dbg_out =   (dbg_prefix != null) ? new double [5][][] : null;
+		double [][][]  dbg_out =  (dbg_prefix != null) ? new double [6][][] : null;
 		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [4][][] : null;
 
 
@@ -2336,6 +2328,9 @@ public class TexturedModel {
 				trim_shrink,     // final int          shrink,
 				width);          //	final int          width)
 		if (dbg_bool != null) dbg_bool[3] = copyTexture(texture_fg_filt); // filter by size
+		
+		// TODO: Create BG generation using FG textures and predicting occlusions
+		
 		double  [][] out_textures = processBgOcclusions(
 				sensor_texture,  // final double  [][][] sensor_texture,
 				gcombo_texture,  // final double  [][]   combo_texture,
@@ -2359,10 +2354,20 @@ public class TexturedModel {
 				out_textures);   // final double  [][]   combo_texture // will be modified - NaN where not selected
 		*/	
 		
-		double [][] tile_alpha = generateTileAlphas(
+		double [][] alphas = generateTileAlphas(
 				fg_has_bg[2],    // boolean [][] texture_tiles,
 				width,           // int          width,
 				transform_size); // int          transform_size)
+		
+		if (dbg_out != null) dbg_out[5] = copyTexture(alphas); // alpha after tile borders
+
+		generateFgAlphas(
+				texture_fg_filt, // final boolean [][] texture_en,   // non-transparent texture pixels     
+				alphas,       // final double  [][] alphas,       // or null will be updated
+				edge_transparent, // final int          edge,         // now should be 2 or 1
+				edge_weight, // final double       border_alpha, // alpha along the border 
+				width, // final int          width,
+				transform_size); // final int          transform_size)
 
 		
 		if (dbg_prefix != null) {
@@ -2372,7 +2377,6 @@ public class TexturedModel {
 			
 			final double [][] dbg_fg_prefiltered =         dbgBooleanTexture (dbg_bool[1], -1000, 1000);
 			final double [][] dbg_fg_prefiltered_neibs =   dbgBooleanTexture (dbg_bool[2], -1000, 1000);
-//			final double [][] dbg_fg_filtered =            dbgBooleanTexture (dbg_bool[3], -1000, 1000);
 
 			final double [][] tdbg_is_fg =                 dbgBooleanTexture (fg_has_bg[1], fg_has_bg[0], 0,1,2,3);
 			final double [][] gdbg_is_fg =  new double [tdbg_is_fg.length][width*height];
@@ -2418,10 +2422,10 @@ public class TexturedModel {
 						gtext_fg_filt[nslice], //dbg_fg_filtered[nslice],
 						gdbg_is_fg[nslice],
 						gcombo_texture[nslice],
-//						gtext_fg_filt[nslice], // ??
 						out_textures  [nslice], // dirs_avg,
 						dbg_out_textures[nslice],
-						tile_alpha[nslice],
+						dbg_out[5][nslice],
+						alphas[nslice],
 						sensor_texture[nslice][ 0],
 						sensor_texture[nslice][ 1],
 						sensor_texture[nslice][ 2],
@@ -2456,10 +2460,10 @@ public class TexturedModel {
 						"TEXTURE_FG_FILTERED",
 						"IS_FG",
 						"COMBO_TEXTURE",
-//						"FG_FILTERED_TEXTURE",
 						"OUT_TEXTURE_BG",
 						"OUT_TEXTURE_FG",
 						"TILE_ALPHA",
+						"TEXTURE_ALPHA",
 						"T00",
 						"T01",
 						"T02",
@@ -2490,20 +2494,23 @@ public class TexturedModel {
 					width,
 					height,
 					true,
-					dbg_prefix+"-out_textures-"
+					dbg_prefix+"-out_textures"
 					);
-			
+			ShowDoubleFloatArrays.showArrays(
+					alphas,
+					width,
+					height,
+					true,
+					dbg_prefix+"-alphas"
+					);
 		}
-		
-		double [][] alpha_templates = generateAlphaTemplates(
-				transform_size, // final int transform_size,
-				(dbg_prefix != null)); // boolean debug)
 
-		return out_textures; // need overall alpha. What about colors? 
+		double [][][] textures_alphas = new double [num_slices][][];
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			textures_alphas[nslice] = new double [][] {out_textures[nslice], alphas[nslice]};
+		}
+		return textures_alphas; // What about colors? 
 	}
-	
-	
-	
 	
 	
 	public static ImagePlus[] getInterCombinedTexturesNew( // return ImagePlus[] matching tileClusters[], with alpha
@@ -2623,9 +2630,6 @@ public class TexturedModel {
 			double [][] dxyzatr_dt = null;
 			// should get velocities from HashMap at reference scene from timestamp , not re-calculate.
 			if (mb_en) { // all scenes have the same name/path
-//				dxyzatr_dt = OpticalFlow.getVelocities( // looks at previous/next scene poses
-//						scenes,   // QuadCLT []     quadCLTs,
-//						nscene);  // int            nscene)
 				dxyzatr_dt = new double[][] { // for all, including ref
 					scenes[nscene].getErsCorrection().getErsXYZ_dt(),
 					scenes[nscene].getErsCorrection().getErsATR_dt()};				
@@ -2697,13 +2701,11 @@ public class TexturedModel {
 											inter_weights[fnslice][tileY][tileX] +=w;
 											if (inter_textures_wd[fnslice][tileY][tileX] == null) { // create if it did not exist
 												inter_textures_wd[fnslice][tileY][tileX] =  new double [slice_texture88[tileY][tileX].length + num_colors][slice_texture88[tileY][tileX][0].length];
-///												inter_textures_wd2[fnslice][tileY][tileX] = new double [slice_texture88[tileY][tileX].length + num_colors][slice_texture88[tileY][tileX][0].length];
 											}
 											for (int nchn = 0; nchn < slice_texture88[tileY][tileX].length; nchn++) {
 												for (int i = 0; i < slice_texture88[tileY][tileX][nchn].length; i++) {
 													double d = slice_texture88[tileY][tileX][nchn][i];
 													inter_textures_wd [fnslice][tileY][tileX][nchn][i] += w * d; 	
-///													inter_textures_wd2[fnslice][tileY][tileX][nchn][i] += w * d *d; 	
 												}
 											}
 										}
@@ -2714,7 +2716,7 @@ public class TexturedModel {
 					}		      
 					ImageDtt.startAndJoin(threads);
 				}
-				if (debug_level > -2) { // -1
+				if (debug_level > -1) { // -2
 					if (nscene == ref_index) {
 						System.out.println("Textures from the reference scene, nslice = " + nslice +((slice_texture88 == null)? " - EMPTY":""));
 					} else {
@@ -2724,7 +2726,7 @@ public class TexturedModel {
 			} // for (int nslice = 0; nslice < num_slices; nslice++) {
 		} // for (int nscene = 0; nscene < num_scenes; nscene++) {
 		// Divide accumulated data by weights
-		double [][][] faded_textures = new double [num_slices][][];
+///		double [][][] faded_textures = new double [num_slices][][];
 		final double [][] dbg_weights = (debug_level > 0 )?(new double [num_slices][tiles]) : null;
 		final double [][] dbg_overlap = (debug_level > 0 )?(new double [num_slices*(num_colors+1)][]) : null;
 		final int width = tilesX * transform_size;
@@ -2743,8 +2745,6 @@ public class TexturedModel {
 			if (dbg_weights != null) {
 				Arrays.fill(dbg_weights[nslice], Double.NaN);
 			}
-//			final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
-//			final AtomicInteger ai = new AtomicInteger(0);
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
@@ -2760,21 +2760,16 @@ public class TexturedModel {
 								for (int nchn = 0; nchn < inter_textures_wd[fnslice][tileY][tileX].length - num_colors; nchn++) {
 									for (int i = 0; i < inter_textures_wd[fnslice][tileY][tileX][nchn].length; i++) {
 										double d = inter_textures_wd[fnslice][tileY][tileX][nchn][i] * w; // average
-///										double d2= inter_textures_wd2[fnslice][tileY][tileX][nchn][i] * w; // average of squared
 										inter_textures_wd[fnslice][tileY][tileX][nchn][i] = d;
-///										inter_textures_wd2[fnslice][tileY][tileX][nchn][i] = Math.sqrt(d2- d * d);
 									}
 								}
 								for (int ncol = 0; ncol < num_colors; ncol++) {
 									int navg = inter_textures_wd[fnslice][tileY][tileX].length - num_colors + ncol;
 									for (int i = 0; i < tile_len; i++) {
 										inter_textures_wd[fnslice][tileY][tileX][navg][i] = 0;
-///										inter_textures_wd2[fnslice][tileY][tileX][navg][i] = 0;
 										for (int nsens = 0; nsens < num_sensors; nsens++) {
 											inter_textures_wd[fnslice][tileY][tileX][navg][i] += 
 													inter_textures_wd[fnslice][tileY][tileX][1 + (nsens + 1) * num_colors][i]/num_sensors;
-///											inter_textures_wd2[fnslice][tileY][tileX][navg][i] += 
-///													inter_textures_wd2[fnslice][tileY][tileX][1 + (nsens + 1) * num_colors][i]/num_sensors;
 										}
 									}
 								}
@@ -2812,19 +2807,17 @@ public class TexturedModel {
 			slice_disparities[nslice] = tileClusters[nslice].getDisparity();  // disparity in the reference view tiles (Double.NaN - invalid)
 		}		
 			
-		double [][] processed_textures = processTexture(
+		double [][][] faded_textures = processTexture( //[slice]{texture, alpha}
 				clt_parameters,   // final CLTParameters  clt_parameters,
 				tilesX,             // final int            tilesX,
 				slice_disparities, // final double [][]    slice_disparities,
 				sensor_textures,    // final double [][]    sensor_texture,    // per-sensor texture value
 				null, // combo_textures,    // null, // final double []      combo_texture_in,  // average texture value
-				ref_scene.getImageName()); // final String         dbg_prefix);
-
+				ref_scene.getImageName()); // null); // ref_scene.getImageName()); // final String         dbg_prefix);
 		
-		
-		if (debug_level > -1000) {
-			return null;
-		}
+//		if (debug_level > -1000) {
+//			return null;
+//		}
 		
 		if (debug_level > -1) {
 			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
@@ -2849,9 +2842,39 @@ public class TexturedModel {
 			
 		}		
 		
-		if (debug_level > -100) {
-			return null;
+		for (int nslice = 0; nslice < faded_textures.length; nslice++) {
+			faded_textures[nslice][0] = TileProcessor.fillNaNs(
+					faded_textures[nslice][0], // final double [] data,
+					width,        // int       width,
+					16,           // final int grow,
+					0.7,          // double    diagonal_weight, // relative to ortho
+					100,          // int       num_passes,
+					THREADS_MAX); // final int threadsMax)      // maximal number of threads to launch 
 		}
+		
+		if (debug_level > -1) {
+			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
+			String [] dbg_titles = new String[dbg_textures.length];
+			String [] dbg_subtitles = new String [faded_textures[0].length];
+			for (int i = 0; i < dbg_subtitles.length; i++) {
+				dbg_subtitles[i] = (i <  (dbg_subtitles.length -1)) ? ("Y"+i):"alpha";
+			}
+			
+			for (int i = 0; i < dbg_textures.length; i++) {
+				dbg_textures[i] = faded_textures[i / faded_textures[0].length][i % faded_textures[0].length];
+				dbg_titles[i] = dbg_subtitles[i % dbg_subtitles.length] + "-" + (i / dbg_subtitles.length);
+				
+			}
+			ShowDoubleFloatArrays.showArrays(
+					dbg_textures,
+					tilesX * transform_size,
+					tilesY * transform_size,
+					true,
+					ref_scene.getImageName()+"-combined_textures-filled-NaNs",
+					dbg_titles);
+		}		
+		
+		
 		
 		
 		// Optionally apply UM (before auto/manual range)

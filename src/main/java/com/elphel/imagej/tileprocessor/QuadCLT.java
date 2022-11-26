@@ -846,7 +846,8 @@ public class QuadCLT extends QuadCLTCPU {
 			final double      photo_offs,     // 21946; // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
 			final int         num_refines, // 2
 			final int         min_good,     // minimal number of "good" pixels
-			final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
+			final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,
+			final boolean[]   blue_sky,
 			int               threadsMax,
 			final boolean     debug)
 	{
@@ -859,6 +860,11 @@ public class QuadCLT extends QuadCLTCPU {
 				} else if (combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP_BG_ALL][i] !=
 						combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP][i]) {
 					disparity_ref[i] = Double.NaN;
+				}
+			}
+			if (blue_sky != null) {
+				for (int i = 0; i < blue_sky.length; i++) if (blue_sky[i]) {
+						disparity_ref[i] = 0.0;
 				}
 			}
 			
