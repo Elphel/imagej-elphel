@@ -78,7 +78,9 @@ public class TwoQuadCLT {
 	public static  int DSI_SPREAD_AUX =        10;
 	public static  int DSI_AVGVAL_MAIN =       11;
 	public static  int DSI_AVGVAL_AUX =        12;
-	public static  int DSI_LENGTH =            DSI_AVGVAL_AUX+1;
+	public static  int DSI_BLUE_SKY_MAIN =     13;
+	public static  int DSI_BLUE_SKY_AUX =      14;
+	public static  int DSI_LENGTH =            DSI_BLUE_SKY_AUX+1;
 
 	public static String DSI_COMBO_SUFFIX = "-DSI_COMBO";
 	public static String DSI_MAIN_SUFFIX =  "-DSI_MAIN";
@@ -96,7 +98,9 @@ public class TwoQuadCLT {
 			    "spread_main",
 			    "spread_aux",
 			    "avgval_main",
-			    "avgval_aux"};
+			    "avgval_aux",
+			    "blue_sky_main",
+			    "blue_sky_aux"};
 
 	public long                                            startTime;     // start of batch processing
 	public long                                            startSetTime;  // start of set processing

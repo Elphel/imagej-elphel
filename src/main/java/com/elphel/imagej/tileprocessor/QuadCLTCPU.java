@@ -167,7 +167,9 @@ public class QuadCLTCPU {
     public int                                             num_orient = 0; 
     //number of times scenes are accumulated: 0 - none, 1 - after first orientation, 2 - after second orientation
     public int                                             num_accum =  0;
-    public boolean[] blue_sky =                            null;
+    // TODO: Use dsi[] instead
+//    @Deprecated
+//    public boolean[] blue_sky =                            null;
     public void inc_orient()        {num_orient++;}
     public void inc_accum()         {num_accum++;}
     public void set_orient(int num) {num_orient = num;}
@@ -720,14 +722,52 @@ public class QuadCLTCPU {
 		}
 		return sky_tiles;
 	}
+//	@Deprecated
+//	public boolean [] getBlueSky () {
+//		return this.blue_sky;
+//	}
+	public double [] getDoubleBlueSky() {
+		if (this.dsi == null) {
+			return null;
+		}
+		return this.dsi[is_aux?TwoQuadCLT.DSI_BLUE_SKY_AUX:TwoQuadCLT.DSI_BLUE_SKY_MAIN];
+	}
+	public boolean[] getBooleanBlueSky() {
+		double [] double_blue_sky = getDoubleBlueSky();
+		if (double_blue_sky == null) {
+			return null;
+		}
+		boolean [] blue_sky = new boolean[double_blue_sky.length];
+		for (int i = 0; i < blue_sky.length; i++) {
+			blue_sky[i] = double_blue_sky[i] > 0;
+		}
+		return blue_sky;
+	}
 	
-	public boolean [] getBlueSky () {
-		return this.blue_sky;
+	public boolean hasBlueSky() {
+		return (getDoubleBlueSky() != null);
+		
 	}
+	
 
+//	@Deprecated
 	public void setBlueSky (boolean [] blue_sky) {
-		this.blue_sky = blue_sky;
+		double [] double_blue_sky = new double [blue_sky.length];
+		for (int i = 0; i < blue_sky.length; i++) {
+			double_blue_sky[i] = blue_sky[i]? 1.0 : 0.0;
+		}
+		setBlueSky (double_blue_sky);
 	}
+	
+
+	public void setBlueSky (double [] double_blue_sky) {
+		if (dsi == null) {	
+			dsi = new double [TwoQuadCLT.DSI_SLICES.length][]; // will not have DSI_SPREAD_AUX
+		}
+		int bs_index = is_aux?TwoQuadCLT.DSI_BLUE_SKY_AUX:TwoQuadCLT.DSI_BLUE_SKY_MAIN;
+		dsi[bs_index] = double_blue_sky;
+	}
+	
 	
 	public void setBlueSky (
 			double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
@@ -755,7 +795,8 @@ public class QuadCLTCPU {
 			double [] avg_val,
 			int debugLevel) {
 		int width = tp.getTilesX();
-		this.blue_sky = getBlueSky  (
+//		this.blue_sky = getBlueSky  (
+		setBlueSky(getBlueSky  (
 				sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
 				lma_seed, //          2.0;  // seed - disparity_lma limit
 				sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
@@ -780,13 +821,10 @@ public class QuadCLTCPU {
 				spread,
 				disp_lma,
 				avg_val,
-				debugLevel);
+				debugLevel));
 	}
-	
-	
-	public void setDSI(
-			double [][] dsi) {
-		this.dsi = dsi;
+	public void setDSI(	double [][] dsi) {
+		this.dsi = dsi; // make sure available blue sky is not erased
 	}
 
 	public void setDSIFromCombo(
@@ -798,6 +836,8 @@ public class QuadCLTCPU {
 				combo_dsi[OpticalFlow.COMBO_DSN_INDX_STRENGTH];
 		this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA] =
 				combo_dsi[OpticalFlow.COMBO_DSN_INDX_LMA];
+		this.dsi[is_aux?TwoQuadCLT.DSI_BLUE_SKY_AUX:TwoQuadCLT.DSI_BLUE_SKY_MAIN] =
+				combo_dsi[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY];
 	}
 	
 	
@@ -852,7 +892,7 @@ public class QuadCLTCPU {
 			reliable[i] = (strength[i] >= min_strength) &&
 					(!needs_lma || !Double.isNaN(disparity_lma[i]));
 		}
-		boolean [] blue_sky = getBlueSky();
+		boolean [] blue_sky = getBooleanBlueSky();
 		if (blue_sky != null) {
 			for (int i = 0; i < reliable.length; i++) {
 				reliable[i] &= !blue_sky[i];
@@ -1246,31 +1286,6 @@ public class QuadCLTCPU {
 			referenceExposures = eyesisCorrections.calcReferenceExposures(sourceFiles, debugLevel);
 		}
 		// move after restoring properties
-		/*
-		int [] channelFiles = set_channels[0].fileNumber();		
-		boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
-		double []    scaleExposures = new double[channelFiles.length];
-		conditionImageSet(
-				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
-				colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
-				sourceFiles,                    // String []                                 sourceFiles,
-				this.image_name,                       // String                                    set_name,
-				referenceExposures,             // double []                                 referenceExposures,
-				channelFiles,                   // int []                                    channelFiles,
-				scaleExposures,                 // output  // double [] scaleExposures
-				saturation_imp,                 // output  // boolean [][]                              saturation_imp,
-				threadsMax,                     // int                                       threadsMax,
-				debugLevelInner);               // int                                       debugLevel);
-		if (noise_sigma_level != null) {
-			generateAddNoise(
-					"-NOISE",
-					ref_scene, // final QuadCLTCPU ref_scene, // may be null if scale_fpn <= 0
-					noise_sigma_level,
-					noise_variant, //final int       noise_variant, // <0 - no-variants, compatible with old code
-					threadsMax,
-					1); // debugLevel); // final int       debug_level)
-		}
-		*/
 		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
 		int dsi_result = -1;
 		int max_length=OpticalFlow.COMBO_DSN_TITLES.length;
@@ -1297,7 +1312,7 @@ public class QuadCLTCPU {
 				System.out.println("No DSI data for the scene "+this.getImageName()+", setting this.dsi=null");
 				setDSI(null);
 		}
-		// WAS: resore only if (dsi_result < 0)...  else 
+		// WAS: restore only if (dsi_result < 0)...  else 
 		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
 				null, // String path,             // full name with extension or null to use x3d directory
 				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)

@@ -280,7 +280,7 @@ public class LwirWorld {
 		
 		
 /* */
-		while ((quadCLTs[ref_index] == null) || (quadCLTs[ref_index].getBlueSky() == null)) { // null
+		while ((quadCLTs[ref_index] == null) || !quadCLTs[ref_index].hasBlueSky()) { // null
 			if (build_ref_dsi) {
 				TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
 						// processing?
@@ -392,11 +392,9 @@ public class LwirWorld {
 						dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
 						batch_mode? -1: 1); /// debugLevel);        // int debugLevel)
 				if (ran_photo_each) {
-					quadCLTs[ref_index].setBlueSky(null); // Reset blue sky - is it needed?
-					// see if blue sky was detected - rerun photoEach
-					boolean [] blue_sky = quadCLTs[ref_index].getBlueSky();
+					double []  blue_sky = quadCLTs[ref_index].getDoubleBlueSky();
 					boolean has_blue_sky = false;
-					for (int i = 0; i < blue_sky.length; i++) if (blue_sky[i]) {
+					for (int i = 0; i < blue_sky.length; i++) if (blue_sky[i] > 0) {
 						has_blue_sky = true;
 						break;
 					}
