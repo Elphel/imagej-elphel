@@ -1729,6 +1729,106 @@ public class TexturedModel {
 		}		
 	}
 	
+	/**
+	 * Trim low-variance FG tiles near the edge
+	 * @param texture_en
+	 * @param texture_edge
+	 * @param is_fg_tile
+	 * @param has_bg_tile
+	 * @param variance
+	 * @param min_variance
+	 * @param width
+	 * @param transform_size
+	 */
+	
+	public static void trimFgEdgeVariancePixels(
+			final boolean [][] texture_en,
+			final boolean [][] texture_edge,
+			final boolean [][] is_fg_tile,
+			final boolean [][] has_bg_tile,
+			final double  [][] variance,
+			final double       min_edge_variance,			
+			final int          width,
+			final int          transform_size) {
+		boolean dbg = true;
+		final int num_slices =      texture_en.length;
+		final int img_size =        texture_en[0].length;
+		final int tilesX = width/transform_size;
+		final int tilesY = img_size/width/transform_size;
+		final Thread[] threads =    ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai =    new AtomicInteger(0);
+		final TileNeibs pn =        new TileNeibs(width, img_size/width);
+		final int grow = 2 * width;
+		final String [] dbg_titles = {"sel_in", "edge", "seed", "prohibit", "erase", "sel_out"}; 
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			final boolean [] erase =     new boolean [img_size];
+			final boolean [] prohibit = new boolean [img_size];
+			final double [][] dbg_img = dbg? (new double [dbg_titles.length][img_size]): null;
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nslice = ai.getAndIncrement(); nslice < num_slices; nslice = ai.getAndIncrement()) {
+						Arrays.fill(prohibit, true);
+						Arrays.fill(erase,false);
+						if (dbg_img != null) {
+							for (int i = 0; i < dbg_img.length; i++) {
+								Arrays.fill(dbg_img[i], Double.NaN);
+							}
+							for (int i = 0; i < texture_en[nslice].length; i++) {
+								dbg_img[0][i] = texture_en[nslice][i]? 1.0 : 0.0;
+								dbg_img[1][i] = texture_edge[nslice][i]? 1.0 : 0.0;
+							}
+						}
+						for (int tileY=0; tileY <tilesY; tileY++) {
+							for (int tileX=0; tileX <tilesX; tileX++) {
+								int tile = tileY*tilesX+tileX;
+								if (is_fg_tile[nslice][tile] && has_bg_tile[nslice][tile]) {
+									int indx0 = (tileY * transform_size) * width + (tileX * transform_size);
+									for (int dy = 0; dy < transform_size; dy++) {
+										for (int dx = 0; dx < transform_size; dx++) {
+											int indx = indx0+ width*dy + dx;
+											prohibit[indx] = (variance[nslice][indx] >= min_edge_variance) ||
+													!texture_en[nslice][indx];
+											erase[indx] = !prohibit[indx] && texture_edge[nslice][indx];
+										}								
+									}
+								}
+							}
+						}
+						if (dbg_img != null) {
+							for (int i = 0; i < texture_en[nslice].length; i++) {
+								dbg_img[2][i] = erase[i]? 1.0 : 0.0;
+								dbg_img[3][i] = prohibit[i]? 1.0 : 0.0;
+							}
+						}
+						
+						pn.growSelection(
+								grow,       // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+								erase,       // boolean [] tiles,
+								prohibit);  // boolean [] prohibit);
+						for (int i = 0; i < erase.length; i++) {
+							texture_en[nslice][i] &= !erase[i];
+						}
+						if (dbg_img != null) {
+							for (int i = 0; i < texture_en[nslice].length; i++) {
+								dbg_img[4][i] = erase[i]? 1.0 : 0.0;
+								dbg_img[5][i] = texture_en[nslice][i]? 1.0 : 0.0;
+							}
+						}
+						
+						ShowDoubleFloatArrays.showArrays(
+								dbg_img,
+								width,
+								img_size/width,
+								true,
+								"VAR_EDGE_FILTER-"+String.format("%02d",nslice),
+								dbg_titles);
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+	}
+	
 	public static void filterSelections(
 			final boolean [][] selections, // ** will be modified
 			final int          min_neibs,
@@ -2241,6 +2341,7 @@ public class TexturedModel {
 		final double min_trim_disparity =  2.0;  // do not try to trim texture outlines with lower disparities
 		final double fg_max_inter =       40.0;  // Trim FG tile if inter variance exceeds 
 		final double fg_max_rel =         2.0;   // Trim FG tile if inter variance to same variance exceeds
+		final double min_edge_variance = 20.0;   // minimal FG edge variance (trim outside)       
 		final int    min_neibs =          2; // remove pixel clusters with less neighbors
 		final int    trim_grow =          4; 
 		final int    trim_shrink =        2;
@@ -2260,7 +2361,7 @@ public class TexturedModel {
 						combo_texture_in :
 							getComboTexture (sensor_texture);
 		double [][][]  dbg_out =  (dbg_prefix != null) ? new double [6][][] : null;
-		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [4][][] : null;
+		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [5][][] : null;
 
 
 		final boolean [][][] fg_has_bg = get_fg_has_bg_any(
@@ -2307,6 +2408,18 @@ public class TexturedModel {
 				transform_size); // final int          transform_size);
 		if (dbg_bool != null) dbg_bool[1] = copyTexture(texture_fg_filt); // filter FG by variances
 		
+		trimFgEdgeVariancePixels(
+				texture_fg_filt,   // final boolean [][] texture_en,
+				texture_edge,      // final boolean [][] texture_edge,
+				fg_has_bg[0],      // final boolean [][] is_fg_tile,
+				fg_has_bg[1],      // final boolean [][] has_bg_tile,
+				vars[0],           // final double  [][] variance,
+				min_edge_variance, // final int          min_variance,			
+				width,             // final int          width,
+				transform_size);   //	final int          transform_size);  //				final int          transform_size)
+
+		if (dbg_bool != null) dbg_bool[2] = copyTexture(texture_fg_filt); // filter FG by edge variances
+		
 		// debug-copy texture_fg_filt as it will be modified in the next step
 		
 		trimFgEdgePixels(
@@ -2320,14 +2433,14 @@ public class TexturedModel {
 
 		// debug-copy texture_fg_filt as it will be modified in the next step
 		// dbg_texture_fg_pre_filt[nslice] = texture_fg_filt[nslice].clone();
-		if (dbg_bool != null) dbg_bool[2] = copyTexture(texture_fg_filt); // filter by edges
+		if (dbg_bool != null) dbg_bool[3] = copyTexture(texture_fg_filt); // filter by edges
 		filterSelections(
 				texture_fg_filt, // final boolean [][] selections, // ** will be modified
 				min_neibs,       // final int          min_neibs,
 				trim_grow,       // final int          grow,
 				trim_shrink,     // final int          shrink,
 				width);          //	final int          width)
-		if (dbg_bool != null) dbg_bool[3] = copyTexture(texture_fg_filt); // filter by size
+		if (dbg_bool != null) dbg_bool[4] = copyTexture(texture_fg_filt); // filter by size
 		
 		// TODO: Create BG generation using FG textures and predicting occlusions
 		
@@ -2374,9 +2487,9 @@ public class TexturedModel {
 			final double [][] gtext_fg_filt =              dbgBooleanTexture (texture_fg_filt, -1000, 1000); // texture filtered by fg trim 
 			final double [][] dbg_text_edge =              dbgBooleanTexture (texture_edge, -1000, 1000); 
 			final double [][] dbg_text_en =                dbgBooleanTexture (dbg_bool[0], -1000, 1000);
-			
 			final double [][] dbg_fg_prefiltered =         dbgBooleanTexture (dbg_bool[1], -1000, 1000);
-			final double [][] dbg_fg_prefiltered_neibs =   dbgBooleanTexture (dbg_bool[2], -1000, 1000);
+			final double [][] dbg_text_edge_var =          dbgBooleanTexture (dbg_bool[2], -1000, 1000);
+			final double [][] dbg_fg_prefiltered_neibs =   dbgBooleanTexture (dbg_bool[3], -1000, 1000);
 
 			final double [][] tdbg_is_fg =                 dbgBooleanTexture (fg_has_bg[1], fg_has_bg[0], 0,1,2,3);
 			final double [][] gdbg_is_fg =  new double [tdbg_is_fg.length][width*height];
@@ -2418,6 +2531,7 @@ public class TexturedModel {
 						dbg_text_edge[nslice], // dbg_text_edge,
 						dbg_text_en[nslice],
 						dbg_fg_prefiltered[nslice], //
+						dbg_text_edge_var[nslice], //
 						dbg_fg_prefiltered_neibs[nslice],
 						gtext_fg_filt[nslice], //dbg_fg_filtered[nslice],
 						gdbg_is_fg[nslice],
@@ -2456,6 +2570,7 @@ public class TexturedModel {
 						"TEXTURE_EDGE",
 						"TEXTURE_ON",
 						"TEXTURE_TRIMMED",
+						"TEXTURE_TRIMMED_EDGE_VAR",
 						"TEXTURE_TRIMMED_EDGED",
 						"TEXTURE_FG_FILTERED",
 						"IS_FG",

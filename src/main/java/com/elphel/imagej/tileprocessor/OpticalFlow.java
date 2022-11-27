@@ -4037,6 +4037,10 @@ public class OpticalFlow {
 						updateStatus,        // final boolean                                 updateStatus,
 						debugLevel);         // final int                                     debugLevel)			
 
+			} else {
+				System.out.println("**** FAILED to detect non-empty Blue Sky after initial DSI in "+quadCLT_ref.getImageName()+
+						", if there is actual sky in the field of view, some \"sky\" parameters need to be adjusted.");
+				
 			}
 		}
 		
