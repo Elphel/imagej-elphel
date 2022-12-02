@@ -8991,13 +8991,14 @@ ImageDtt.startAndJoin(threads);
 	static int iSign (int a) {return (a > 0) ? 1 : ((a < 0)? -1 : 0);}
 
 	public void testTriangles(
-			String     texturePath,
+			String     texturePath, // if not null - will show
 			Rectangle  bounds,
 			boolean [] selected,
 			double []  disparity,
 			int        tile_size,
 			int [][]  indices,
-			int [][]  triangles)
+			int [][]  triangles,
+			double [][] debug_triangles) // if not null - should be [2][width* height], will mark disparity and triangles
 	{
 		String [] titles = {"disparity","triangles"};
 		double [][] dbg_img = new double [titles.length][tilesX*tilesY*tile_size*tile_size];
@@ -9053,12 +9054,30 @@ ImageDtt.startAndJoin(threads);
 				}
 			}
 		}
-		ShowDoubleFloatArrays.showArrays(dbg_img,
-				tilesX * tile_size,
-				tilesY * tile_size,
-				true,
-				"triangles-"+texturePath,
-				titles);
+		if (texturePath != null) {
+			ShowDoubleFloatArrays.showArrays(
+					dbg_img,
+					tilesX * tile_size,
+					tilesY * tile_size,
+					true,
+					"triangles-"+texturePath,
+					titles);
+		}
+		if (debug_triangles != null) {
+			int indx_tri = (debug_triangles.length>1) ? 1 : 0;
+			for (int i = 0; i < debug_triangles[indx_tri].length; i++) {
+				if (dbg_img[1][i] > 0) {
+					debug_triangles[indx_tri][i] = dbg_img[1][i]; // 10.0 to have the same scale as disparity
+				}
+			}
+			if (indx_tri > 0) {
+				for (int i = 0; i < debug_triangles[indx_tri].length; i++) {
+					if (!Double.isNaN(dbg_img[0][i])) {
+						debug_triangles[0][i] = dbg_img[0][i]; // disparity if not NaN
+					}
+				}
+			}
+		}
 	}
 
 	

@@ -1788,7 +1788,9 @@ public class QuadCLT extends QuadCLTCPU {
 			final boolean     filter_bg, // remove bg tiles (possibly occluded)
 			final double      max_distortion, // maximal neighbor tiles offset as a fraction of tile size (8) 
 			final int []      cluster_index,  // [tilesX*tilesY]
-			final boolean []  border, // border tiles
+			final boolean []  border, // border tiles for clusters?
+			final int         discard_frame_edges, // do not use tiles that have pixels closer to the frame margins 
+			final int         keep_frame_tiles, // do not discard pixels for border tiles in reference frame 
 			final boolean     keep_channels,
 			final int         debugLevel){
 		// FIXME: Move to clt_parameters;
@@ -1990,8 +1992,12 @@ public class QuadCLT extends QuadCLTCPU {
 		final int tilesX =    scene.getTileProcessor().getTilesX();
 		final int tilesY =    scene.getTileProcessor().getTilesY();
 		final int tiles =     tilesX*tilesY;
-		int tile_size =       scene.getTileProcessor().getTileSize();
+		final int tile_size =       scene.getTileProcessor().getTileSize();
 		int tile_len =        tile_size*tile_size;
+		// 		final int transform_size = clt_parameters.transform_size;
+		final int full_width =  tilesX * tile_size; 
+		final int full_height = tilesY * tile_size; 
+
 		final double [][][][] texture_tiles88 = new double [tilesY][tilesX][][]; // here - non-overlapped!
 		// copy from windowed output to 
 		final TpTask[] ftp_tasks =    tp_tasks[0];
@@ -2033,7 +2039,7 @@ public class QuadCLT extends QuadCLTCPU {
 		}		      
 		ImageDtt.startAndJoin(threads);
 
-		if (max_distortion > 0) {//  remove distorted tiles
+		if ((max_distortion > 0) || (discard_frame_edges > 0)) {//  remove distorted tiles
 			double max_distortion2 = max_distortion * max_distortion; 
 			final TileNeibs tn =         new TileNeibs(tilesX, tilesY);
 			final boolean [] distorted = new boolean [tiles];
@@ -2075,6 +2081,19 @@ public class QuadCLT extends QuadCLTCPU {
 												} else {
 													continue; // check why task is null here for >=0 cluster index 
 												}
+											}
+										}
+									}
+									// see if the tile should be removed because it is too close to the edge of the scene frame
+									if (!distorted[nTile] && (discard_frame_edges > 0)) {
+										if ((tileX >= keep_frame_tiles) && (tileY >= keep_frame_tiles) &&
+												(tileX < (tilesX - keep_frame_tiles)) && (tileY < (tilesY - keep_frame_tiles))) {
+											if (
+													(centerXY[0] < discard_frame_edges) ||
+													(centerXY[1] < discard_frame_edges) ||
+													(centerXY[0] > (full_width - discard_frame_edges-1)) ||													
+													(centerXY[1] > (full_height - discard_frame_edges-1))) {
+												distorted[nTile] = true;												
 											}
 										}
 									}

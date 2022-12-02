@@ -32,15 +32,19 @@ class TileCluster{
 	double []  disparity;            // all and only unused - NaN 
 	int []     cluster_index = null; // for debug purposes, index of the source cluster
 	int        index = -1;
+	boolean    is_sky = false;
 	ArrayList<IndexedRectanle> clust_list;
 	class IndexedRectanle{
 		int index;
 		Rectangle bounds;
+		boolean is_sky;
 		IndexedRectanle (
 				int index,
-				Rectangle bounds){
+				Rectangle bounds,
+				boolean is_sky){
 			this.index = index;
 			this.bounds = bounds;
+			this.is_sky = is_sky;
 		}
 	}
 	// to use cluster_index - set index >= 0, <0 - do not use.
@@ -48,9 +52,11 @@ class TileCluster{
 			Rectangle  bounds,
 			int index, // <0 to skip
 			boolean [] border,
-			double []  disparity){
+			double []  disparity,
+			boolean is_sky){
 		this.bounds =    bounds;
-		this.index = index; 
+		this.index = index;
+		this.is_sky = is_sky;
 		/**
 		if (index >= 0) {
 			this.cluster_index = new int [bounds.width * bounds.height];
@@ -72,10 +78,31 @@ class TileCluster{
 		}
 		this.disparity = disparity;
 	}
+	public boolean isSky() {
+		return is_sky;
+	}
 	
-	public Rectangle  getBounds() {return bounds;}
+	public int getSkyClusterIndex() {
+		if (clust_list == null) {
+			return -2;
+		}
+		for (int i = 0; i < clust_list.size(); i++) {
+			if (clust_list.get(i).is_sky) {
+				return i;
+			}
+		}
+		return -1;
+	}
+	
+	public Rectangle  getBounds() {
+		return bounds;
+	}
+	public Rectangle  getBounds(int gap) {
+		return new Rectangle (bounds.x - gap, bounds.y - gap, bounds.width + 2* gap,  bounds.height + 2* gap);
+	}
 	public boolean [] getBorder() {return border;}
 	public double []  getDisparity() {return disparity;}
+	public void       setDisparity(double [] disparity) {this.disparity = disparity;}
 	public double []  getSubDisparity(int indx) { // disparity should be NaN for unused !
 		if (clust_list == null) {
 			return null;
@@ -93,6 +120,32 @@ class TileCluster{
 					sub_bounds.width);
 		}		
 		return sub_disparity;
+	}
+
+	public void setSubDisparity(int indx, double [] sub_disparity) { // disparity should be NaN for unused !
+		if (clust_list == null) {
+			return;
+		}
+		Rectangle sub_bounds = clust_list.get(indx).bounds;
+		int src_x = sub_bounds.x - bounds.x;
+		for (int dst_y = 0; dst_y < sub_bounds.height; dst_y++) {
+			int src_y = dst_y + sub_bounds.y - bounds.y;
+			System.arraycopy(
+					sub_disparity,
+					dst_y * sub_bounds.width,
+					disparity,
+					src_y * bounds.width + src_x,
+					sub_bounds.width);
+		}		
+	}
+	
+	
+	
+	public boolean isSubSky(int indx) {
+		if (clust_list == null) {
+			return false;
+		}
+		return clust_list.get(indx).is_sky;
 	}
 	
 	public boolean []  getSubBorder(int indx) { // disparity should be NaN for unused !
@@ -113,7 +166,7 @@ class TileCluster{
 		}		
 		return sub_border;
 	}
-	
+	// returns selected for all non-NAN, so it is possible to use NEGATIVE_INFINITY for non-NaN
 	public boolean []  getSubSelected(int indx) { // disparity should be NaN for unused !
 		if (clust_list == null) {
 			return null;
@@ -141,6 +194,15 @@ class TileCluster{
 		return selected;
 	}
 	
+	public Rectangle getSubBounds (int indx) {
+		if (clust_list == null) {
+			return null;
+		} else {
+			Rectangle sub_bounds = clust_list.get(indx).bounds;
+			return sub_bounds;
+		}
+	}
+	
 	public Rectangle [] getSubBounds() {
 		if (clust_list == null) {
 			return null;
@@ -163,6 +225,9 @@ class TileCluster{
 			return sub_indices;
 		}
 	}
+	public void resetClusterIndex() { // to rebuild cluster index from disparity
+		this.cluster_index = null; 
+	}
 	public int [] getClusterIndex() { // (Now not) just a debug feature, no need to optimize?
 		if (clust_list == null) {
 			return null;
@@ -183,6 +248,36 @@ class TileCluster{
 			}
 		}
 		return cluster_index;
+	}
+	
+	public void increaseBounds() {
+		int num_subs = getSubBounds().length;
+		for (int indx = 0; indx < num_subs; indx++) {
+			increaseBounds(indx);
+		}
+	}
+
+	public void increaseBounds(int sub_index) {
+		Rectangle bounds = getSubBounds(sub_index);
+		Rectangle ext_bounds = new Rectangle (bounds.x - 1, bounds.y - 1, bounds.width + 2, bounds.height + 2);
+		if (ext_bounds.x < 0) {
+			ext_bounds.width += ext_bounds.x;
+			ext_bounds.x = 0;
+		}
+		if ((ext_bounds.x + ext_bounds.width) > this.bounds.width) {
+			ext_bounds.width = this.bounds.width - ext_bounds.x;
+		}
+		if (ext_bounds.y < 0) {
+			ext_bounds.height += ext_bounds.y;
+			ext_bounds.y = 0;
+		}
+		if ((ext_bounds.y + ext_bounds.height) > this.bounds.height) {
+			ext_bounds.height = this.bounds.height - ext_bounds.y;
+		}
+		bounds.x =      ext_bounds.x;
+		bounds.y =      ext_bounds.y;
+		bounds.width =  ext_bounds.width;
+		bounds.height = ext_bounds.height;
 
 	}
 
@@ -194,7 +289,7 @@ class TileCluster{
 		if (clust_list == null) {
 			clust_list =  new ArrayList<IndexedRectanle>();
 		}
-		clust_list.add(new IndexedRectanle(tileCluster.index, tileCluster.bounds));
+		clust_list.add(new IndexedRectanle(tileCluster.index, tileCluster.bounds, tileCluster.isSky()));
 		
 		int dst_x = tileCluster.bounds.x - bounds.x;
 		for (int src_y = 0; src_y < tileCluster.bounds.height; src_y++) {

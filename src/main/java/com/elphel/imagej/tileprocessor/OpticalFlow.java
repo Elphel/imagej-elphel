@@ -8044,7 +8044,7 @@ public class OpticalFlow {
 			payload_blue_sky = new double[tiles];
 			Arrays.fill(payload_blue_sky,Double.NaN);
 		}
-		
+		combo_dsn_final[COMBO_DSN_INDX_BLUE_SKY] = payload_blue_sky;
 		
 		// restore modified parameters
 		clt_parameters.img_dtt.bimax_combine_mode = save_bimax_combine_mode;

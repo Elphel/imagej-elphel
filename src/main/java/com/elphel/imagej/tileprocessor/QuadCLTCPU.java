@@ -12056,6 +12056,7 @@ public class QuadCLTCPU {
 								  clt_parameters.maxZtoXY,      // double          maxZtoXY,       // 10.0. <=0 - do not use
 								  clt_parameters.maxZ,
 								  clt_parameters.limitZ,
+								  null, // dbg_disp_tri_slice, //   double [][]     dbg_disp_tri_slice,
 								  debugLevel + 1); //   int             debug_level) > 0
 					  } catch (IOException e) {
 						  // TODO Auto-generated catch block
@@ -12155,6 +12156,7 @@ public class QuadCLTCPU {
 						  clt_parameters.maxZtoXY,      // double          maxZtoXY,       // 10.0. <=0 - do not use
 						  clt_parameters.maxZ,
 						  clt_parameters.limitZ,
+						  null, //   double [][]     dbg_disp_tri_slice,
 						  debugLevel + 1); //   int             debug_level) > 0
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -12203,7 +12205,8 @@ public class QuadCLTCPU {
 			  double          maxDispTriangle, // relative <=0 - do not use
 			  double          maxZtoXY,        // 10.0. <=0 - do not use
 			  double          maxZ,            // far clip (0 - do not clip). Negative - limit by max
-			  boolean         limitZ, 
+			  boolean         limitZ,
+			  double [][]     dbg_disp_tri_slice,
 			  int             debug_level
 			  ) throws IOException
 	  {
@@ -12315,19 +12318,20 @@ public class QuadCLTCPU {
 			  }
 		  }
 
-		  if (show_triangles) {
+		  if (show_triangles || (dbg_disp_tri_slice != null)) {
 			  double [] ddisp = (disparity == null)?(new double[1]):disparity;
 			  if (disparity == null) {
 				  ddisp[0] = min_disparity;
 			  }
 			  tp.testTriangles(
-					  texturePath,
+					  (show_triangles? texturePath: null),
 					  bounds,
 					  selected,
 					  ddisp, // disparity, // if disparity.length == 1 - use for all
 					  tile_size,
 					  indices,
-					  triangles);
+					  triangles,
+					  dbg_disp_tri_slice); // double [][] debug_triangles);
 		  }
 		  if (x3dOutput != null) {
 		  x3dOutput.addCluster(

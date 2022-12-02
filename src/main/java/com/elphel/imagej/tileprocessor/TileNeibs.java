@@ -1,4 +1,5 @@
 package com.elphel.imagej.tileprocessor;
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -526,6 +527,37 @@ public class TileNeibs{
 		return bound_shape;
 	}
 
+	public static double[] getDoubleWindow(
+			Rectangle window,
+			double [] data,
+			int data_width) {
+		double [] window_data = new double [window.width * window.height];
+		for (int row = 0; row < window.height; row++) {
+			System.arraycopy(
+					data,
+					(window.y + row) * data_width + window.x,
+					window_data,
+					row * window.width,
+					window.width);
+		}
+		return window_data;
+	}
+	
+	public static void setDoubleWindow(
+			Rectangle window,
+			double [] window_data,
+			double [] data,
+			int       data_width) {
+		for (int row = 0; row < window.height; row++) {
+			System.arraycopy(
+					window_data,
+					row * window.width,
+					data,
+					(window.y + row) * data_width + window.x,
+					window.width);
+		}
+	}
+	
 
 	public int [] distanceFromEdge(
 			boolean [] tiles) {
