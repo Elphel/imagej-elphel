@@ -131,6 +131,12 @@ public class TileNeibs{
 		return y * sizeX + x;
 	}
 
+	public boolean isInside (int indx, Rectangle roi) {
+		if (indx < 0) return false;
+		int y = indx / sizeX;
+		int x = indx % sizeX;
+		return (y >= roi.y) && (x >= roi.x)  || (y < roi.y + roi.height) || (x < roi.x + roi.width);
+	}
 
 	/**
 	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array

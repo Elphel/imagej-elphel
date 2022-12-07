@@ -29,6 +29,9 @@ import java.util.Arrays;
 class TileCluster{
 	Rectangle  bounds;
 	boolean [] border;
+	// <0 - outside, 0 - inner /true disparity, border_int_max - outer border layer, ... 
+	int []     border_int;           // will replace border? Provide on-the-fly? 
+	int        border_int_max;       // outer border value
 	double []  disparity;            // all and only unused - NaN 
 	int []     cluster_index = null; // for debug purposes, index of the source cluster
 	int        index = -1;
@@ -52,31 +55,43 @@ class TileCluster{
 			Rectangle  bounds,
 			int index, // <0 to skip
 			boolean [] border,
+			int []     border_int,           // will replace border? Provide on-the-fly? 
+			int        border_int_max,       // outer border value
 			double []  disparity,
 			boolean is_sky){
 		this.bounds =    bounds;
 		this.index = index;
 		this.is_sky = is_sky;
-		/**
-		if (index >= 0) {
-			this.cluster_index = new int [bounds.width * bounds.height];
-			Arrays.fill(cluster_index, -1);
-			if (disparity != null) {
-				for (int i = 0; i < cluster_index.length; i++) if (!Double.isNaN(disparity[i])){
-					cluster_index[i] = index;
-				}
-			}
-		}
-		*/
-		if (border == null) {
-			border = new boolean[bounds.width * bounds.height];
-		}
-		this.border =    border;
 		if (disparity == null) {
 			disparity = new double[bounds.width * bounds.height];
 			Arrays.fill(disparity, Double.NaN);
 		}
 		this.disparity = disparity;
+		
+		if (border == null) {
+			border = new boolean[bounds.width * bounds.height];
+			if (border_int != null) {
+				for (int i = 0; i < border_int.length; i++) {
+					border[i] = border_int[i] == border_int_max;
+				}
+			}
+		}
+		this.border =    border;
+		// for back compatibility
+		if (border_int == null) {
+			border_int = new int [bounds.width * bounds.height];
+			border_int_max = 1; 
+
+			for (int i = 0; i < border_int.length; i++) {
+				if (Double.isNaN(disparity[i])) {
+					border_int[i] = -1;
+				} else {
+					border_int[i] = border[i] ? border_int_max : 0; 
+				}
+			}
+		}
+		this.border_int = border_int;
+		this.border_int_max = border_int_max;
 	}
 	public boolean isSky() {
 		return is_sky;
@@ -100,7 +115,9 @@ class TileCluster{
 	public Rectangle  getBounds(int gap) {
 		return new Rectangle (bounds.x - gap, bounds.y - gap, bounds.width + 2* gap,  bounds.height + 2* gap);
 	}
-	public boolean [] getBorder() {return border;}
+	public boolean [] getBorder() {return border;} // Modify to use border_int (==border_int_max)?
+	public int [] getBorderInt() {return border_int;}
+	public int    getBorderIntMax() {return border_int_max;}
 	public double []  getDisparity() {return disparity;}
 	public void       setDisparity(double [] disparity) {this.disparity = disparity;}
 	public double []  getSubDisparity(int indx) { // disparity should be NaN for unused !
@@ -148,7 +165,7 @@ class TileCluster{
 		return clust_list.get(indx).is_sky;
 	}
 	
-	public boolean []  getSubBorder(int indx) { // disparity should be NaN for unused !
+	public boolean []  getSubBorder(int indx) {
 		if (clust_list == null) {
 			return null;
 		}
@@ -166,6 +183,27 @@ class TileCluster{
 		}		
 		return sub_border;
 	}
+
+	public int []  getSubBorderInt(int indx) {
+		if (clust_list == null) {
+			return null;
+		}
+		Rectangle sub_bounds = clust_list.get(indx).bounds;
+		int [] sub_border_int = new int [sub_bounds.width * sub_bounds.height];
+		int src_x = sub_bounds.x - bounds.x;
+		for (int dst_y = 0; dst_y < sub_bounds.height; dst_y++) {
+			int src_y = dst_y + sub_bounds.y - bounds.y;
+			System.arraycopy(
+					border_int,
+					src_y * bounds.width + src_x,
+					sub_border_int,
+					dst_y * sub_bounds.width,
+					sub_bounds.width);
+		}		
+		return sub_border_int;
+	}
+	
+	
 	// returns selected for all non-NAN, so it is possible to use NEGATIVE_INFINITY for non-NaN
 	public boolean []  getSubSelected(int indx) { // disparity should be NaN for unused !
 		if (clust_list == null) {
@@ -290,7 +328,7 @@ class TileCluster{
 			clust_list =  new ArrayList<IndexedRectanle>();
 		}
 		clust_list.add(new IndexedRectanle(tileCluster.index, tileCluster.bounds, tileCluster.isSky()));
-		
+		border_int_max = tileCluster.border_int_max; // all clusters should have the same border_int_max
 		int dst_x = tileCluster.bounds.x - bounds.x;
 		for (int src_y = 0; src_y < tileCluster.bounds.height; src_y++) {
 			int dst_y = src_y + tileCluster.bounds.y - bounds.y;
@@ -298,6 +336,12 @@ class TileCluster{
 					tileCluster.border,
 					src_y * tileCluster.bounds.width,
 					border,
+					dst_y * bounds.width + dst_x,
+					tileCluster.bounds.width);
+			System.arraycopy(
+					tileCluster.border_int,
+					src_y * tileCluster.bounds.width,
+					border_int,
 					dst_y * bounds.width + dst_x,
 					tileCluster.bounds.width);
 			System.arraycopy(

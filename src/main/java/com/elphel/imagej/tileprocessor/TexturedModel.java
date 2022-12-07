@@ -26,6 +26,8 @@ import java.awt.Rectangle;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.JSONException;
@@ -54,14 +56,14 @@ public class TexturedModel {
 	public static final int TILE_CANDIDATE =      4; // not used 
 	public static final int CLUSTER_NAN =        -2; // disparity is NaN 
 	public static final int CLUSTER_UNASSIGNED =  -1; // not yet assinged (>=0 - cluster number)
-
+	public static final int []    NUM_NEIBS_FROM_BITS = new int [512]; 
 	
 	
 	public static boolean isBorder(int d) {
 		return (d==TILE_BORDER) || (d==TILE_BORDER_FLOAT);
 	}
 	
-	public static TileCluster [] clusterizeFgBg( //
+	public static TileCluster [] clusterizeFgBgOld( //
 			final int          tilesX,
 			final double [][]  disparities, // may have more layers
 			final boolean []   blue_sky, // use to expand background by blurring available data?
@@ -442,6 +444,8 @@ public class TexturedModel {
 						bounds,
 						cluster_list.size(), // (debug_index? cluster_list.size(): -1),
 						border_crop,
+						null,     // int []     border_int,           // will replace border? Provide on-the-fly? 
+						0,        // int        border_int_max,       // outer border value
 						disparity_crop,
 						sky_cluster));     // boolean is_sky));
 				cluster_list.add(tileCluster);
@@ -491,6 +495,8 @@ public class TexturedModel {
 					full_tiles,
 					(debug_index? 0:-1),
 					null,
+					null,     // int []     border_int,           // will replace border? Provide on-the-fly? 
+					0,        // int        border_int_max,       // outer border value
 					null,
 					false); // boolean is_sky));
 		}
@@ -539,7 +545,1080 @@ public class TexturedModel {
 		}
 		return consolidated_clusters;
 	}
+
+	// generate/update number of neighbors to select clusters' seeds
+//	public static int [] getSeedTile( // and update num_neibs_dir
+	public static void updateSeeds( // and update num_neibs_dir
+			final int [][]     num_neibs_dir, // [tile][layer]
+			final Rectangle    bounds,    // null - all
+			final double [][]  disparity_layers, // [layer][tile]should not have same tile disparity on multiple layers
+			final boolean []   blue_sky, // use to expand background by blurring available data?
+			final int          blue_sky_layer,
+			final double       disp_adiffo,
+			final double       disp_rdiffo,
+			final double       disp_adiffd,
+			final double       disp_rdiffd,
+			final double       disp_fof,    // enable higher difference (scale) for fried of a friend 
+			final int          tilesX,
+//			final int          transform_size,
+			final int          debugLevel) {
+		final int tiles = disparity_layers[0].length;
+		final int tiles_wnd = (bounds == null) ? tiles : (bounds.width * bounds.height);
+//		final Rectanle ext_bounds
+		final int tilesY = tiles/tilesX;
+		final int layers = disparity_layers.length;
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final TileNeibs tn =     new TileNeibs(tilesX, tilesY);
+		final double [][][][] connections = new double [tiles][][][];
+		if (NUM_NEIBS_FROM_BITS[511] == 0) {
+			for (int i = 0; i < NUM_NEIBS_FROM_BITS.length; i++) {
+				for (int d = i; d != 0; d>>=1) {
+					NUM_NEIBS_FROM_BITS[i]+=(d & 1);
+				}
+			}
+		};
+		final Rectangle bounds_ext = (bounds != null) ?((new Rectangle(bounds.x-1, bounds.y-1, bounds.width+2, bounds.height + 2)).
+				intersection(new Rectangle(tilesX, tilesY))) : null;
+		final Rectangle bounds_ext2 = (bounds != null) ?((new Rectangle(bounds.x-2, bounds.y-2, bounds.width+4, bounds.height + 4)).
+				intersection(new Rectangle(tilesX, tilesY))) : null;
+		// calculate "connections - per tile, per layer, per direction (1 of the first 4), per target layer - normalized difference difference 
+		final int dbg_tile = (debugLevel>0)? 1090:-1; // 977 : -1;
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile_wnd = ai.getAndIncrement(); tile_wnd < tiles_wnd; tile_wnd = ai.getAndIncrement()) {
+						int tile = tile_wnd;
+						if (bounds_ext2 != null) {
+							int tileX = bounds_ext2.x + tile_wnd % bounds_ext2.width;
+							int tileY = bounds_ext2.y + tile_wnd / bounds_ext2.width;
+							tile = tileY * tilesX + tileX;
+						}
+						if (tile==dbg_tile) {
+							System.out.println("updateSeeds().1: tile="+tile);
+						}
+						for (int layer = 0; layer < layers; layer++) {
+							if (!Double.isNaN(disparity_layers[layer][tile])) {
+								if (connections[tile] == null) {
+									connections[tile] = new double[layers][][];
+								}
+								boolean is_bs = (layer == blue_sky_layer) && blue_sky[tile];
+								connections[tile][layer] = new double [TileNeibs.DIRS][]; // leave room for future symmetry
+								for (int dir = 0; dir < TileNeibs.DIRS/2; dir++) {
+									int tile1 = tn.getNeibIndex(tile, dir);
+									if (tile1 >= 0) {
+										for (int layer1 = 0; layer1 < layers; layer1++) {
+											if (!Double.isNaN(disparity_layers[layer1][tile1])) {
+												if (connections[tile][layer][dir] == null) {
+													connections[tile][layer][dir] = new double[layers];
+													Arrays.fill(connections[tile][layer][dir],Double.NaN);
+												}
+												double mid_disp = Math.max(0.0, 0.5*(disparity_layers[layer][tile] + disparity_layers[layer1][tile1]));
+											    double max_disp_diff = ((dir & 1) == 0) ?
+											    		(disp_adiffo + mid_disp * disp_rdiffo) :
+											    			(disp_adiffd + mid_disp * disp_rdiffd);
+												boolean is_bs1 = (layer1 == blue_sky_layer) && blue_sky[tile1];
+											    if (is_bs1 == is_bs) { // do not mix bs/no bs
+											    	connections[tile][layer][dir][layer1] = Math.abs(disparity_layers[layer][tile] - disparity_layers[layer1][tile1])/max_disp_diff;
+											    }
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+
+		ai.set(0);
+		// Fill in opposite connections by combining opposite directions
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile_wnd = ai.getAndIncrement(); tile_wnd < tiles_wnd; tile_wnd = ai.getAndIncrement()) {
+						int tile = tile_wnd;
+						if (bounds != null) {
+							int tileX = bounds_ext.x + tile_wnd % bounds_ext.width;
+							int tileY = bounds_ext.y + tile_wnd / bounds_ext.width;
+							tile = tileY * tilesX + tileX;
+						}
+						if (tile==dbg_tile) {
+							System.out.println("clusterizeFgBg().2: tile="+tile);
+						}
+						/*
+						if (connections[tile] != null) {
+							for (int dir0 = 0; dir0 < TileNeibs.DIRS/2; dir0++) {
+								int tile1 = tn.getNeibIndex(tile, dir0);
+								if ((tile1 >= 0) && (connections[tile1] != null)) {
+									int dir = TileNeibs.reverseDir(dir0);
+									for (int layer = 0; layer < layers; layer++) if (connections[tile1][layer] != null){
+										if (connections[tile1][layer][dir] == null) {
+											connections[tile1][layer][dir] = new double[layers];
+											Arrays.fill(connections[tile1][layer][dir],Double.NaN);
+										}
+										for (int layer1 = 0; layer1 < layers; layer1++) {
+											if (    (connections[tile][layer1] != null) &&
+													(connections[tile][layer1][dir0] != null)) {
+												connections[tile1][layer][dir][layer1] = connections[tile][layer1][dir0][layer];
+											}									
+										}
+									}
+								}
+							}
+						}
+						*/
+						for (int layer = 0; layer < layers; layer++) if (!Double.isNaN(disparity_layers[layer][tile])) {
+							if ((connections[tile] != null) && (connections[tile][layer] != null)) {
+								for (int dir0 = 0; dir0 < TileNeibs.DIRS/2; dir0++) {
+									int dir = TileNeibs.reverseDir(dir0);
+									int tile1 = tn.getNeibIndex(tile, dir);
+									if ((tile1 >= 0) && (connections[tile1] != null)) {
+										if (connections[tile][layer][dir] == null) {
+											connections[tile][layer][dir] = new double[layers];
+											Arrays.fill(connections[tile][layer][dir],Double.NaN);
+										}
+										for (int layer1 = 0; layer1 < layers; layer1++) {
+											if (    (connections[tile1][layer1] != null) &&
+													(connections[tile1][layer1][dir0] != null)) {
+												connections[tile][layer][dir][layer1] = connections[tile1][layer1][dir0][layer];
+											}									
+										}
+									}
+								}
+							}
+						} // for (int layer = 0; layer < layers; layer++) if (!Double.isNaN(disparity_layers[layer][tile])) {
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		// extend bounds by 1 each side
+		ai.set(0);
+		// calculate total number of connections (w/o fof) with value < 1.0, increment once
+		// per direction even if there are multiple connected layers
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile_wnd = ai.getAndIncrement(); tile_wnd < tiles_wnd; tile_wnd = ai.getAndIncrement()) {
+						int tile = tile_wnd;
+						if (bounds_ext != null) {
+							int tileX = bounds_ext.x + tile_wnd % bounds_ext.width;
+							int tileY = bounds_ext.y + tile_wnd / bounds_ext.width;
+							tile = tileY * tilesX + tileX;
+						}
+						Arrays.fill(num_neibs_dir[tile], 0);
+						if (connections[tile] != null) {
+							if (tile==dbg_tile) {
+								System.out.println("updateSeeds().3: tile="+tile);
+							}
+							for (int layer = 0; layer < layers; layer++) if (connections[tile][layer] != null){
+								num_neibs_dir[tile][layer] = 1; // center tile
+								for (int dir = 0; dir < TileNeibs.DIRS; dir++) {
+									if (connections[tile][layer][dir] != null) {
+										for (int layer1 = 0; layer1 < layers; layer1++) {
+											if (connections[tile][layer][dir][layer1] <= 1.0) { // Double.NaN - OK
+												num_neibs_dir[tile][layer] |= 2 << dir; // 9 bits
+												break; // increment once per dir
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return;
+	}
+
+	/**
+	 * 
+	 * @param disparity_layers
+	 * @param num_neibs_dir
+	 * @param tile_start
+	 * @param tilesX
+	 * @return {tile, layer} or null
+	 */
+	public static int [] getNextSeed(
+		final double [][] disparity_layers, //
+		final int [][]    num_neibs_dir, // [tile][layer]
+		final int         tile_start,
+		final int         tilesX)
+	{
+		final int tiles = num_neibs_dir.length;
+		final int tilesY = tiles/tilesX;
+		final int layers =disparity_layers.length;
+		final TileNeibs tn =    new TileNeibs(tilesX, tilesY);
+		int best_tile = -1, best_layer = -1, nn=0;
+		find_start:
+		{
+			int tile_end = tile_start + tiles;
+			for (int tile1=tile_start; tile1 < tile_end; tile1++) {
+				int tile = (tile1 >= tiles) ? (tile1 - tiles) : tile1;
+				if (!tn.isBorder(tile)) { // do not start on the border
+					for (int layer = 0; layer < layers; layer++) {
+						int n_neibs = NUM_NEIBS_FROM_BITS[num_neibs_dir[tile][layer]];
+//						if ((ncluster[tile][layer] == CLUSTER_UNASSIGNED) && (n_neibs > nn)) { // not yet assigned and >=0 neibs
+						if (!Double.isNaN(disparity_layers[layer][tile]) && (n_neibs > nn)) { // not yet assigned and >=0 neibs
+							nn = n_neibs;
+							best_tile = tile;
+							best_layer = layer;
+							if (nn == (TileNeibs.DIRS + 1)) { // No sense to look more - it can not be > 9
+								break find_start;
+							}
+						}
+					}
+				}
+			}
+		}
+		if (best_tile < 0) {
+			return null;
+		}
+		return new int [] {best_tile, best_layer};
+	}
 	
+	public static double[] buildInitialCluster(
+		final double [][]     disparity_layers, // should not have same tile disparity on multiple layers
+		final int             start_layer,
+		final int             start_tile,
+		final boolean []      blue_sky, // Do not mix bs/no_bs in the same cluster 
+		final int             blue_sky_layer,
+		final double          disp_adiffo,
+		final double          disp_rdiffo,
+		final double          disp_adiffd,
+		final double          disp_rdiffd,
+		final double          disp_fof,    // enable higher difference (scale) for friend of a friend 
+		final int             jump_r,      // jump over alien/NaN disparities
+		final double          disp_adiffj,
+		final double          disp_rdiffj,
+		final int             tilesX,
+		final int             debugLevel)
+	{
+		final boolean        is_sky_cluster = (start_layer == blue_sky_layer) &&  blue_sky[start_tile];
+		final int  num_layers = disparity_layers.length;
+		final int  tiles =      disparity_layers[0].length;
+		final int  tilesY =     tiles/tilesX;         
+		double disparity[] =    new double[tiles]; // current cluster disparities
+		Arrays.fill(disparity, Double.NaN);
+		final TileNeibs tn =    new TileNeibs(tilesX, tilesY);
+		ArrayList<Integer> tile_layer_list = new ArrayList<Integer>(); // pair of int x tile, int y - layer
+		tile_layer_list.add(start_tile);
+		disparity[start_tile] = disparity_layers[start_layer][start_tile];
+		final Thread[] threads =    ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai =    new AtomicInteger(0);
+		final AtomicInteger alayer_tile = new AtomicInteger(-1);
+		while (true) {
+			while (!tile_layer_list.isEmpty()) {
+				int tile = tile_layer_list.remove(0);
+				double disp = disparity[tile]; 
+				double delta_disp_ortho = (disp_adiffo + disp * disp_rdiffo) * disp_fof;
+				double delta_disp_diag =  (disp_adiffd + disp * disp_rdiffd) * disp_fof;
+				for (int dir = 0; dir < TileNeibs.DIRS; dir++) {
+					int tile1 = tn.getNeibIndex(tile, dir); // should always be > 0 here
+					if (tile1 >= 0) {
+						double delta_disp = ((dir & 1) == 0)? delta_disp_ortho : delta_disp_diag;
+						// see if it already has a tile of the same cluster in this direction
+						if (!Double.isNaN(disparity[tile1])) { // already assigned to this cluster
+							if (Math.abs(disparity[tile1] - disp) < (disp_fof *  delta_disp)) {
+								continue; // many neighbors fall here - already assigned at fit
+							}
+						}
+						// find best fit (then reconsider previous assignment)
+						int blayer = -1;
+						double bdisp = Double.NaN;
+						for (int layer1 = 0; layer1 < num_layers; layer1++) {
+							double disp1 = disparity_layers[layer1][tile1];
+							boolean is_bs1 =  (layer1 == blue_sky_layer) && blue_sky[tile1];
+							if (!Double.isNaN(disp1) && (is_bs1 == is_sky_cluster)) {
+								if ((blayer < 0) || ((Math.abs(disp1 - disp) < Math.abs(bdisp - disp)))) {
+									blayer = layer1;
+									bdisp = disp1;
+								}
+							}
+						}
+						if (blayer >= 0) {
+							double mid_disp = Math.max(0.0, 0.5*(disp + bdisp));
+							double max_disp_diff = ((dir & 1) == 0) ?
+									(disp_adiffo + mid_disp * disp_rdiffo) :
+										(disp_adiffd + mid_disp * disp_rdiffd);
+							if ((Math.abs(disp - bdisp)/max_disp_diff) <= 1.0){ // fits
+								if (!Double.isNaN(disparity[tile1])) { // already assigned to this cluster
+									if (bdisp > disparity[tile1]) { // new found is FG (higher disparity than the old one) -> replace old
+										disparity[tile1] = bdisp;
+									}
+									// replaced assignment - do not increase number of tiles
+								} else {
+									disparity[tile1] = bdisp;
+								}
+								tile_layer_list.add(tile1);
+							}
+						}
+					}
+				}
+			} // while (!tile_layer_list.isEmpty()) {
+			// Try jumping over;
+	        ai.set(0);
+	        alayer_tile.set(-1);
+	        // calculate total number of connections (w/o fof) by combining opposite directions
+	        for (int ithread = 0; ithread < threads.length; ithread++) {
+	            threads[ithread] = new Thread() {
+	                public void run() {
+	                    for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
+	                    	if (alayer_tile.get() >= 0) {
+	                    		break;
+	                    	}
+	                    	double disp = disparity[tile];
+	                    	if (!Double.isNaN(disp)) {
+	                    		double delta_disp = disp_adiffj + Math.max(0, disp) * disp_rdiffj;
+	                    		int best_r2 =  0, best_tile = -1, best_layer = -1;
+	                    		for (int dy = -jump_r; dy <= jump_r; dy++) {
+	                    			boolean good_col = Math.abs(dy) > 1;
+	                    			for (int dx = -jump_r; dx <= jump_r; dx++) {
+	                    				// do not use 8 neighbors - they should be used during wave
+	                    				if (good_col || (Math.abs(dx) > 1)) {
+	                    					int tile1 = tn.getNeibIndex(tile, dx, dy);
+	                    					if ((tile1 >=0) && Double.isNaN(disparity[tile1])) {
+	                    						double disp_min = disp - delta_disp; 
+	                    						double disp_max = disp + delta_disp; 
+	                    						for (int layer = 0; layer < num_layers; layer++) {
+	                    							boolean is_bs1 =  (layer == blue_sky_layer) && blue_sky[tile1];
+	                    							if (is_bs1 == is_sky_cluster) {
+	                    								double disp1 = disparity_layers[layer][tile1];
+	                    								if (!Double.isNaN(disp1) && (disp1 >= disp_min) && (disp1 <= disp_max)) {
+	                    									int r2 = dy*dy+dx*dx;
+	                    									if ((best_tile < 0) || (r2 < best_r2)) {
+	                    										// check that new tile does not have selected neighbors already
+	                    										boolean no_sel_neibs = true;
+	                    										for (int dir1 = 0; dir1 < 8; dir1++) {
+	                    											int tile2 = tn.getNeibIndex(tile1, dir1);
+	                    											if ((tile2 >= 0) && !Double.isNaN(disparity[tile2])) {
+	                    												no_sel_neibs=false;
+	                    												break;
+	                    											}
+	                    										}
+	                    										if (no_sel_neibs) {
+	                    											best_r2 = r2;
+	                    											best_tile = tile1;
+	                    											best_layer = layer;
+	                    										}
+	                    									}
+	                    								}
+	                    							}
+	                    						}
+	                    					}
+	                    				}
+	                    			}
+	                    		}
+	                    		if (best_tile >= 0) {
+	                    			alayer_tile.getAndSet(best_layer * tiles + best_tile);
+	                    			break;
+	                    		}
+	                    	}
+	                    }
+	                }
+	            };
+	        }		      
+	        ImageDtt.startAndJoin(threads);
+	        int slt = alayer_tile.get();
+	        if (slt < 0) {
+	        	break;
+	        }
+	        int sl = slt / tiles;
+	        int st = slt % tiles;
+			//alayer_tile.getAndSet(best_layer * tiles + best_tile);
+			tile_layer_list.add(st);
+     		disparity[st] =  disparity_layers[sl][st];
+		} // while (true) {
+		return disparity;
+	}
+
+	
+	public static TileCluster buildTileCluster(
+			// used disparity_layers will be set to Double.NaN
+			// make it in a separate method?
+			final ArrayList <TileCluster> cluster_list,
+			final boolean         is_sky_cluster, // this is a blue sky cluster, mark as such and extend bounds
+			final int             blue_sky_below, // extend bounds down from the blue sky lower 
+			final double [][]     disparity_layers, // should not have same tile disparity on multiple layers
+			final double []       source_disparity, // should not have same tile disparity on multiple layers
+			final int             max_neib_lev,
+			final double          disp_adiff, // should already include disp_fof,
+			final double          disp_rdiff,
+			final int             tilesX,
+			final int             debugLevel)
+	{
+		//		final int       num_layers = disparity_layers.length;
+		final int       tiles =      source_disparity.length;
+		final int       tilesY =     tiles/tilesX;
+		final int []    neib_lev =   new int   [tiles];
+		final double [] disparity =  new double[tiles]; // current cluster disparities
+		final double [] max_neib =   new double[tiles]; // maximal disparity of neibs
+		Arrays.fill(neib_lev, -1);
+		System.arraycopy(source_disparity, 0, disparity, 0, tiles);
+		final TileNeibs tn =    new TileNeibs(tilesX, tilesY);
+		ArrayList<Integer> loc_list = new ArrayList<Integer>();
+		ArrayList<Integer> lor_list = new ArrayList<Integer>();
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger ati = new AtomicInteger(0);
+		ai.set(0);
+		ati.set(0);
+		
+		// create list of conflicts and 1 tile around defined, mark known disparity in neib_lev[]
+		final ArrayList<ArrayList<Integer>> loc_multi = new ArrayList<ArrayList<Integer>>(threads.length);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			loc_multi.add(new ArrayList<Integer>());
+			threads[ithread] = new Thread() {
+				public void run() {
+					ArrayList<Integer> loc_this = loc_multi.get(ati.getAndIncrement());
+					for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
+						double max_n = Double.NaN;
+						for (int dir = 0; dir < 8; dir++) {
+							int tile1 = tn.getNeibIndex(tile, dir);
+							if (tile1 >= 0) { // has defined neighbor
+								double disp1 =  disparity[tile1];
+								if (!Double.isNaN(disp1)) {
+									if (!(max_n >= disp1)) { //  handles initial max_n==NaN too 
+										max_n = disp1;
+									}
+								}
+							}
+						}
+						double disp = disparity[tile];
+						if (!Double.isNaN(disp)) {
+							neib_lev[tile] = 0;
+						}
+						if (!Double.isNaN(max_n)) { // got at least 1 neighbor
+							if (Double.isNaN(disp)) {
+								max_neib[tile] = max_n; // is it needed? Yes, for ordering
+								loc_this.add(tile);
+							} else { // disparity defined, is it a conflict?
+								// is it a conflict?
+								if (disp < max_n) {
+									double max_diff = disp_adiff + disp_rdiff * Math.max(0.0, max_n);
+									if (disp < (max_n - max_diff)) {
+										loc_this.add(tile);
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		
+		// Combine lists from multithreaded output to a common one
+		int loc_len = 0;
+		for (ArrayList<Integer> part_loc: loc_multi) {
+			loc_len+= part_loc.size();
+		}
+		loc_list.clear();
+		loc_list.ensureCapacity(loc_len);
+		for (ArrayList<Integer> part_loc: loc_multi) {
+			loc_list.addAll(part_loc);
+		}
+		
+		while (!loc_list.isEmpty()) {
+			// Sort list by decreasing max_neib;
+			Collections.sort(loc_list, new Comparator<Integer>() {
+				@Override
+				public int compare(Integer lhs, Integer rhs) { // descending
+					return (max_neib[rhs] > max_neib[lhs]) ? 1 : ((max_neib[rhs] < max_neib[lhs]) ? -1 : 0) ; // lhs.compareTo(rhs);
+				}
+			});
+			// go through list, if still has conflict - replace disparity and neib_lev[], put into lor_list 
+			// max_neib_lev
+			lor_list.clear();
+			lor_list.ensureCapacity(loc_list.size());
+			while (!loc_list.isEmpty()) {
+				int tile = loc_list.remove(0);
+				if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
+					System.out.println("buildTileCluster().11: tile="+tile);
+					System.out.println();
+				}
+				// find highest neighbor of neib_lev < max_neib_lev
+//				double max_n = Double.NaN;
+//				int source_neib_level = 0; // maybe find max separately for each neib_level, and assign
+				// lower disparity but lower neib_level if both conflict?
+				double [] max_n = new double [max_neib_lev];
+				Arrays.fill(max_n, Double.NaN);
+				for (int dir = 0; dir < 8; dir++) {
+					int tile1 = tn.getNeibIndex(tile, dir);
+					if (tile1 >= 0) { // && (neib_lev[tile1] >= 0) && (neib_lev[tile1] < max_neib_lev)){ // has defined neighbor
+						int nlev1 = neib_lev[tile1];
+						double disp1 =  disparity[tile1];
+						if (!Double.isNaN(disp1) && (nlev1 >=0) && (nlev1 < max_neib_lev)) {
+							if (!Double.isNaN(disp1)) {
+								if (!(max_n[nlev1] >= disp1)) { //  handles initial max_n==NaN too 
+									max_n[nlev1] = disp1;
+								}
+							}
+						}
+					}
+				}
+				if (Double.isNaN(disparity[tile])) { // add previously undefined
+					for (int i = 0; i < max_n.length; i ++)  if (!Double.isNaN(max_n[i])) {
+						disparity[tile] = max_n[i];
+						neib_lev[tile] =  i + 1; // was -1
+						lor_list.add(tile);
+						break;
+					}
+				} else { // old one, find the lowest neighbor conflict
+					for (int i = 0; i < max_n.length; i ++)  if (!Double.isNaN(max_n[i]) && (disparity[tile] < max_n[i])) {
+						double max_diff = disp_adiff + disp_rdiff * Math.max(0.0, max_n[i]);
+						if (disparity[tile] < (max_n[i] - max_diff)) { // it is a conflict
+							disparity[tile] = max_n[i];
+							neib_lev[tile] =  i + 1; // was -1
+							lor_list.add(tile);
+							break;
+						}
+					}					
+				}
+			} // while (!loc_list.isEmpty()) { finished with loc_list, created lor_list
+			loc_list.clear(); // restarting building new list of conflicts
+			while (!lor_list.isEmpty()) { // may be already empty
+				int tile0 = lor_list.remove(0);
+				// look around, for conflicts, add if was not already there (consider using additional array?)
+				for (int dir0 = 0; dir0 < 8; dir0++) {
+					int tile = tn.getNeibIndex(tile0, dir0);
+					if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
+						System.out.println("buildTileCluster().12: tile="+tile+", tile0="+tile0);
+						System.out.println();
+					}
+					// tries many times as it does not qualify to be added
+					if ((tile >= 0) && !loc_list.contains(tile)) { // Do not check+add same tile
+						double disp = disparity[tile];
+						// See if there is a conflict
+						double max_n = Double.NaN;
+						for (int dir = 0; dir < 8; dir++) {
+							int tile1 = tn.getNeibIndex(tile, dir);
+							if (tile1 >= 0) { // has defined neighbor
+								double disp1 =  disparity[tile1];
+								int nlev1 = neib_lev[tile1];
+								if (!Double.isNaN(disp1) && (nlev1 >= 0) && (nlev1 < max_neib_lev)) {
+									if (!(max_n >= disp1)) { //  handles initial max_n==NaN too 
+										max_n = disp1;
+									}
+								}
+							}
+						}
+						//
+						if (!Double.isNaN(max_n)) { // got at least 1 neighbor
+							if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
+								System.out.println("buildTileCluster().13: tile="+tile+", tile0="+tile0);
+								System.out.println();
+							}
+							if (Double.isNaN(disparity[tile])) {
+								max_neib[tile] = max_n; // is it needed? Yes, for ordering
+								loc_list.add(tile);
+							} else { // disparity defined, is it a conflict?
+								// is it a conflict?
+								if (disparity[tile] < max_n) {
+									double max_diff = disp_adiff + disp_rdiff * Math.max(0.0, max_n);
+									if (disparity[tile] < (max_n - max_diff)) {
+										loc_list.add(tile);
+									}
+								}
+							}
+						}
+					}
+				}
+			} // while (!lor_list.isEmpty()) { // may be already empty
+		} // while (!loc_list.isEmpty()) { - no conflicts left, finalize
+		final int [] dbg_neib_lev_preorph = (debugLevel > 0)? neib_lev.clone() : null;
+		final double [] dbg_disparity1 = (debugLevel > 0)? disparity.clone() : null;
+		// if (debugLevel > 0)
+		
+		// mark selected tiles that conflict with max_neib_lev
+		ai.set(0);
+		ati.set(0);
+		// re-create list of conflicts of defined tiles with neib_lev[] < max_neib_lev
+		loc_multi.clear();
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			loc_multi.add(new ArrayList<Integer>());
+			threads[ithread] = new Thread() {
+				public void run() {
+					ArrayList<Integer> loc_this = loc_multi.get(ati.getAndIncrement());
+					for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement())
+						if ((neib_lev[tile] >= 0) && (neib_lev[tile] < max_neib_lev)) {
+						double max_n = Double.NaN;
+						for (int dir = 0; dir < 8; dir++) {
+							int tile1 = tn.getNeibIndex(tile, dir);
+							if ((tile1 >= 0) && (neib_lev[tile1] == max_neib_lev)) { // only conflicts with max_neib_lev
+								double disp1 =  disparity[tile1];
+								if (!Double.isNaN(disp1)) {
+									if (!(max_n >= disp1)) { //  handles initial max_n==NaN too 
+										max_n = disp1;
+									}
+								}
+							}
+						}
+						if (disparity[tile] < max_n) { // works with Double.isNaN(max_n)
+							double max_diff = disp_adiff + disp_rdiff * Math.max(0.0, max_n);
+							if (disparity[tile] < (max_n - max_diff)) {
+								loc_this.add(tile);
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		// Combine lists from multithreaded output to a common one
+		loc_list.clear();
+		for (ArrayList<Integer> part_loc: loc_multi) {
+			loc_list.addAll(part_loc);
+		}
+		// Temporarily mark loc_list with max_neib_lev+1 to remove them from averaging
+		for (int tile:loc_list) {
+			neib_lev[tile] = max_neib_lev+1;
+		}
+		
+		// there may be some orphans left neib_lev >0 that do not have neighbors with neib_lev one less
+		// Recalculate replaced disparities. For now - just averaging, maybe use 5x5 plane best fit?
+		// Some of the actual tiles (that conflict with max_neib_lev) are temporarily marked with max_neib_lev+1
+		// to prevent them from being averaged
+		final double [] wdir = {1.0, 0.7, 1.0, 0.7, 1.0, 0.7, 1.0, 0.7};
+		for (int nlev = 1; nlev <= max_neib_lev; nlev++) {
+			final int fnlev = nlev;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (neib_lev[tile] == fnlev){
+							double swd = 0, sw = 0;
+							for (int dir = 0; dir < 8; dir++) {
+								int tile1 = tn.getNeibIndex(tile, dir);
+								if ((tile1 >= 0) && (neib_lev[tile1] >= 0) && (neib_lev[tile1] < fnlev)) {
+									double w = wdir[dir];
+									sw += w;
+									swd += w * disparity[tile1];
+								}
+							}
+							if (sw > 0.0) {
+								disparity[tile] = swd/sw;
+							} else {
+								neib_lev[tile] = (fnlev < max_neib_lev) ? (fnlev + 1) : -1;
+								if (debugLevel > 0) {
+									System.out.println("buildTileCluster() removed orphan tile "+tile+", fnlev="+fnlev);
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		final int [] dbg_neib_lev_predefined = (debugLevel > 0)? neib_lev.clone() : null;
+		
+		// Recreate border tiles by selecting existing one touching last detected conflicts
+		// current loc_list is marked with max_neib_lev+1, will change to max_neib_lev.
+		if (!loc_list.isEmpty()) {
+			for (int nlev = max_neib_lev; nlev > 0; nlev--) {
+				if (loc_list.isEmpty()) {
+					break;
+				}
+				for (int tile:loc_list) {
+					neib_lev[tile] = nlev;
+				}
+				if (nlev == 1) { // just mark, do not create a new list
+					break;
+				}
+				int llen = loc_list.size();
+//				int max_neib_lev_m1 = max_neib_lev-1;
+				for (int i = 0; i < llen; i++) {
+					int tile = loc_list.remove(0);
+					for (int dir = 0; dir < 8; dir++) {
+						int tile1 = tn.getNeibIndex(tile, dir);
+//						if ((tile1 >= 0) && (neib_lev[tile1] >=0 ) && (neib_lev[tile1] < max_neib_lev_m1)) {
+						if ((tile1 >= 0) && (neib_lev[tile1] >=0 ) && (neib_lev[tile1] < (nlev -1))) {
+							if (!loc_list.contains(tile1)) {
+								loc_list.add(tile1);
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		// Remove selected inner tiles from disparity_layers
+		ai.set(0);
+		final AtomicInteger num_removed = new AtomicInteger(0); 		
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (neib_lev[tile] == 0) {
+						for (int layer = 0; layer < disparity_layers.length; layer++) {
+							if (disparity_layers[layer][tile] == disparity[tile]) {
+								disparity_layers[layer][tile] = Double.NaN;
+								num_removed.getAndIncrement();
+								break;
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		if (num_removed.get() == 0) {
+			System.out.println("buildTileCluster() BUG - no tiles removed from disparity_layers[]");
+		}
+		// find bounds
+		AtomicInteger min_y = new AtomicInteger(tilesY);
+		AtomicInteger max_y = new AtomicInteger(0);
+		AtomicInteger min_x = new AtomicInteger(tilesX);
+		AtomicInteger max_x = new AtomicInteger(0);
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (neib_lev[tile] >= 0) {
+						int tileY = tile / tilesX;
+						int tileX = tile % tilesX;
+						min_y.getAndAccumulate(tileY, Math::min);
+						max_y.getAndAccumulate(tileY, Math::max);
+						min_x.getAndAccumulate(tileX, Math::min);
+						max_x.getAndAccumulate(tileX, Math::max);
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+//		final boolean sky_cluster = blue_sky_below >=0;
+		if (is_sky_cluster) { // increase bounding box for sky cluster
+			min_y.set(0);
+			max_y.addAndGet(blue_sky_below);
+			min_x.set(0);
+			max_x.set(tilesX -1);
+		}
+		final int width =  max_x.get() - min_x.get() + 1;
+		final int height = max_y.get() - min_y.get() + 1;
+		final Rectangle bounds = new Rectangle(min_x.get(), min_y.get(), width, height);
+		final double  [] disparity_crop =   new double [width * height]; 
+//		final boolean [] border_crop =      new boolean   [disparity_crop.length];
+		final int []     border_int_crop =  new int   [disparity_crop.length];
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile_crop = ai.getAndIncrement(); tile_crop < disparity_crop.length; tile_crop = ai.getAndIncrement()) {
+						int tileY = tile_crop / width + bounds.y ;
+						int tileX = tile_crop % width + bounds.x;
+						int tile = tileX + tileY * tilesX;
+						disparity_crop[tile_crop] = disparity[tile];
+						border_int_crop[tile_crop] = neib_lev[tile];
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		// Create new TileCluster
+		
+		TileCluster tileCluster = (new TileCluster(
+				bounds,
+				cluster_list.size(), // (debug_index? cluster_list.size(): -1),
+				null, // border_crop, // will create from border_int_crop
+				border_int_crop,     // int []     border_int,           // will replace border? Provide on-the-fly? 
+				max_neib_lev,        // int        border_int_max,       // outer border value
+				disparity_crop,
+				is_sky_cluster));       // boolean is_sky));
+		cluster_list.add(tileCluster);
+		if (debugLevel > 0) {
+			String [] dbg_titles = {"Source","Intermediate","Final", "neib_lev0", "neib_lev1", "neib_lev2"};
+			double [][] dbg_neib_lev = new double [3][tiles];
+//			final int [] dbg_neib_lev_preorph = (debugLevel > 0)? neib_lev.clone() : null;
+//		final int [] dbg_neib_lev_predefined = (debugLevel > 0)? neib_lev.clone() : null;
+			
+			for (int i = 0; i < tiles; i++) {
+				dbg_neib_lev[0][i] = 10*dbg_neib_lev_preorph[i];
+				dbg_neib_lev[1][i] = 10*dbg_neib_lev_predefined[i];
+				dbg_neib_lev[2][i] = 10*neib_lev[i];
+			}
+			
+			double [][] dbg_img = {
+					source_disparity,
+					dbg_disparity1,
+					disparity,
+					dbg_neib_lev[0],
+					dbg_neib_lev[1],
+					dbg_neib_lev[2]};
+			ShowDoubleFloatArrays.showArrays(
+					dbg_img,
+					tilesX,
+					tilesY,
+					true,
+					"source_final_disparity-"+String.format("%02d", cluster_list.size()-1),
+					dbg_titles);
+		}		
+		return tileCluster;
+	}
+	
+	
+	public static TileCluster [] clusterizeFgBg( //
+			final int          tilesX,
+			final double [][]  disparity_layers_src, // may have more layers
+			final boolean []   blue_sky, // use to expand background by blurring available data?
+			final int          blue_sky_layer,
+			final int          blue_sky_below,
+//			final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
+			final int          max_neib_lev,
+			final double       disp_adiffo,
+			final double       disp_rdiffo,
+			final double       disp_adiffd,
+			final double       disp_rdiffd,
+			final double       disp_fof,    // enable higher difference (scale) for friend of a friend
+			final int          jump_r,
+			final double       disp_adiffj,
+			final double       disp_rdiffj,
+			final int          debugLevel) {
+		final int tiles = disparity_layers_src[0].length;
+		final int tilesY = tiles/tilesX;
+		final int layers = disparity_layers_src.length;
+		final int [][] num_neibs_dir = new int[tiles][layers]; // -1 - none, otherwise - bitmask
+		
+		//copy original disparity_layers_src to disparity_layers - they will be modified
+		final double [][] disparity_layers = new double [disparity_layers_src.length][];
+		for (int i = 0 ; i < disparity_layers.length; i++) {
+			disparity_layers[i] = disparity_layers_src[i].clone();
+		}
+		// maybe ncluster[][] will not be used at all - disparity_layers will be modified to NaN used tiles
+		
+		// calculate initial num_neibs_dir
+		updateSeeds( // and update num_neibs_dir
+				num_neibs_dir,    // final int [][]     num_neibs_dir, // [tile][layer]
+				null,             // final Rectangle    bounds,    // null - all
+				disparity_layers, // final double [][]  disparity_layers, // [layer][tile]should not have same tile disparity on multiple layers
+				blue_sky,         // final boolean []   blue_sky, // use to expand background by blurring available data?
+				blue_sky_layer,   // final int          blue_sky_layer,
+				disp_adiffo,      // final double       disp_adiffo,
+				disp_rdiffo,      // final double       disp_rdiffo,
+				disp_adiffd,      // final double       disp_adiffd,
+				disp_rdiffd,      // final double       disp_rdiffd,
+				disp_fof,         // final double       disp_fof,    // enable higher difference (scale) for fried of a friend 
+				tilesX,           // final int          tilesX,
+				debugLevel);      // final int          debugLevel)
+				
+		if (debugLevel > -2) { // was > 0
+			String [] dbg_titles = {"FG","BG"};
+			double [][] dbg_img = new double[layers][tiles];
+			for (int i = 0; i < tiles;i++) {
+				for (int j = 0; j < dbg_img.length; j++) {
+					dbg_img[j][i] = NUM_NEIBS_FROM_BITS[num_neibs_dir[i][j]];
+				}
+			}
+			ShowDoubleFloatArrays.showArrays(
+					dbg_img,
+					tilesX,
+					tilesY,
+					true,
+					"num_neibs",
+					dbg_titles);
+			ShowDoubleFloatArrays.showArrays(
+					disparity_layers,
+					tilesX,
+					tilesY,
+					true,
+					"disparity_layers",
+					dbg_titles);
+		}
+		
+		final ArrayList <TileCluster> cluster_list = new ArrayList<TileCluster>();
+		// build all clusters
+		int tile_start = 2820; // 0; // change to debug tile to start with the largest one
+		while (true) {
+			int [] next_seed_tile_layer = getNextSeed(
+					disparity_layers, // final double [][] disparity_layers, //
+					num_neibs_dir,    // final int [][]    num_neibs_dir, // [tile][layer]
+					tile_start,       // final int         tile_start,
+					tilesX) ;         //  final int         tilesX)
+			if (next_seed_tile_layer == null) {
+				break;
+			}
+			// next_seed_tile_layer is now {tile, layer}
+			final boolean is_sky_cluster = (next_seed_tile_layer[1] == blue_sky_layer) &&  blue_sky[next_seed_tile_layer[0]];
+			double [] cluster_initial_disparity = buildInitialCluster(
+					disparity_layers,        // final double [][]     disparity_layers, // should not have same tile disparity on multiple layers
+					next_seed_tile_layer[1], // final int             start_layer,
+					next_seed_tile_layer[0], // final int             start_tile,
+					blue_sky,                // final boolean []   blue_sky, // use to expand background by blurring available data?
+					blue_sky_layer,          // final int          blue_sky_layer,
+					disp_adiffo,             // final double          disp_adiffo,
+					disp_rdiffo,             // final double          disp_rdiffo,
+					disp_adiffd,             // final double          disp_adiffd,
+					disp_rdiffd,             // final double          disp_rdiffd,
+					disp_fof,                // final double          disp_fof,    // enable higher difference (scale) for friend of a friend
+					jump_r,                  // final int             jump_r,
+					disp_adiffj,             // final double          disp_adiffj,
+					disp_rdiffj,             // final double          disp_rdiffj,
+					tilesX,                  // final int             tilesX,
+					debugLevel);             // final int             debugLevel)
+			
+			final double          disp_adiff = disp_fof * disp_adiffd; // should already include disp_fof,
+			final double          disp_rdiff = disp_fof * disp_rdiffd; // should already include disp_fof,
+			TileCluster tileCluster = buildTileCluster(
+					// used disparity_layers will be set to Double.NaN
+					// make it in a separate method?
+					cluster_list,              // final ArrayList <TileCluster> cluster_list,
+					is_sky_cluster,            // is_sky_cluster, // this is a blue sky cluster, mark as such and extend bounds
+					blue_sky_below,            // final int             blue_sky_below, // >=0 this is a blue sky cluster, mark as such and extend bounds
+					disparity_layers,          // final double [][]     disparity_layers, // should not have same tile disparity on multiple layers
+					cluster_initial_disparity, // final double []       source_disparity, // should not have same tile disparity on multiple layers
+					max_neib_lev,              // final int             max_neib_lev,
+					disp_adiff,                // final double          disp_adiff, // should already include disp_fof,
+					disp_rdiff,                // final double          disp_rdiff,
+					tilesX,                    // final int             tilesX,
+					debugLevel);               // final int             debugLevel)
+//			if (debugLevel > -1000) {
+//				return null;
+//			}
+			
+			updateSeeds( // and update num_neibs_dir
+					num_neibs_dir,           // final int [][]     num_neibs_dir, // [tile][layer]
+					tileCluster.getBounds(), // final Rectangle    bounds,    // null - all
+					disparity_layers,        // final double [][]  disparity_layers, // [layer][tile]should not have same tile disparity on multiple layers
+					blue_sky,                // final boolean []   blue_sky, // use to expand background by blurring available data?
+					blue_sky_layer,          // final int          blue_sky_layer,
+					disp_adiffo,             // final double       disp_adiffo,
+					disp_rdiffo,             // final double       disp_rdiffo,
+					disp_adiffd,             // final double       disp_adiffd,
+					disp_rdiffd,             // final double       disp_rdiffd,
+					disp_fof,                // final double       disp_fof,    // enable higher difference (scale) for fried of a friend 
+					tilesX,                  // final int          tilesX,
+					debugLevel);             // final int          debugLevel)
+			if (debugLevel > 1) {
+				String [] dbg_titles = {"FG","BG"};
+				double [][] dbg_img = new double[layers][tiles];
+				for (int i = 0; i < tiles;i++) {
+					for (int j = 0; j < dbg_img.length; j++) {
+						dbg_img[j][i] = NUM_NEIBS_FROM_BITS[num_neibs_dir[i][j]];
+					}
+				}
+				ShowDoubleFloatArrays.showArrays(
+						dbg_img,
+						tilesX,
+						tilesY,
+						true,
+						"num_neibs-"+String.format("%02d", cluster_list.size()),
+						dbg_titles);
+				ShowDoubleFloatArrays.showArrays(
+						disparity_layers,
+						tilesX,
+						tilesY,
+						true,
+						"disparity_layers-"+String.format("%02d", cluster_list.size()),
+						dbg_titles);
+			}
+			
+			
+			
+			tile_start = next_seed_tile_layer[0];
+		} // while (true) {		
+//		int [] tile_stat = new int [tiles];
+//		int [] tile_layer = new int [tiles]; // just to know which layer was used for assigned tiles
+		// consolidate clusters "good enough", use bounding box intersections, add cluster_gap to grow extra tiles by Gaussian
+		// cluster_gap
+		int [] comb_clusters = new int [cluster_list.size()];
+		Arrays.fill(comb_clusters,-1);
+		int this_combo = 0;
+		for (; ; this_combo++) {
+			// find first unassigned cluster
+			int index_first = -1;
+			for (int i = 0; i < comb_clusters.length; i++) {
+				if (comb_clusters[i] < 0) {
+					index_first = i;
+					break;
+				}
+			}
+			if (index_first < 0) {
+				break; // all clusters assigned
+			}
+			comb_clusters[index_first] = this_combo;
+			for (int index_other = index_first; index_other < comb_clusters.length; index_other++) if (comb_clusters[index_other] < 0) {
+				// check to intersection with all prior clusters in this combo
+				candidate_cluster:
+				{
+//					Rectangle new_bounds = cluster_list.get(index_other).getBounds(cluster_gap); // cluster_gap should be 2x
+					Rectangle new_bounds = cluster_list.get(index_other).getBounds(); // cluster_gap should be 2x
+					for (int index_already = index_first; index_already < index_other; index_already++) if (comb_clusters[index_already] == this_combo) {
+						if (cluster_list.get(index_already).getBounds().intersects(new_bounds)) {
+							break candidate_cluster; // intersects - skip it
+						}
+					}
+					comb_clusters[index_other] = this_combo;
+				}
+			}
+		}
+		TileCluster [] consolidated_clusters = new TileCluster[this_combo];
+		Rectangle full_tiles = new Rectangle(0, 0, tilesX, tilesY);
+		final boolean debug_index = debugLevel > -2; // 0;
+		for (int i = 0; i < this_combo; i++) {
+			consolidated_clusters[i] = new TileCluster(
+					full_tiles,
+					(debug_index? 0:-1),
+					null,
+					null,     // int []     border_int,           // will replace border? Provide on-the-fly? 
+					0,        // int        border_int_max,       // outer border value
+					null,
+					false); // boolean is_sky));
+		}
+		for (int i = 0; i < comb_clusters.length; i++) {
+			consolidated_clusters[comb_clusters[i]].add(cluster_list.get(i));
+		}
+
+		if (debugLevel > 0) {
+			double [][] dbg_img =         new double[this_combo][tiles];
+			double [][] dbg_borders =     new double[this_combo][tiles];
+			double [][] dbg_borders_int = new double[this_combo][tiles];
+			double [][] dbg_index = null;
+			if (debug_index) {
+				dbg_index = new double[this_combo][tiles];
+			}
+			for (int n = 0; n < dbg_img.length; n++) {
+				for (int i = 0; i < tiles;i++) {
+					dbg_img[n][i] =     consolidated_clusters[n].getDisparity()[i];
+					dbg_borders[n][i] = consolidated_clusters[n].getBorder()[i]? 1.0:0.0;
+					dbg_borders_int[n][i] = consolidated_clusters[n].getBorderInt()[i];
+					if (dbg_index != null) {
+						double d = consolidated_clusters[n].getClusterIndex()[i];
+						dbg_index[n][i] = (d >=0)? d : Double.NaN;
+					}
+				}				
+			}			
+			ShowDoubleFloatArrays.showArrays(
+					dbg_img,
+					tilesX,
+					tilesY,
+					true,
+					"cluster_disparity");
+			ShowDoubleFloatArrays.showArrays(
+					dbg_borders,
+					tilesX,
+					tilesY,
+					true,
+					"cluster_borders");
+			ShowDoubleFloatArrays.showArrays(
+					dbg_borders_int,
+					tilesX,
+					tilesY,
+					true,
+					"cluster_borders_int");
+			if (dbg_index != null) {
+				ShowDoubleFloatArrays.showArrays(
+						dbg_index,
+						tilesX,
+						tilesY,
+						true,
+						"cluster_indices");
+			}
+		}
+		return consolidated_clusters;
+	}
 
 	public static boolean output3d( // USED in lwir
 			CLTParameters                            clt_parameters,
@@ -574,7 +1653,15 @@ public class TexturedModel {
 		final double tex_disp_adiffd = clt_parameters.tex_disp_adiffd; // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
 		final double tex_disp_rdiffd = clt_parameters.tex_disp_rdiffd; // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
 		final double tex_disp_fof =    clt_parameters.tex_disp_fof;    // 1.5;  // Increase tolerance for friend of a friend
+		
+		final int    jump_r =      2; // FIXME
+		final double disp_adiffj = clt_parameters.tex_disp_adiffo; // FIXME
+		final double disp_rdiffj = clt_parameters.tex_disp_rdiffo; // FIXME
+		
 		final double tex_fg_bg =       clt_parameters.tex_fg_bg;       // 0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
+		final int    max_neib_lev = 2; // 1 - single tiles layer around, 2 - two layers
+		
+		
 		final int    tex_cluster_gap=      2; // gap between clusters Make clt_parameters
 		final double max_disparity_lim = 100.0;  // do not allow stray disparities above this
 		final double min_trim_disparity =  2.0;  // do not try to trim texture outlines with lower disparities
@@ -638,6 +1725,25 @@ public class TexturedModel {
 				sky_tiles,         // final boolean      blue_sky, // use to expand background by blurring available data?
 				sky_layer,         // final int          sky_layer,
 				sky_below,         // final int          blue_sky_below,
+//				null,              // sky_invert, // final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
+				max_neib_lev,      // final int          max_neib_lev,
+				tex_disp_adiffo,   // final double       disp_adiffo,
+				tex_disp_rdiffo,   // final double       disp_rdiffo,
+				tex_disp_adiffd,   // final double       disp_adiffd,
+				tex_disp_rdiffd,   // final double       disp_rdiffd,
+				tex_disp_fof,      // final double       disp_fof,    // enable higher difference (scale) for friend of a friend
+				jump_r,            // final int          jump_r,
+				disp_adiffj,       // final double       disp_adiffj,
+				disp_rdiffj,       // final double       disp_rdiffj,
+//				tex_cluster_gap,   // final int          cluster_gap, // gap between clusters 
+				debugLevel); //1); //  2); // final int          debugLevel)
+/*
+		TileCluster [] tileClusters = clusterizeFgBg( // wrong result type, not decided
+				tilesX,            // final int          tilesX,
+				ds_fg_bg,          // final double [][]  disparities, // may have more layers
+				sky_tiles,         // final boolean      blue_sky, // use to expand background by blurring available data?
+				sky_layer,         // final int          sky_layer,
+				sky_below,         // final int          blue_sky_below,
 				null,              // sky_invert, // final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
 				tex_disp_adiffo,   // final double       disp_adiffo,
 				tex_disp_rdiffo,   // final double       disp_rdiffo,
@@ -646,6 +1752,17 @@ public class TexturedModel {
 				tex_disp_fof,      // final double       disp_fof,    // enable higher difference (scale) for friend of a friend 
 				tex_cluster_gap,   // final int          cluster_gap, // gap between clusters 
 				debugLevel); //1); //  2); // final int          debugLevel)
+ */
+// Debugging up to here:
+//		if (debugLevel > -1000) {
+//			return false;
+//		}
+		
+		if (tileClusters == null) {
+			System.out.println("Temporary exit after clusterizeFgBg()");
+			return false;
+		}
+		
 		boolean [] scenes_sel = new boolean[scenes.length];
 		//		for (int i = scenes.length - 10; i <  scenes.length; i++) { // start with just one (reference) scene
 		for (int i = 0; i <  scenes.length; i++) { // start with just one (reference) scene
