@@ -547,7 +547,34 @@ public class TexturedModel {
 	}
 
 	// generate/update number of neighbors to select clusters' seeds
-//	public static int [] getSeedTile( // and update num_neibs_dir
+	/**
+	 * Generate and later update array on number of neighbors to find candidates for the next
+	 * texture meshes. Initially calculated for all tiles, then updated by after each cluster
+	 * extraction in the area possibly affected by the cluster (cluster bounds extended by one
+	 * in each direction).
+	 * 
+	 * @param num_neibs_dir    [layers][tiles] - array of connections (defined by close disparities)
+	 *                         per layer, per tile. Undefined tile has 0, isolated tile - 1, maximal
+	 *                         (with all 8 neighbors present) - 9. Should be initialized to
+	 *                         [layers][tiles].
+	 * @param bounds           Rectangle instance specifying the new cluster bounds. If null (used
+	 *                         during first run), all tiles are processed
+	 * @param disparity_layers [layers][tiles] multi-layer disparity array with NaN
+	 *                         for non-existing tiles 
+	 * @param blue_sky         per-tile array of the "blue sky" boolean array 
+	 * @param blue_sky_layer   layer for the "blue sky" data (should be on a single layer)
+	 * @param disp_adiffo      absolute disparity difference for connecting tiles in ortho
+	 *                         directions (used for initial connections estimations)
+	 * @param disp_rdiffo      relative disparity difference (added to absolute being multiplied
+	 *                         by the tile disparity)
+	 * @param disp_adiffd      absolute disparity difference for diagonal tiles.
+	 * @param disp_rdiffd      relative disparity difference for diagonal tiles.
+	 * @param disp_fof         >=1.0 - increased inter-tile tolerance for a friend-of-a-friend.
+	 *                         In current code just scales calculated (absolute+relative) tolerance
+	 *                         for all steps after initial connections.
+	 * @param tilesX           horizontal array dimension 
+	 * @param debugLevel       debug level - controls generation of images
+	 */
 	public static void updateSeeds( // and update num_neibs_dir
 			final int [][]     num_neibs_dir, // [tile][layer]
 			final Rectangle    bounds,    // null - all
@@ -560,11 +587,9 @@ public class TexturedModel {
 			final double       disp_rdiffd,
 			final double       disp_fof,    // enable higher difference (scale) for fried of a friend 
 			final int          tilesX,
-//			final int          transform_size,
 			final int          debugLevel) {
 		final int tiles = disparity_layers[0].length;
 		final int tiles_wnd = (bounds == null) ? tiles : (bounds.width * bounds.height);
-//		final Rectanle ext_bounds
 		final int tilesY = tiles/tilesX;
 		final int layers = disparity_layers.length;
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
@@ -648,28 +673,6 @@ public class TexturedModel {
 						if (tile==dbg_tile) {
 							System.out.println("clusterizeFgBg().2: tile="+tile);
 						}
-						/*
-						if (connections[tile] != null) {
-							for (int dir0 = 0; dir0 < TileNeibs.DIRS/2; dir0++) {
-								int tile1 = tn.getNeibIndex(tile, dir0);
-								if ((tile1 >= 0) && (connections[tile1] != null)) {
-									int dir = TileNeibs.reverseDir(dir0);
-									for (int layer = 0; layer < layers; layer++) if (connections[tile1][layer] != null){
-										if (connections[tile1][layer][dir] == null) {
-											connections[tile1][layer][dir] = new double[layers];
-											Arrays.fill(connections[tile1][layer][dir],Double.NaN);
-										}
-										for (int layer1 = 0; layer1 < layers; layer1++) {
-											if (    (connections[tile][layer1] != null) &&
-													(connections[tile][layer1][dir0] != null)) {
-												connections[tile1][layer][dir][layer1] = connections[tile][layer1][dir0][layer];
-											}									
-										}
-									}
-								}
-							}
-						}
-						*/
 						for (int layer = 0; layer < layers; layer++) if (!Double.isNaN(disparity_layers[layer][tile])) {
 							if ((connections[tile] != null) && (connections[tile][layer] != null)) {
 								for (int dir0 = 0; dir0 < TileNeibs.DIRS/2; dir0++) {
@@ -737,12 +740,20 @@ public class TexturedModel {
 	}
 
 	/**
-	 * 
-	 * @param disparity_layers
-	 * @param num_neibs_dir
-	 * @param tile_start
-	 * @param tilesX
-	 * @return {tile, layer} or null
+	 * Find the next seed tile to build a new mesh (tile cluster). Search concludes with the maximal
+	 * Number of neighbors tile or the first encountered 9 neighbors (self plus 8 around) as it is the 
+	 * maximal possible number.
+	 *                         
+	 * @param disparity_layers [layers][tiles] multi-layer disparity array with NaN
+	 *                         for non-existing tiles 
+	 * @param num_neibs_dir    [layers][tiles] - array of connections (defined by close disparities)
+	 *                         per layer, per tile. Undefined tile has 0, isolated tile - 1, maximal
+	 *                         (with all 8 neighbors present) - 9. Should be initialized to
+	 *                         [layers][tiles].
+	 * @param tile_start       tile index to begin search. Provide tile where the last search ended,
+	 *                         the search will wrap over the full array size and start from 0.
+	 * @param tilesX           horizontal array dimension. 
+	 * @return                 a pair {tile, layer} or null if there are no tiles left
 	 */
 	public static int [] getNextSeed(
 		final double [][] disparity_layers, //
@@ -782,6 +793,33 @@ public class TexturedModel {
 		return new int [] {best_tile, best_layer};
 	}
 	
+	/**
+	 * Create initial cluster of connected tiles without provisions for overlap resolution
+	 * @param disparity_layers [layers][tiles] multi-layer disparity array with NaN
+	 *                         for non-existing tiles 
+	 * @param start_layer      seed layer to start growing a cluster
+	 * @param start_tile       seed tile to start growing a cluster
+	 * @param blue_sky         per-tile array of the "blue sky" boolean array 
+	 * @param blue_sky_layer   layer for the "blue sky" data (should be on a single layer)
+	 * @param disp_adiffo      absolute disparity difference for connecting tiles in ortho
+	 *                         directions (used for initial connections estimations)
+	 * @param disp_rdiffo      relative disparity difference (added to absolute being multiplied
+	 *                         by the tile disparity)
+	 * @param disp_adiffd      absolute disparity difference for diagonal tiles.
+	 * @param disp_rdiffd      relative disparity difference for diagonal tiles.
+	 * @param disp_fof         >=1.0 - increased inter-tile tolerance for a friend-of-a-friend.
+	 *                         In current code just scales calculated (absolute+relative) tolerance
+	 *                         for all steps after initial connections.
+	 * @param jump_r           "jump" over small gaps when building initial clusters. jump_r == 2 
+	 *                         allows jumping to other tiles in 5x5 square around the defined tile,
+	 *                         jump_r == 3 - inside 7x7 square. The jump destination should not have
+	 *                         any already defined tiles among 8 neighbors (in a 3x3 square). 
+	 * @param disp_adiffj      maximal absolute disparity difference for the "jumps".
+	 * @param disp_rdiffj      maximal relative disparity difference for the "jumps".       
+	 * @param tilesX           horizontal array dimension 
+	 * @param debugLevel       debug level - controls generation of images
+	 * @return                 [tiles] disparity array of the selected tiles. NaN for unselected
+	 */
 	public static double[] buildInitialCluster(
 		final double [][]     disparity_layers, // should not have same tile disparity on multiple layers
 		final int             start_layer,
@@ -937,7 +975,40 @@ public class TexturedModel {
 		return disparity;
 	}
 
-	
+	/**
+	 * Use initial cluster (source_disparity) to output cluster with appropriate border tiles (currently
+	 * trying with two border layers around the selected disparity tiles). Foreground has higher priority,
+	 * so if higher disparity conflicts with lower disparity it pushes lower disparity tiles until higher
+	 * disparity with specified (now 2) layers of extrapolated (not from disparity_layers array /
+	 * source_disparity). After "pushing away" conflicting tiles, additional layers (same number) over
+	 * defined (in source_disparity) tiles are removed from source_disparity. Only remaining (not
+	 * marked as borders) tiles from the original source_disparity are removed from disparity_layers
+	 * used to generate next clusters. Each extracted tileCluster preserves Rectangle bounds later used
+	 * to combine multiple clusters in the same full frame array, disparity and bounds arrays are defined
+	 * in rectangular arrays corresponding to bounds.   
+	 *  
+	 * @param cluster_list     ArrayList of previously defined tileCluster instances. Used to get this
+	 *                         tileCluster index, the new tileCluster is added to the list. 
+	 * @param is_sky_cluster   if this cluster is a special type cluster - "blue sky". This property is
+	 *                         saved in the tileCluster instance. If, additionally, the next parameter
+	 *                         is >=0 the cluster bounds are extended: left, right and top bounds - to the
+	 *                         frame edges, and the bottom one - blue_sky_below below the highest tile Y.
+	 * @param blue_sky_below   (only if is_sky_cluster) if >=0 - extend bounds, if <0 treat blue_sky bounds
+	 *                         same as regular ones.  
+	 * @param disparity_layers [layers][tiles] multi-layer disparity array with NaN for non-existing tiles
+	 * @param source_disparity [tiles] continuous tiles used to generate this tileCluster that uses only
+	 *                         of source_disparity and extrapolated borders.
+	 * @param max_neib_lev     maximal neighbor level of borders used to generate internal int [] neib_lev
+	 *                         array. Neighbor level 0 corresponds to internal tiles that uses original
+	 *                         disparity, level 1 - neighbors of level 0 on the border or in conflict with
+	 *                         level 0. Level 2 - neighbors of 1 or in conflict with level 0, and so all.   
+	 * @param disp_adiff       absolute disparity difference for connecting tiles in any direction, 
+	 *                         should include disp_fof used for initial cluster generation
+	 * @param disp_rdiff       relative disparity difference for connecting tiles in any direction.
+	 * @param tilesX           horizontal array dimension 
+	 * @param debugLevel       debug level - controls generation of images
+	 * @return                 TileCluster instance generated from the initial source_disparity[] array.
+	 */
 	public static TileCluster buildTileCluster(
 			// used disparity_layers will be set to Double.NaN
 			// make it in a separate method?
@@ -1291,9 +1362,12 @@ public class TexturedModel {
 		}		      
 		ImageDtt.startAndJoin(threads);
 //		final boolean sky_cluster = blue_sky_below >=0;
-		if (is_sky_cluster) { // increase bounding box for sky cluster
+		if (is_sky_cluster && (blue_sky_below >= 0)) { // increase bounding box for sky cluster
 			min_y.set(0);
 			max_y.addAndGet(blue_sky_below);
+			if (max_y.get() >= tilesY) {
+				max_y.set(tilesY-1);
+			}
 			min_x.set(0);
 			max_x.set(tilesX -1);
 		}
@@ -1359,14 +1433,49 @@ public class TexturedModel {
 		return tileCluster;
 	}
 	
-	
+	/**
+	 * Create texture clusters collectively covering the depth map from multi-layer
+	 * disparity arrays and optional "blue sky" binary array
+	 * @param tilesX               horizontal array dimension 
+	 * @param disparity_layers_src [layers][tiles] multi-layer disparity array with NaN
+	 *                             for non-existing tiles 
+	 * @param blue_sky             per-tile array of the "blue sky" boolean array 
+	 * @param blue_sky_layer       layer for the "blue sky" data (should be on a single layer)
+	 * @param blue_sky_below       if >=0, specifies how low to extend blue sky backdrop below
+	 *                             the lowest defined blue sky tile. In that case bounds are
+	 *                             also extended to the top of frame, right and left margins.
+	 *                             If (blue_sky_below <0) cluster its bounds are treated the same
+	 *                             as regular ones. 
+	 * @param max_neib_lev         Maximal level of additional (to defined in disparity_layers)
+	 *                             tiles. Currently max_neib_lev=2 adding 2 border layers. So
+	 *                             a single isolated tile results in total 5x5 area with level 2,
+	 *                             center 3x3 - level 1, and the center tile(defined) - level 0.
+	 *                             Other (undefined) tiles are assigned level of -1.  
+	 * @param disp_adiffo          absolute disparity difference for connecting tiles in ortho
+	 *                             directions (used for initial connections estimations)
+	 * @param disp_rdiffo          relative disparity difference (added to absolute being multiplied
+	 *                             by the tile disparity)
+	 * @param disp_adiffd          absolute disparity difference for diagonal tiles.
+	 * @param disp_rdiffd          relative disparity difference for diagonal tiles.
+	 * @param disp_fof             >=1.0 - increased inter-tile tolerance for a friend-of-a-friend.
+	 *                             In current code just scales calculated (absolute+relative) tolerance
+	 *                             for all steps after initial connections.
+	 * @param jump_r               "jump" over small gaps when building initial clusters. jump_r == 2 
+	 *                             allows jumping to other tiles in 5x5 square around the defined tile,
+	 *                             jump_r == 3 - inside 7x7 square. The jump destination should not have
+	 *                             any already defined tiles among 8 neighbors (in a 3x3 square). 
+	 * @param disp_adiffj          maximal absolute disparity difference for the "jumps".
+	 * @param disp_rdiffj          maximal relative disparity difference for the "jumps".       
+	 * @param debugLevel           debug level - controls generation of images
+	 * @return                     array of consolidated (multiple non-overlapping clusters) clusters,
+	 *                             each having the full frame bounds.
+	 */
 	public static TileCluster [] clusterizeFgBg( //
 			final int          tilesX,
 			final double [][]  disparity_layers_src, // may have more layers
 			final boolean []   blue_sky, // use to expand background by blurring available data?
 			final int          blue_sky_layer,
 			final int          blue_sky_below,
-//			final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
 			final int          max_neib_lev,
 			final double       disp_adiffo,
 			final double       disp_rdiffo,
@@ -1725,7 +1834,6 @@ public class TexturedModel {
 				sky_tiles,         // final boolean      blue_sky, // use to expand background by blurring available data?
 				sky_layer,         // final int          sky_layer,
 				sky_below,         // final int          blue_sky_below,
-//				null,              // sky_invert, // final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
 				max_neib_lev,      // final int          max_neib_lev,
 				tex_disp_adiffo,   // final double       disp_adiffo,
 				tex_disp_rdiffo,   // final double       disp_rdiffo,
@@ -1735,24 +1843,7 @@ public class TexturedModel {
 				jump_r,            // final int          jump_r,
 				disp_adiffj,       // final double       disp_adiffj,
 				disp_rdiffj,       // final double       disp_rdiffj,
-//				tex_cluster_gap,   // final int          cluster_gap, // gap between clusters 
 				debugLevel); //1); //  2); // final int          debugLevel)
-/*
-		TileCluster [] tileClusters = clusterizeFgBg( // wrong result type, not decided
-				tilesX,            // final int          tilesX,
-				ds_fg_bg,          // final double [][]  disparities, // may have more layers
-				sky_tiles,         // final boolean      blue_sky, // use to expand background by blurring available data?
-				sky_layer,         // final int          sky_layer,
-				sky_below,         // final int          blue_sky_below,
-				null,              // sky_invert, // final boolean []   selected, // to remove sky (pre-filter by caller, like for ML?)
-				tex_disp_adiffo,   // final double       disp_adiffo,
-				tex_disp_rdiffo,   // final double       disp_rdiffo,
-				tex_disp_adiffd,   // final double       disp_adiffd,
-				tex_disp_rdiffd,   // final double       disp_rdiffd,
-				tex_disp_fof,      // final double       disp_fof,    // enable higher difference (scale) for friend of a friend 
-				tex_cluster_gap,   // final int          cluster_gap, // gap between clusters 
-				debugLevel); //1); //  2); // final int          debugLevel)
- */
 // Debugging up to here:
 //		if (debugLevel > -1000) {
 //			return false;
@@ -1769,8 +1860,7 @@ public class TexturedModel {
 			scenes_sel[i] = true;
 		}
 		// If there is gap between clusters, add extra row of background tiles
-		int add_bg_tiles = 1;
-		
+		int add_bg_tiles = 0; // 1;
 		while ((add_bg_tiles--) > 0) {
 			extendClustersBackground(
 					tileClusters, // final TileCluster[] tileClusters,
@@ -1781,19 +1871,17 @@ public class TexturedModel {
 		}
 		
 		boolean        renormalize = true;// false - use normalizations from previous scenes to keep consistent colors
-		
 		ImagePlus[] combined_textures = getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
 				clt_parameters,      // final CLTParameters  clt_parameters,
 				colorProcParameters, // ColorProcParameters  colorProcParameters,
 				rgbParameters,       // EyesisCorrectionParameters.RGBParameters rgbParameters,
 				parameter_scene,     // final QuadCLT        parameter_scene, // to use for rendering parameters in multi-series sequences
-				// if null - use reference scene 
+				// if null - use reference scene
+				ref_index,           // final int            ref_index,
 				scenes,              // final QuadCLT []     scenes,
 				scenes_sel,          // final boolean []     scenes_sel, // null or which scenes to process
-				null,                // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 				tileClusters,        // final TileCluster [] tileClusters, // disparities, borders, selections for texture passes
-				//				final int            margin,
-				renormalize,  // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
+				renormalize,         // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
 				max_disparity_lim,   //  final double         max_disparity_lim,   //  100.0;  // do not allow stray disparities above this
 				min_trim_disparity,  //final double         min_trim_disparity,  //  2.0;  // do not try to trim texture outlines with lower disparities
 				debugLevel);         // final int            debug_level)
@@ -3878,69 +3966,60 @@ public class TexturedModel {
 		return textures_alphas; // What about colors? 
 	}
 	
-	
 	public static ImagePlus[] getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
 			final CLTParameters  clt_parameters,
 			ColorProcParameters  colorProcParameters,
 			EyesisCorrectionParameters.RGBParameters rgbParameters,
-			QuadCLT              parameter_scene, // to use for rendering parameters in multi-series sequences
-			                                      // if null - use reference scene 
+			QuadCLT              parameter_scene,    // to use for rendering parameters in multi-series sequences
+			                                         // if null - use reference scene
+			final int            ref_index,
 			final QuadCLT []     scenes,
-			final boolean []     scenes_sel, // null or which scenes to process
-			final boolean []     selection, // may be null, if not null do not  process unselected tiles
-			final TileCluster [] tileClusters, // disparities, borders, selections for texture passes
-			final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
-			final double         max_disparity_lim,   //  100.0;  // do not allow stray disparities above this
-			final double         min_trim_disparity,  //  2.0;  // do not try to trim texture outlines with lower disparities
+			final boolean []     scenes_sel,         // null or which scenes to process
+			final TileCluster [] tileClusters,       // disparities, borders, selections for texture passes
+			final boolean        renormalize,        // false - use normalizations from previous scenes to keep consistent colors
+			final double         max_disparity_lim,  //  100.0;  // do not allow stray disparities above this
+			final double         min_trim_disparity, //  2.0;  // do not try to trim texture outlines with lower disparities
 			final int            debug_level)
 	{
 		// TODO: ***** scenes with high motion blur also have high ERS to be corrected ! *****
-		final int               ref_index = scenes.length -1;
 		final QuadCLT ref_scene = scenes[ref_index];
 		if (parameter_scene == null) {
 			parameter_scene = ref_scene;
 		}
 		final int earliestScene = ref_scene.getEarliestScene(scenes);
 		final ErsCorrection ers_reference = ref_scene.getErsCorrection();
-		final int tilesX =        ref_scene.getTileProcessor().getTilesX();
-		final int tilesY =        ref_scene.getTileProcessor().getTilesY();
-		final int tiles =         tilesX * tilesY;
-		final int transform_size= ref_scene.getTileProcessor().getTileSize();
-		final int tile_len = transform_size * transform_size;
-//		final int num_channels =  ref_scene.isMonochrome()?2:4;  //
-		
-		final boolean filter_bg =      true; // make a clt parameter?
-		final boolean mb_en =          clt_parameters.imp.mb_en;
-		final double  mb_tau =         clt_parameters.imp.mb_tau;      // 0.008;// time constant, sec
-		final double  mb_max_gain =    clt_parameters.imp.mb_max_gain; // 5.0;  // motion blur maximal gain (if more - move second point more than a pixel
+		final int tilesX =                  ref_scene.getTileProcessor().getTilesX();
+		final int tilesY =                  ref_scene.getTileProcessor().getTilesY();
+		final int tiles =                   tilesX * tilesY;
+		final int transform_size=           ref_scene.getTileProcessor().getTileSize();
+		final int tile_len =                transform_size * transform_size;
+		final boolean filter_bg =           true; // make a clt parameter?
+		final boolean mb_en =               clt_parameters.imp.mb_en;
+		final double  mb_tau =              clt_parameters.imp.mb_tau;      // 0.008;// time constant, sec
+		final double  mb_max_gain =         clt_parameters.imp.mb_max_gain; // 5.0;  // motion blur maximal gain (if more - move second point more than a pixel
 
-		final double  max_distortion = clt_parameters.tex_distort;   // 0.5;  // Maximal texture distortion to accumulate multiple scenes (0 - any)
-		final double  tex_mb =         clt_parameters.tex_mb;        // 1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
-		final boolean sharp_alpha =    clt_parameters.sharp_alpha;
-		final boolean is_lwir =        ref_scene.isLwir();
-		
-		final boolean tex_um =           clt_parameters.tex_um;        // imp.um_mono; // TODO: add own parameter
-		final double  tex_um_sigma =     clt_parameters.tex_um_sigma;  // imp.um_sigma;
-		final double  tex_um_weight =    clt_parameters.tex_um_weight; // imp.um_weight;
+		final double  max_distortion =      clt_parameters.tex_distort;   // 0.5;  // Maximal texture distortion to accumulate multiple scenes (0 - any)
+		final double  tex_mb =              clt_parameters.tex_mb;        // 1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
+//		final boolean sharp_alpha =         clt_parameters.sharp_alpha;
+		final boolean is_lwir =             ref_scene.isLwir();
+		final boolean tex_um =              clt_parameters.tex_um;        // imp.um_mono; // TODO: add own parameter
+		final double  tex_um_sigma =        clt_parameters.tex_um_sigma;  // imp.um_sigma;
+		final double  tex_um_weight =       clt_parameters.tex_um_weight; // imp.um_weight;
 		// TODO: - make texture variants, tex_um_fixed/tex_um_range apply only to unsharp mask, regardless of colors
-		
-		final boolean lwir_autorange =   is_lwir && clt_parameters.tex_lwir_autorange; // colorProcParameters.lwir_autorange;
-		final boolean tex_um_fixed =     clt_parameters.tex_um_fixed;  // imp.mono_fixed; //  true; // normalize to fixed range when converting to 8 bits 
-		final double  tex_um_range =     clt_parameters.tex_um_range;  // imp.mono_range; // 500.0;  // monochrome full-scale range (+/- half)
-		final boolean tex_hist_norm =    clt_parameters.tex_hist_norm; //  true;  
-		final double  tex_hist_amount =  clt_parameters.tex_hist_amount; // clt_parameters. 0.7;  
-		final int     tex_hist_bins =    clt_parameters.tex_hist_bins;   //  1024 ;   
-		final int     tex_hist_segments =clt_parameters.tex_hist_segments; // 32 ;   
-
-		final boolean tex_color =        clt_parameters.tex_color;     //  true;  
-		final int     tex_palette =      clt_parameters.tex_palette;     // 2 ;   
-		
-//		final boolean extend_sky =         true;
+		final boolean lwir_autorange =      is_lwir && clt_parameters.tex_lwir_autorange; // colorProcParameters.lwir_autorange;
+		final boolean tex_um_fixed =        clt_parameters.tex_um_fixed;  // imp.mono_fixed; //  true; // normalize to fixed range when converting to 8 bits 
+		final double  tex_um_range =        clt_parameters.tex_um_range;  // imp.mono_range; // 500.0;  // monochrome full-scale range (+/- half)
+		final boolean tex_hist_norm =       clt_parameters.tex_hist_norm; //  true;  
+		final double  tex_hist_amount =     clt_parameters.tex_hist_amount; // clt_parameters. 0.7;  
+		final int     tex_hist_bins =       clt_parameters.tex_hist_bins;   //  1024 ;   
+		final int     tex_hist_segments =   clt_parameters.tex_hist_segments; // 32 ;   
+		final boolean tex_color =           clt_parameters.tex_color;     //  true;  
+		final int     tex_palette =         clt_parameters.tex_palette;     // 2 ;   
+//		final boolean extend_sky =          true;
 		final int     shrink_sky_tiles =    4; // 2; sum of 2 +bg extend 
-		final boolean grow_sky =          true;
-		final boolean alphaOverlapFix =   true; // if multiple tiles have the same (+/-?) disparity, make alpha max of them
+		final boolean grow_sky =            true;
+		final boolean alphaOverlapFix =     true; // if multiple tiles have the same (+/-?) disparity, make alpha max of them
 		final double  alphaOverlapTolerance = 0.0; // compare same disparity with tolerance (relative to disparity? make absolute meters?)
-		
 		ImageDtt image_dtt;
 		image_dtt = new ImageDtt(
 				ref_scene.getNumSensors(), // numSens,
@@ -3955,24 +4034,23 @@ public class TexturedModel {
 			ref_scene.getGPU().setGpu_debug_level(debug_level);
 		}
 		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
-		final int num_slices = tileClusters.length;
-		double [][][]     inter_weights = new double [num_slices][tilesY][tilesX]; // per-tile texture weights for inter-scene accumulation;
+		final int num_slices =               tileClusters.length;
+		double [][][]     inter_weights =    new double [num_slices][tilesY][tilesX]; // per-tile texture weights for inter-scene accumulation;
 		// weighted sum
 		double [][][][][] inter_textures_wd= new double [num_slices][tilesY][tilesX][][]; // [channel][64] - overlapping textures
 		// weighted sum of squares
-///		double [][][][][] inter_textures_wd2= new double [num_slices][tilesY][tilesX][][]; // [channel][64] - overlapping textures
-		double [][][] ref_pXpYDs = new double [num_slices][][]; // individual for each slice
-		int    [][] cluster_indices = (max_distortion > 0.0) ? (new int [num_slices][]): null;
-		boolean [][] borders = new boolean [num_slices][];
+		double [][][] ref_pXpYDs =           new double [num_slices][][]; // individual for each slice
+		int    [][] cluster_indices =        (max_distortion > 0.0) ? (new int [num_slices][]): null;
+		boolean [][] borders =               new boolean [num_slices][];
 		for (int nslice = 0; nslice < num_slices; nslice++) { // prepare and measure textures for each combo textures
 			ref_pXpYDs[nslice] = OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
-					null, // fov_tiles,            // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+					null, // fov_tiles,                  // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 					tileClusters[nslice].getDisparity(), // final double []   disparity_ref, // invalid tiles - NaN in disparity
-					OpticalFlow.ZERO3,                // final double []   scene_xyz, // camera center in world coordinates
-					OpticalFlow.ZERO3,                // final double []   scene_atr, // camera orientation relative to world frame
-					scenes[ref_index],  // final QuadCLT     scene_QuadClt,
-					scenes[ref_index],  // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
-					THREADS_MAX);          // int               threadsMax)
+					OpticalFlow.ZERO3,                   // final double []   scene_xyz, // camera center in world coordinates
+					OpticalFlow.ZERO3,                   // final double []   scene_atr, // camera orientation relative to world frame
+					scenes[ref_index],                   // final QuadCLT     scene_QuadClt,
+					scenes[ref_index],                   // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+					THREADS_MAX);                        // int               threadsMax)
 			borders[nslice] = tileClusters[nslice].getBorder();
 			if (max_distortion > 0.0) {
 				cluster_indices[nslice] = tileClusters[nslice].getClusterIndex();
@@ -3980,7 +4058,7 @@ public class TexturedModel {
 		}		
 		
 		final int num_sensors = parameter_scene.getNumSensors();
-		final int num_colors = parameter_scene.isMonochrome()?1:3;
+		final int num_colors =  parameter_scene.isMonochrome()?1:3;
 		
 		final double [][][] sensor_textures = new double [num_slices][num_sensors][];
 		final double [][] combo_textures = new double [num_slices][];
@@ -4009,8 +4087,6 @@ public class TexturedModel {
 			}
 			scenes[nscene].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU)
 			//parameter_scene
-			
-//			boolean keep_channels = false;
 			for (int nslice = 0; nslice < num_slices; nslice++) { // prepare and measure textures for each combo textures
 				final double [] disparity_ref = tileClusters[nslice].getDisparity();  // disparity in the reference view tiles (Double.NaN - invalid)
 				// Motion blur vectors are individual per-slice
@@ -4029,8 +4105,6 @@ public class TexturedModel {
 					System.out.println("nscene="+nscene+", nslice="+nslice+" will run texturesGPUFromDSI() that needs debug >2");
 					System.out.print("");
 				}
-				
-				
 				double [][][][] slice_texture88 = QuadCLT.texturesNoOverlapGPUFromDSI(
 						clt_parameters,          // CLTParameters     clt_parameters,
 						disparity_ref,           // double []         disparity_ref,
@@ -4052,7 +4126,6 @@ public class TexturedModel {
 						1,                       // final int         keep_frame_tiles, // do not discard pixels for border tiles in reference frame 
 						true,                    // keep_channels,           // final boolean     keep_channels,
 						debug_level);            // final int         debugLevel);
-				
 				if (slice_texture88 != null) { // will just accumulate
 					// Use MB vectors for texture weights				
 					final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
@@ -4187,12 +4260,9 @@ public class TexturedModel {
 				sensor_textures,           // final double [][]    sensor_texture,    // per-sensor texture value
 				null, // combo_textures,   // null, // final double []      combo_texture_in,  // average texture value
 				tileClusters,              // final TileCluster[]  tileClusters, // to process blue_sky?
-//				extend_sky,                // final boolean        extend_sky,
-//				shrink_sky_tiles,          // final int            shrink_sky_tiles,
 				max_disparity_lim,         // final double max_disparity_lim,  // do not allow stray disparities above this
 				min_trim_disparity,        // final double min_trim_disparity, // do not try to trim texture outlines with lower disparities
 				ref_scene.getImageName()); // null); // ref_scene.getImageName()); // final String         dbg_prefix);
-		
 		if (debug_level > -1) {
 			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
 			String [] dbg_titles = new String[dbg_textures.length];
@@ -4200,7 +4270,6 @@ public class TexturedModel {
 			for (int i = 0; i < dbg_subtitles.length; i++) {
 				dbg_subtitles[i] = (i <  (dbg_subtitles.length -1)) ? ("Y"+i):"alpha";
 			}
-			
 			for (int i = 0; i < dbg_textures.length; i++) {
 				dbg_textures[i] = faded_textures[i / faded_textures[0].length][i % faded_textures[0].length];
 				dbg_titles[i] = dbg_subtitles[i % dbg_subtitles.length] + "-" + (i / dbg_subtitles.length);
@@ -4215,9 +4284,6 @@ public class TexturedModel {
 					dbg_titles);
 			
 		}
-//		boolean grow_sky = true;
-		//int            shrink_sky_tiles = 2;
-
 		// Grow sky
 		if (grow_sky) {
 			extendBlueSKy(
@@ -4227,7 +4293,6 @@ public class TexturedModel {
 					width,            // final int            width,
 					transform_size);  // final int            transform_size);
 		}
-		
 		// fix alpha
 		if (alphaOverlapFix) {
 			fixAlphaSameDisparity(
