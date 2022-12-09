@@ -2515,7 +2515,7 @@ public class TexturedModel {
 								for (int ns = 0; ns < num_slices; ns++)
 									if (    (ns != fnslice) &&
 //											!border_tiles[ns][tile] && // do not count border BG - it will be semi-transparent
-											(slice_border_int[ns][tile] > max_bg_lev) && // these tiles may be semi-transparent - do not count them
+											(slice_border_int[ns][tile] <= max_bg_lev) && // these tiles may be semi-transparent - do not count them
 											(slice_border_int[ns][tile] >= 0) &&
 											(slice_disparities[ns][tile] < slice_disparities[fnslice][tile])) {
 										has_bg_tile[fnslice][tile] = true;
