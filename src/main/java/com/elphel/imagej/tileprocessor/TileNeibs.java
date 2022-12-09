@@ -615,12 +615,14 @@ public class TileNeibs{
 	
 	/**
 	 * Enumerate clusters on rectangular area
-	 * @param tiles   selected tiles, size should be sizeX * sizeY
-	 * @param ordered if true, order tiles from largest to smallest5
+	 * @param tiles        selected tiles, size should be sizeX * sizeY
+	 * @param num_clusters if non null, will return number of clusters
+	 * @param ordered      if true, order tiles from largest to smallest5
 	 * @return integer array, where 0 is unused, 1+ cluster it belongs to
 	 */
 	public int [] enumerateClusters(
 			boolean [] tiles,
+			int []     num_clusters,
 			boolean ordered)
 	{
 		int [] waves = new int [tiles.length];
@@ -651,6 +653,9 @@ public class TileNeibs{
 					}
 				}
 			}
+		}
+		if (num_clusters != null) {
+			num_clusters[0] = numClust;
 		}
 		if (!ordered) {
 			return enum_clust;

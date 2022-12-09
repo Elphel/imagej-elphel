@@ -1996,6 +1996,7 @@ public class ExtrinsicAdjustment {
 		// find largest terrain area
 		int [] iterrains = tn. enumerateClusters(
 				terrain, // boolean [] tiles,
+				null,    // int []     num_clusters,
 				true); //boolean ordered)
 		boolean [] terrain_main = new boolean[clusters];
 		for (int i = 0; i < clusters; i++) {

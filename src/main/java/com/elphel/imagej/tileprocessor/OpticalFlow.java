@@ -11761,7 +11761,8 @@ public class OpticalFlow {
 
 			int [] clusters = tn.enumerateClusters(
 					over_thresh, // boolean [] tiles,
-					false); // boolean ordered)
+					null,        // int []     num_clusters,
+					false);      // boolean ordered)
 			// check clusters contain super-threshold tile
 			double max_cluster = mov_thresh*mov_clust_max; // each cluster should have larger tile value to survive
 			int max_clust_num = 0;
@@ -11829,7 +11830,8 @@ public class OpticalFlow {
 
 			clusters = tn.enumerateClusters(
 					move_mask, // boolean [] tiles,
-					false); // boolean ordered)
+					null,      // int []     num_clusters,
+					false);    // boolean ordered)
 			if(show_debug_images) {		
 				for (int nTile = 0; nTile <  motion.length; nTile++) if (clusters[nTile] > 0){
 					 dbg_img[8][nTile] = clusters[nTile];
