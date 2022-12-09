@@ -116,8 +116,8 @@ class TileCluster{
 		return new Rectangle (bounds.x - gap, bounds.y - gap, bounds.width + 2* gap,  bounds.height + 2* gap);
 	}
 	public boolean [] getBorder() {return border;} // Modify to use border_int (==border_int_max)?
-	public int [] getBorderInt() {return border_int;}
-	public int    getBorderIntMax() {return border_int_max;}
+	public int []     getBorderInt() {return border_int;}
+	public int        getBorderIntMax() {return border_int_max;}
 	public double []  getDisparity() {return disparity;}
 	public void       setDisparity(double [] disparity) {this.disparity = disparity;}
 	public double []  getSubDisparity(int indx) { // disparity should be NaN for unused !
