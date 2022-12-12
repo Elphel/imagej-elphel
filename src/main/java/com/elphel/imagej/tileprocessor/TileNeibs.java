@@ -40,8 +40,10 @@ public class TileNeibs{
 	final public static int DIR_LEFT =    2; // Right
 	final public static int DIR_DOWN =    4; // Down
 	final public static int DIR_RIGHT =   6; // Left
-	final public static int DIRS =        8; // total dirs
-
+	final public static int [][] DIR_XY = {{0,-1}, {1,-1}, {1,0}, {1,1}, {0,1}, {-1,1}, {-1,0}, {-1,-1}};
+	final public static int DIRS =        DIR_XY.length; //8; // total dirs
+	
+	
 	public static int reverseDir(int dir) {
 		if ((dir < 0) || (dir >= DIRS)) {
 			return dir;

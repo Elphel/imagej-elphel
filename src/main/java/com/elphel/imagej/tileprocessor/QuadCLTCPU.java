@@ -12037,7 +12037,10 @@ public class QuadCLTCPU {
 
 					  boolean showTri = false; // ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
 					  try {
-						  generateClusterX3d(
+						  TriMesh.generateClusterX3d(
+								  false,     //   boolean         full_texture, // true - full size image, false - bounds only
+								  0,         //   int             subdivide_mesh, // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
+//								  null,      //   boolean []      alpha,     // boolean alpha - true - opaque, false - transparent. Full/bounds
 								  x3dOutput,
 								  wfOutput,  // output WSavefront if not null
 								  tri_meshes, // ArrayList<TriMesh> tri_meshes,
@@ -12048,6 +12051,9 @@ public class QuadCLTCPU {
 								  bgndScan.getSelected(), // selected,
 								  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 								  clt_parameters.transform_size,
+								  tp.getTilesX(), // int             tilesX,
+								  tp.getTilesY(), // int             tilesY,
+								  getGeometryCorrection(), // GeometryCorrection geometryCorrection,
 								  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
 								  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
 								  infinity_disparity,  // 0.3
@@ -12136,7 +12142,10 @@ public class QuadCLTCPU {
 			  }
 			  boolean showTri = !batch_mode && (debugLevel > -1) && (((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73));
 			  try {
-				  generateClusterX3d(
+				  TriMesh.generateClusterX3d(
+						  false, //   boolean         full_texture, // true - full size image, false - bounds only
+						  0, //   int             subdivide_mesh, // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
+//						  null, //   boolean []      alpha,     // boolean alpha - true - opaque, false - transparent. Full/bounds
 						  x3dOutput,
 						  wfOutput,  // output WSavefront if not null
 						  tri_meshes, // ArrayList<TriMesh> tri_meshes,
@@ -12147,6 +12156,9 @@ public class QuadCLTCPU {
 						  scan.getSelected(),
 						  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 						  clt_parameters.transform_size,
+						  tp.getTilesX(), // int             tilesX,
+						  tp.getTilesY(), // int             tilesY,
+						  getGeometryCorrection(), // GeometryCorrection geometryCorrection,
 						  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
 						  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
 						  // FIXME: make a separate parameter:
@@ -12186,179 +12198,6 @@ public class QuadCLTCPU {
 
 
 
-
-	  public void generateClusterX3d( // USED in lwir
-			  X3dOutput       x3dOutput, // output x3d if not null
-			  WavefrontExport wfOutput,  // output WSavefront if not null
-			  ArrayList<TriMesh> tri_meshes,
-			  String          texturePath,
-			  String          id,
-			  String          class_name,
-			  Rectangle       bounds,
-			  boolean []      selected,
-			  double []       disparity, // if null, will use min_disparity
-			  int             tile_size,
-			  boolean         correctDistortions, // requires backdrop image to be corrected also
-			  boolean         show_triangles,
-			  double          min_disparity,
-			  double          max_disparity,
-			  double          maxDispTriangle, // relative <=0 - do not use
-			  double          maxZtoXY,        // 10.0. <=0 - do not use
-			  double          maxZ,            // far clip (0 - do not clip). Negative - limit by max
-			  boolean         limitZ,
-			  double [][]     dbg_disp_tri_slice,
-			  int             debug_level
-			  ) throws IOException
-	  {
-//		  int debug_level = 1;
-		  if (bounds == null) {
-			  return; // not used in lwir
-		  }
-		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected // updated 09.18.2022
-				  bounds, 
-				  selected); 
-		  double [][] texCoord = TileProcessor.getTexCoords( // get texture coordinates for indices
-				  indices);
-		  double [][] worldXYZ = tp.getCoords( // get world XYZ in meters for indices // updated 09.18.2022
-				  disparity,
-				  min_disparity,
-				  max_disparity,
-				  bounds,
-				  indices,
-				  tile_size,
-				  correctDistortions, // requires backdrop image to be corrected also
-				  this.geometryCorrection);
-
-          double [] indexedDisparity = tp.getIndexedDisparities( // get disparity for each index // updated 09.18.2022
-							disparity,
-							min_disparity,
-							max_disparity,
-							bounds,
-							indices,
-							tile_size);
-
-		  int [][] triangles = 	TileProcessor.triangulateCluster(
-				  indices);
-
-//		  double maxZtoXY = 10.0; // maximal delta_z to sqrt(dx^23 + dy^2)
-		  int num_removed = 0;
-		  if (maxDispTriangle > 0.0) {
-			  int pre_num = triangles.length;
-			  triangles = 	TileProcessor.filterTriangles( // remove crazy triangles with large disparity difference
-					  triangles,
-					  indexedDisparity, // disparities per vertex index
-					  maxDispTriangle,  // maximal disparity difference in a triangle
-					  debug_level + 0); // 	int       debug_level);
-			  if (triangles.length < pre_num) {
-				  num_removed += pre_num - triangles.length;
-				  if (debug_level > 0) {
-					  System.out.println("filterTriangles() removed "+ (pre_num - triangles.length)+" triangles");
-				  }
-			  }
-			  
-		  }
-		  if ((maxZ != 0.0) && limitZ) {
-			  for (int i = 0; i < worldXYZ.length; i++) {
-				  if (worldXYZ[i][2] < -maxZ) {
-					  double k = -maxZ/worldXYZ[i][2];
-					  worldXYZ[i][0] *= k;
-					  worldXYZ[i][1] *= k;
-					  worldXYZ[i][2] *= k;
-				  }
-			  }
-		  }
-		  if ((maxZtoXY > 0.0) || ((maxZ != 0) && !limitZ) ) {
-			  int pre_num = triangles.length;
-			  triangles = 	TileProcessor.filterTrianglesWorld(
-					  triangles,
-					  worldXYZ,  // world per vertex index
-					  maxZtoXY,
-					  maxZ);
-			  if (triangles.length < pre_num) {
-				  num_removed += pre_num - triangles.length;
-				  if (debug_level > 0) {
-					  System.out.println("filterTrianglesWorld() removed "+ (pre_num - triangles.length)+" triangles");
-				  }
-			  }
-		  }
-		  if (triangles.length == 0) {
-			  if (debug_level > 0) {
-				  System.out.println("generateClusterX3d() no triangles left in a cluster");
-			  }
-			  return; // all triangles removed
-			  
-		  }
-		  if (num_removed > 0) { 
-			  int [] re_index = TileProcessor.reIndex( // Move to TriMesh?
-					  indices, // will be modified if needed (if some indices are removed
-					  triangles);
-			  if (re_index != null) {// need to update other arrays: texCoord, worldXYZ. indexedDisparity[] will not be used
-				  int num_indices_old = worldXYZ.length;
-				  int [] inv_index = new int [num_indices_old];
-				  Arrays.fill(inv_index,-1); // just to get an error
-				  for (int i = 0; i < re_index.length; i++) {
-					  inv_index[re_index[i]] = i;
-				  }
-				  double [][]  texCoord_new = new double [re_index.length][];
-				  double [][]  worldXYZ_new = new double [re_index.length][];
-				  for (int i = 0; i < re_index.length; i++) {
-					  texCoord_new[i] = texCoord[re_index[i]];
-					  worldXYZ_new[i] = worldXYZ[re_index[i]];
-				  }
-				  texCoord = texCoord_new;
-				  worldXYZ = worldXYZ_new;
-				  for (int i = 0; i < triangles.length; i++) {
-					  for (int j=0; j < triangles[i].length; j++) {
-						  triangles[i][j] = inv_index[triangles[i][j]];
-					  }
-				  }
-			  }
-			  if (debug_level > 0) {
-				  show_triangles = true; // show after removed
-			  }
-		  }
-
-		  if (show_triangles || (dbg_disp_tri_slice != null)) {
-			  double [] ddisp = (disparity == null)?(new double[1]):disparity;
-			  if (disparity == null) {
-				  ddisp[0] = min_disparity;
-			  }
-			  tp.testTriangles(
-					  (show_triangles? texturePath: null),
-					  bounds,
-					  selected,
-					  ddisp, // disparity, // if disparity.length == 1 - use for all
-					  tile_size,
-					  indices,
-					  triangles,
-					  dbg_disp_tri_slice); // double [][] debug_triangles);
-		  }
-		  if (x3dOutput != null) {
-		  x3dOutput.addCluster(
-				  texturePath,
-				  id,
-				  class_name,
-				  texCoord,
-				  worldXYZ,
-				  triangles);
-		  }
-		  if (wfOutput != null) {
-			  wfOutput.addCluster(
-				  texturePath,
-				  id,
-//				  class_name,
-				  texCoord,
-				  worldXYZ,
-				  triangles);
-		  }
-		  if (tri_meshes != null) {
-			  tri_meshes.add(new TriMesh(
-					  texturePath, // String texture_image,
-					  worldXYZ,    // double [][] worldXYZ,
-					  texCoord,    // double [][] texCoord,
-					  triangles)); // 								int [][] triangles					  
-		  }
-	  }
 
 
 //	  public ImagePlus getBackgroundImage( // USED in lwir
@@ -14690,7 +14529,7 @@ public class QuadCLTCPU {
 					  true,  // smart,
 					  true);  //newAllowed, // save
 			  double ts = Double.parseDouble(image_name.replace('_', '.'));
-			  (new X3dOutput()).generateKML(
+			  X3dOutput.generateKML(
 					  kml_copy_dir+ Prefs.getFileSeparator()+image_name+".kml", // String path,
 					  false, // boolean overwrite,
 					  "", // String icon_path, //<href>x3d/1487451413_967079.x3d</href> ?

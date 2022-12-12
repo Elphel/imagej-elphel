@@ -1829,6 +1829,8 @@ public class TexturedModel {
 		final int           ref_index =  scenes.length - 1;
 		final QuadCLT       ref_scene =  scenes[ref_index];
 		final TileProcessor tp =         ref_scene.getTileProcessor();
+		final boolean       split_textures = (debugLevel > 1000); // false;
+		final int           subdiv_tiles = 4; // subdivide tiles to smaller triangles
 		final boolean       debug_disp_tri = !batch_mode && (debugLevel > 0); // TODO: use clt_parameters
 
 		if (ref_scene.image_data == null){
@@ -1858,7 +1860,7 @@ public class TexturedModel {
 		final int    tex_cluster_gap=      2; // gap between clusters Make clt_parameters
 		final double max_disparity_lim = 100.0;  // do not allow stray disparities above this
 		final double min_trim_disparity =  2.0;  // do not try to trim texture outlines with lower disparities
-		final int width = tilesX * transform_size; // for debug only
+		final int width = tilesX * transform_size;
 		final int height = tp.getTilesY() * transform_size;
 		// get multi-scene disparity map for FG and BG and filter it
 		if (combo_dsn_final == null) {
@@ -1928,6 +1930,7 @@ public class TexturedModel {
 				disp_adiffj,       // final double       disp_adiffj,
 				disp_rdiffj,       // final double       disp_rdiffj,
 				debugLevel); //1); //  2); // final int          debugLevel)
+/*
 // Debugging up to here:
 //		if (debugLevel > -1000) {
 //			return false;
@@ -1937,7 +1940,7 @@ public class TexturedModel {
 			System.out.println("Temporary exit after clusterizeFgBg()");
 			return false;
 		}
-		
+*/
 		boolean [] scenes_sel = new boolean[scenes.length];
 		//		for (int i = scenes.length - 10; i <  scenes.length; i++) { // start with just one (reference) scene
 		for (int i = 0; i <  scenes.length; i++) { // start with just one (reference) scene
@@ -1956,11 +1959,10 @@ public class TexturedModel {
 		
 		boolean        renormalize = true;// false - use normalizations from previous scenes to keep consistent colors
 		final boolean        no_alpha = true;
-		ImagePlus[] combined_textures = getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
+		
+		double[][][] faded_textures = getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
 				clt_parameters,      // final CLTParameters  clt_parameters,
 				colorProcParameters, // ColorProcParameters  colorProcParameters,
-				rgbParameters,       // EyesisCorrectionParameters.RGBParameters rgbParameters,
-				no_alpha,            // final boolean        no_alpha,
 				parameter_scene,     // final QuadCLT        parameter_scene, // to use for rendering parameters in multi-series sequences
 				// if null - use reference scene
 				ref_index,           // final int            ref_index,
@@ -1971,10 +1973,22 @@ public class TexturedModel {
 				max_disparity_lim,   // final double         max_disparity_lim,   //  100.0;  // do not allow stray disparities above this
 				min_trim_disparity,  // final double         min_trim_disparity,  //  2.0;  // do not try to trim texture outlines with lower disparities
 				debugLevel);         // final int            debug_level)
+		ImagePlus[] combined_textures = getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
+				clt_parameters,      // final CLTParameters  clt_parameters,
+				no_alpha,            // final boolean        no_alpha,
+				scenes[ref_index],   // QuadCLT              ref_scene,
+				parameter_scene,     // final QuadCLT        parameter_scene, // to use for rendering parameters in multi-series sequences
+				faded_textures,      // double [][][]        faded_textures,
+				tilesX,              // int                  tilesX,
+				ref_scene.getTileProcessor().getTilesY(),              // int                  tilesY,
+				transform_size,      // int                  transform_size,
+				debugLevel);         // final int            debug_level)
+		
 		boolean save_full_textures = true; // false; // true;
+				
 		EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
 		String x3d_dir = ref_scene.getX3dDirectory();
-		if (save_full_textures) {
+		if (save_full_textures || !split_textures) {
 			for (int nslice = 0; nslice < combined_textures.length; nslice++) {
 				EyesisCorrections.saveAndShow(
 						combined_textures[nslice], // imp_texture_cluster,
@@ -1985,22 +1999,33 @@ public class TexturedModel {
 						1); //
 			}
 		}
-		
-		// Maybe will switch to combined textures (less files)
-		ImagePlus [] imp_textures = splitCombinedTextures(
-				tileClusters,       // TileCluster [] tileClusters, //should have name <timestamp>-*
-				transform_size,     // int            transform_size,
-				combined_textures); // ImagePlus []   combo_textures )
-		for (int i = 0; i < imp_textures.length; i++) if (imp_textures[i] != null) { // should not be
-			EyesisCorrections.saveAndShow(
-					imp_textures[i], // imp_texture_cluster,
-					x3d_dir,
-					correctionsParameters.png,
-					false, // (nslice < 4), // clt_parameters.show_textures,
-					-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
-					1); //
+		double      alpha_threshold = 0.5;
+		boolean [][] combined_alphas = null;
+		if (subdiv_tiles > 0) {
+			combined_alphas = new boolean [faded_textures.length][faded_textures[0][0].length];
+			for (int i = 0; i < faded_textures.length; i++) { // TODO: accelerate with multi
+				for (int j = 0; j < faded_textures[i][1].length; j++) {
+					combined_alphas[i][j] = faded_textures[i][1][j] > alpha_threshold;
+				}
+			}
 		}
-
+		ImagePlus [] imp_textures = null;
+		if (split_textures) {
+			// Maybe will switch to combined textures (less files)
+			imp_textures = splitCombinedTextures(
+					tileClusters,       // TileCluster [] tileClusters, //should have name <timestamp>-*
+					transform_size,     // int            transform_size,
+					combined_textures); // ImagePlus []   combo_textures )
+			for (int i = 0; i < imp_textures.length; i++) if (imp_textures[i] != null) { // should not be
+				EyesisCorrections.saveAndShow(
+						imp_textures[i], // imp_texture_cluster,
+						x3d_dir,
+						correctionsParameters.png,
+						false, // (nslice < 4), // clt_parameters.show_textures,
+						-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+						1); //
+			}
+		}
 		// create x3d file
 		if (clt_parameters.output_x3d) {
 			x3dOutput = new X3dOutput(
@@ -2025,7 +2050,7 @@ public class TexturedModel {
 				// do nothing, just keep
 			}
 		}
-		if (clt_parameters.output_glTF && (x3d_dir != null)) {
+		if ((clt_parameters.output_x3d || clt_parameters.output_glTF) && (x3d_dir != null)) {
 			tri_meshes = new ArrayList<TriMesh>();
 		}		
 		
@@ -2046,21 +2071,30 @@ public class TexturedModel {
 		
 		final double [][] dbg_tri_disp = debug_disp_tri? (new double [tileClusters.length][width*height]): null;
 		final double [][] dbg_tri_tri =  debug_disp_tri? (new double [tileClusters.length][width*height]): null;
-		
+		boolean showTri = !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles);
+		int dbg_scale_mesh = 4; // <=0 - do not show
+		int dbg_scaled_width =  tp.getTilesX() * transform_size * dbg_scale_mesh; 
+		int dbg_scaled_height = tp.getTilesY() * transform_size * dbg_scale_mesh;
+		double [][] dbg_mesh_imgs = null;
+		if (dbg_scale_mesh > 0) {
+			dbg_mesh_imgs = new double[tileClusters.length][dbg_scaled_width * dbg_scaled_height];
+			// maybe fill with NaN?
+		}
+//		double [][] dbg
+	/*
+							tp.getTilesX(), // int             tilesX,
+							tp.getTilesY(), // int             tilesY,
+	 */
 		for (int nslice = 0; nslice < tileClusters.length; nslice++){
 			if (dbg_tri_disp != null) {
 				Arrays.fill(dbg_tri_disp[nslice], Double.NaN);
 			}
-			// keep them all 0, not NaN
-//			if (dbg_tri_tri != null) {
-//				Arrays.fill(dbg_tri_tri[nslice],  Double.NaN);
-//			}
+
 			final double [][] dbg_disp_tri_slice = (dbg_tri_tri != null) ?
 					((dbg_tri_disp != null)? (new double[][] {dbg_tri_disp[nslice], dbg_tri_tri[nslice]}):
 						(new double[][] {dbg_tri_tri[nslice]})	): null; 
 			
 			if (debugLevel > -1){
-				//				System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
 				System.out.println("Generating cluster images from texture slice "+nslice);
 			}
 			int [] indices = tileClusters[nslice].getSubIndices();
@@ -2069,20 +2103,37 @@ public class TexturedModel {
 			for (int sub_i = 0; sub_i < indices.length; sub_i++) {
 				Rectangle roi = bounds[sub_i];
 				int cluster_index = indices[sub_i];
-				ImagePlus imp_texture_cluster = imp_textures[cluster_index];
-				if (imp_textures[cluster_index] == null) {
+				ImagePlus imp_texture_cluster = combined_textures[nslice];				
+				boolean [] alpha = (combined_alphas != null) ? combined_alphas[nslice] : null;
+				if (imp_textures != null) {
+					imp_texture_cluster = imp_textures[cluster_index];
+					if (combined_alphas != null) {
+						alpha = new boolean[roi.height * roi.width];
+						for (int row = 0; row < roi.height; row++) {
+							System.arraycopy(
+									combined_alphas[nslice],
+									(roi.y + row) * width + roi.x,
+									alpha,
+									row * roi.width,
+									roi.width);
+						}
+					}
+				}
+				if (imp_texture_cluster == null) {
 					if (debugLevel > -1){
 						System.out.println("Empty cluster #"+cluster_index);
 					}
 					continue;
 				}
 				String texturePath = imp_texture_cluster.getTitle()+".png";
-				double [] scan_disparity = tileClusters[nslice].getSubDisparity(sub_i);
-				boolean [] scan_selected = tileClusters[nslice].getSubSelected(sub_i);
-				// skipping averaging disparity fro a whole cluster (needs strength and does not seem to be useful)
-				boolean showTri = !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles) && (cluster_index == dbg_tri_indx);
+				double [] scan_disparity = tileClusters[nslice].getSubDisparity(sub_i); // limited to cluster bounds
+				boolean [] scan_selected = tileClusters[nslice].getSubSelected(sub_i); // limited to cluster bounds
+				// skipping averaging disparity for a whole cluster (needs strength and does not seem to be useful)
 				try {
-					ref_scene.generateClusterX3d( // also generates wavefront obj
+					if (alpha == null) {
+					TriMesh.generateClusterX3d( // old version also generates wavefront obj
+							(imp_textures == null), //   boolean         full_texture, // true - full size image, false - bounds only
+							0, //   int             subdivide_mesh, // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
 							x3dOutput,
 							wfOutput,  // output WSavefront if not null
 							tri_meshes, // ArrayList<TriMesh> tri_meshes,
@@ -2093,8 +2144,11 @@ public class TexturedModel {
 							scan_selected, // scan.getSelected(),
 							scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 							clt_parameters.transform_size,
+							tp.getTilesX(), // int             tilesX,
+							tp.getTilesY(), // int             tilesY,
+							ref_scene.getGeometryCorrection(), // GeometryCorrection geometryCorrection,
 							clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-							showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+							showTri && (cluster_index == dbg_tri_indx), // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
 							// FIXME: make a separate parameter:
 							infinity_disparity, //  0.25 * clt_parameters.bgnd_range,  // 0.3
 							clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
@@ -2104,6 +2158,38 @@ public class TexturedModel {
 						    clt_parameters.limitZ,
 						    dbg_disp_tri_slice, //   double [][]     dbg_disp_tri_slice,
 							debugLevel + 1); //   int             debug_level) > 0
+					} else {
+						TriMesh.generateClusterX3d( // new version with small triangles for alpha also generates wavefront obj
+								(imp_textures == null), //   boolean         full_texture, // true - full size image, false - bounds only
+								subdiv_tiles,           //   int             subdivide_mesh, // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
+								alpha,                  //   boolean []      alpha,     // boolean alpha - true - opaque, false - transparent. Full/bounds
+								x3dOutput,
+								wfOutput,               // output WSavefront if not null
+								tri_meshes,             // ArrayList<TriMesh> tri_meshes,
+								texturePath,
+								"shape_id-"+cluster_index, // id
+								null,                   // class
+								roi,                    // scan.getTextureBounds(),
+								scan_selected,          // scan.getSelected(),
+								scan_disparity,         // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+								clt_parameters.transform_size,
+								tp.getTilesX(),         // int             tilesX,
+								tp.getTilesY(),         // int             tilesY,
+								ref_scene.getGeometryCorrection(), // GeometryCorrection geometryCorrection,
+								clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+								dbg_mesh_imgs[nslice],  //   double []       tri_img,   //
+								dbg_scaled_width,       // int             tri_img_width,
+//								showTri,                // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+								// FIXME: make a separate parameter:
+								infinity_disparity,            //  0.25 * clt_parameters.bgnd_range,  // 0.3
+								clt_parameters.grow_disp_max,  // other_range, // 2.0 'other_range - difference from the specified (*_CM)
+								clt_parameters.maxDispTriangle,
+							    clt_parameters.maxZtoXY,       // double          maxZtoXY,       // 10.0. <=0 - do not use
+							    clt_parameters.maxZ,
+							    clt_parameters.limitZ,
+//							    dbg_disp_tri_slice,            //   double [][]     dbg_disp_tri_slice,
+								debugLevel + 1);               //   int             debug_level) > 0
+					}
 					//dbg_disp_tri_slice
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -2145,6 +2231,12 @@ public class TexturedModel {
 					ref_scene.getImageName()+"-mesh_disparity_triangles",
 					dbg_titles);
 		}
+		boolean exit_now = (debugLevel > 1000);
+		if (exit_now) {
+			return false;
+		}
+		
+		
 		
 		if ((x3d_dir != null) && (x3dOutput != null)){
 			x3dOutput.generateX3D(x3d_dir+Prefs.getFileSeparator() + ref_scene.correctionsParameters.getModelName(ref_scene.getImageName())+".x3d");
@@ -2155,7 +2247,7 @@ public class TexturedModel {
 			System.out.println("Wavefront object file saved to "+wfOutput.obj_path);
 			System.out.println("Wavefront material file saved to "+wfOutput.mtl_path);
 		}
-		if (tri_meshes != null) {
+		if (clt_parameters.output_glTF && (tri_meshes != null)) {
 			try {
 				GlTfExport.glTFExport(
 						x3d_dir, // String x3d_dir,
@@ -2967,7 +3059,7 @@ public class TexturedModel {
 			final double       min_edge_variance,			
 			final int          width,
 			final int          transform_size) {
-		boolean dbg = true;
+		boolean dbg = false; // true;
 		final int num_slices =      texture_en.length;
 		final int img_size =        texture_en[0].length;
 		final int tilesX = width/transform_size;
@@ -3030,15 +3122,15 @@ public class TexturedModel {
 								dbg_img[4][i] = erase[i]? 1.0 : 0.0;
 								dbg_img[5][i] = texture_en[nslice][i]? 1.0 : 0.0;
 							}
+
+							ShowDoubleFloatArrays.showArrays(
+									dbg_img,
+									width,
+									img_size/width,
+									true,
+									"VAR_EDGE_FILTER-"+String.format("%02d",nslice),
+									dbg_titles);
 						}
-						
-						ShowDoubleFloatArrays.showArrays(
-								dbg_img,
-								width,
-								img_size/width,
-								true,
-								"VAR_EDGE_FILTER-"+String.format("%02d",nslice),
-								dbg_titles);
 					}
 				}
 			};
@@ -4111,11 +4203,12 @@ public class TexturedModel {
 	 * @param debugLevel          debug level - controls generation of images.
 	 * @return                    array of ImagePlus instances corresponding to tileClusters array
 	 */
-	public static ImagePlus[] getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
+//	public static ImagePlus[] getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
+	public static double[][][] getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
 			final CLTParameters  clt_parameters,
 			ColorProcParameters  colorProcParameters,
-			EyesisCorrectionParameters.RGBParameters rgbParameters,
-			final boolean        no_alpha,
+//			EyesisCorrectionParameters.RGBParameters rgbParameters,
+//			final boolean        no_alpha,
 			QuadCLT              parameter_scene,
 			final int            ref_index,
 			final QuadCLT []     scenes,
@@ -4158,8 +4251,8 @@ public class TexturedModel {
 		final double  tex_hist_amount =     clt_parameters.tex_hist_amount; // clt_parameters. 0.7;  
 		final int     tex_hist_bins =       clt_parameters.tex_hist_bins;   //  1024 ;   
 		final int     tex_hist_segments =   clt_parameters.tex_hist_segments; // 32 ;   
-		final boolean tex_color =           clt_parameters.tex_color;     //  true;  
-		final int     tex_palette =         clt_parameters.tex_palette;     // 2 ;   
+///		final boolean tex_color =           clt_parameters.tex_color;     //  true;  
+///		final int     tex_palette =         clt_parameters.tex_palette;     // 2 ;   
 //		final boolean extend_sky =          true;
 		final int     shrink_sky_tiles =    4; // 2; sum of 2 +bg extend 
 		final boolean grow_sky =            true;
@@ -4412,7 +4505,7 @@ public class TexturedModel {
 				tileClusters,              // final TileCluster[]  tileClusters, // to process blue_sky?
 				max_disparity_lim,         // final double max_disparity_lim,  // do not allow stray disparities above this
 				min_trim_disparity,        // final double min_trim_disparity, // do not try to trim texture outlines with lower disparities
-				ref_scene.getImageName()); // null); // ref_scene.getImageName()); // final String         dbg_prefix);
+				null); // ref_scene.getImageName()); // null); // ref_scene.getImageName()); // final String         dbg_prefix);
 		if (debugLevel > -1) {
 			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
 			String [] dbg_titles = new String[dbg_textures.length];
@@ -4618,12 +4711,61 @@ public class TexturedModel {
 						ref_scene.getImageName()+"-texture_weights");
 			}
 		}
-
+		return faded_textures;
+		/*
 		double [] minmax = parameter_scene.getColdHot(); // used in linearStackToColor
 		ImagePlus [] imp_tex = new ImagePlus[num_slices];
 		for (int nslice = 0; nslice < num_slices; nslice++) {
             String title=String.format("%s-combo%03d-texture",ref_scene.getImageName(), nslice);
             double [][] rendered_texture = faded_textures[nslice];
+            if (no_alpha) {
+            	rendered_texture[1] = new double [rendered_texture[0].length];
+            	for (int i = 0; i < rendered_texture[0].length; i++) {
+            		rendered_texture[1][i] = Double.isNaN(rendered_texture[0][i])? 0.0: 1.0;
+            	}
+            }
+            imp_tex[nslice] =  	  QuadCLTCPU.linearStackToColorLWIR(
+            		clt_parameters, // CLTParameters  clt_parameters,
+            		tex_palette, // int            lwir_palette, // <0 - do not convert
+            		minmax, // double []      minmax,
+            		title, // String         name,
+            		"", // String         suffix, // such as disparity=...
+            		tex_color, // boolean        toRGB,
+            		rendered_texture, // faded_textures[nslice], // double [][]    texture_data,
+            		tilesX * transform_size, // int            width, // int tilesX,
+            		tilesY * transform_size, // int            height, // int tilesY,
+            		debugLevel); // int            debugLevel )
+			// Add synthetic mesh only with higher resolution? or just any by a specified period?what king of mesh - vertical random, ...
+			// Split and save as png
+			
+		}
+		// Process accumulated textures: average, apply borders, convert to color or apply UM, add synthetic mesh, ... 
+		return imp_tex; // ImagePlus[] ? with alpha, to be split into png and saved with alpha.
+		*/
+	}
+	
+	public static ImagePlus[] getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
+			final CLTParameters  clt_parameters,
+			boolean              no_alpha,
+			QuadCLT              ref_scene,
+			QuadCLT              parameter_scene,
+			double [][][]        faded_textures,
+			int                  tilesX,
+			int                  tilesY,
+			int                  transform_size,
+			int                  debugLevel)
+	{
+		final boolean tex_color =           clt_parameters.tex_color;     //  true;  
+		final int     tex_palette =         clt_parameters.tex_palette;     // 2 ;   
+		int num_slices = faded_textures.length;
+		if (parameter_scene == null) {
+			parameter_scene = ref_scene;
+		}
+		double [] minmax = parameter_scene.getColdHot(); // used in linearStackToColor
+		ImagePlus [] imp_tex = new ImagePlus[num_slices];
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+            String title=String.format("%s-combo%03d-texture",ref_scene.getImageName(), nslice);
+            double [][] rendered_texture = faded_textures[nslice].clone(); // shallow !
             if (no_alpha) {
             	rendered_texture[1] = new double [rendered_texture[0].length];
             	for (int i = 0; i < rendered_texture[0].length; i++) {
@@ -4643,12 +4785,11 @@ public class TexturedModel {
 					  debugLevel); // int            debugLevel )
 			// Add synthetic mesh only with higher resolution? or just any by a specified period?what king of mesh - vertical random, ...
 			// Split and save as png
-			
 		}
 		// Process accumulated textures: average, apply borders, convert to color or apply UM, add synthetic mesh, ... 
 		return imp_tex; // ImagePlus[] ? with alpha, to be split into png and saved with alpha.
 	}
-	
+
 	
 	
 	

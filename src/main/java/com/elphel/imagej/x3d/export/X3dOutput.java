@@ -248,7 +248,7 @@ public class X3dOutput {
 		return bbox;
 	}
 
-	public void generateKML(
+	public static void generateKML(
 			String path,
 			boolean overwrite,
 			String icon_path, //<href>x3d/1487451413_967079.x3d</href> ?
@@ -341,14 +341,14 @@ public class X3dOutput {
 	}
 
 
-	Element addTextElement(Document doc, Element parent, String name, String text)
+	static Element addTextElement(Document doc, Element parent, String name, String text)
 	{
 		Element child = doc.createElement(name);
 		child.setTextContent(text);
 		parent.appendChild(child);
 		return child;
 	}
-	Element addElement(Document doc, Element parent, String name)
+	static Element addElement(Document doc, Element parent, String name)
 	{
 		Element child = doc.createElement(name);
 		parent.appendChild(child);
