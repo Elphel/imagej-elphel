@@ -235,19 +235,21 @@ public class TriMesh {
 			final int []     num_indices
 			) {
 		//TODO: add optimization (merging some in-tile triangles)
-		final boolean full_image = selected_tiles.length > (bounds.height * bounds.width);
+		final boolean full_selection = selected_tiles.length > (bounds.height * bounds.width); // applies to selected_tiles 
+		final boolean full_alpha = alpha.length > (bounds.height * bounds.width * tile_size * tile_size);
 		final int [][][][] indices = new int [bounds.height][bounds.width][][];
 		final Thread[] threads = ImageDtt.newThreadArray(TexturedModel.THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
-		final int source_tile_width =  full_image? tilesX : bounds.width;
-		final int source_pix_width =   source_tile_width * tile_size;
-		final int source_tile_offsx =  full_image? bounds.x : 0;
-		final int source_tile_offsy =  full_image? bounds.y : 0;
-//		final int source_tile_offs = source_tile_offsx + source_tile_offsy * source_tile_width;  
-		final int source_pix_offsx = source_tile_offsx * tile_size;
-		final int source_pix_offsy = source_tile_offsy * tile_size;
-//		final int source_pix_offs = source_pix_offsx + source_pix_offsy * source_pix_width;  
-//		final int sub_size = Math.max(tile_size / subdiv, 1); 
+		final int source_tile_width =  full_selection? tilesX : bounds.width;
+//		final int source_pix_width =   source_tile_width * tile_size;
+		final int source_tile_offsx =  full_selection? bounds.x : 0;
+		final int source_tile_offsy =  full_selection? bounds.y : 0;
+//		final int source_pix_offsx = source_tile_offsx * tile_size;
+//		final int source_pix_offsy = source_tile_offsy * tile_size;
+		final int source_pix_offsx = (full_alpha? bounds.x : 0) * tile_size;
+		final int source_pix_offsy = (full_alpha? bounds.y : 0) * tile_size;
+		final int source_pix_width = (full_alpha? tilesX : bounds.width) * tile_size;
+		
 		final int btiles = bounds.width * bounds.height;
 		
 		final AtomicInteger aindx = new AtomicInteger(0);
@@ -474,7 +476,7 @@ public class TriMesh {
 		switch (dir) {
 		case 0: for (int i = 0; i < subdiv; i++) {edge[i] = tile[0][subdiv - i - 1];}        break;
 		case 1: for (int i = 0; i < subdiv; i++) {edge[i] = tile[subdiv - i - 1][subdiv-1];} break;
-		case 4: for (int i = 0; i < subdiv; i++) {edge[i] = tile[subdiv-1][i];}              break;
+		case 2: for (int i = 0; i < subdiv; i++) {edge[i] = tile[subdiv-1][i];}              break;
 		case 3: for (int i = 0; i < subdiv; i++) {edge[i] = tile[i][0];}                     break;
 		}
 		return edge;
@@ -652,7 +654,7 @@ public class TriMesh {
         							if (tris[btiley][btilex][y][x] == null) {
         								tris[btiley][btilex][y][x] = TRI_NONE.clone();
         							}
-        							tris[btiley][btilex][y][x][1 << TRI_DOWN_LEFT] = atri.getAndIncrement();
+        							tris[btiley][btilex][y][x][TRI_DOWN_LEFT] = atri.getAndIncrement();
         						}
         					}
         					Arrays.fill(quad_corners, false);
@@ -664,32 +666,33 @@ public class TriMesh {
         							x = subdiv - 1;
         							y =  i - subdiv;
         						}
-        						int num_corn = 0;
-        						for (int dir = 1; dir < 4; dir++) { //  skipping top-left corner
-        							int x1 = x + TRI_OFFS_XY[dir][0];
-        							int y1 = y + TRI_OFFS_XY[dir][1];
-        							int [] xyd = getNeibNode(x1, y1, subdiv);
-        							boolean exists = false;
-        							if (tneib_indices[xyd[2]] != null) {
-        								exists = tneib_indices[xyd[2]][xyd[1]][xyd[0]] >= 0; // is populated
+        						quad_corners[0] = tneib_indices[8][y][x] >= 0; // this subtile
+        						if (quad_corners[0]) { // all following triangles assume that top-left corner exists 
+        							int num_corn = 1;
+        							for (int dir = 1; dir < 4; dir++) { //  skipping top-left corner
+        								int x1 = x + TRI_OFFS_XY[dir][0];
+        								int y1 = y + TRI_OFFS_XY[dir][1];
+        								int [] xyd = getNeibNode(x1, y1, subdiv);
+        								boolean exists = false;
+        								exists = (tneib_indices[xyd[2]] != null) && (tneib_indices[xyd[2]][xyd[1]][xyd[0]] >= 0); // is populated
         								quad_corners[dir] = exists;
+        								if (exists) {
+        									num_corn ++;
+        								}
         							}
-        							if (exists) {
-        								num_corn ++;
-        							}
-        						}
-        						if ((num_corn >= 3) && quad_corners[0]) { // that triangle (TRI_DOWN_LEFT) should already exist
-        							if (tris[btiley][btilex][y][x] == null) {
-        								tris[btiley][btilex][y][x] = TRI_NONE.clone();
-        							}
-        							if (quad_corners[3]) {
-            							if (quad_corners[1]) {
-                							tris[btiley][btilex][y][x][1 << TRI_RIGHT_DOWNLEFT] = atri.getAndIncrement();
-            							} else {
-                							tris[btiley][btilex][y][x][1 << TRI_DOWNRIGHT_LEFT] = atri.getAndIncrement();
-            							}
-        							} else {
-            							tris[btiley][btilex][y][x][1 << TRI_RIGHT_DOWN] = atri.getAndIncrement();
+        							if (num_corn >= 3) {
+        								if (tris[btiley][btilex][y][x] == null) {
+        									tris[btiley][btilex][y][x] = TRI_NONE.clone();
+        								}
+        								if (quad_corners[3]) {
+        									if (quad_corners[1]) {
+        										tris[btiley][btilex][y][x][TRI_RIGHT_DOWNLEFT] = atri.getAndIncrement();
+        									} else {
+        										tris[btiley][btilex][y][x][TRI_DOWNRIGHT_LEFT] = atri.getAndIncrement();
+        									}
+        								} else {
+        									tris[btiley][btilex][y][x][TRI_RIGHT_DOWN] = atri.getAndIncrement();
+        								}
         							}
         						}
         					}        					
@@ -794,6 +797,8 @@ public class TriMesh {
 		// type 4 (4 dirs, 2 triangles):
 		// 1 in ortho, 1 CCW from it, 2 CCW from 1. Does not need mirror, as the mirror will be if looking
 		// from the last 2 (90 degrees CCW from the first 1)
+		// type 5 (4 dirs, 1 triangle): 
+		// 1 in ortho, 2 CCW from it, 1 CCW from 1. Does not need mirror
 	
 		// First pass - reserving triangles indices
 		final Thread[] threads = ImageDtt.newThreadArray(TexturedModel.THREADS_MAX);
@@ -817,14 +822,18 @@ public class TriMesh {
         						if ((btx >= 0) && (btx < bwidth) && (bty >= 0) && (bty < bheight) &&
         								(indices[bty][btx] != null)) {
         							tneib_types[dir] = 0; 
-        							if (indices[bty][btx] != null) {
-        								tneib_types[dir] = (indices[bty][btx].length > 1) ? 2 : 1; 
-        							}
-        							has_full_neib |= (tneib_types[dir] == 1);
+//        							if (indices[bty][btx] != null) {
+        							tneib_types[dir] = (indices[bty][btx].length > 1) ? 2 : 1; 
+//        							}
+        							// all modes 0..4 require 2-1 in ortho direction
+        							has_full_neib |= (tneib_types[dir] == 1) && ((dir & 1) == 0);
         						}
         					}
         					if (has_full_neib) {
-        						tris[btiley][btilex] = new int [5][4]; // [types][directions
+        						tris[btiley][btilex] = new int [6][4]; // [types][directions
+        						for (int i = 0; i < tris[btiley][btilex].length; i++) {
+        							Arrays.fill(tris[btiley][btilex][i], -1);
+        						}
         						// reserve indices for type0:
         						for (int dir = 0; dir < 4; dir++) {
         							int tneib = tneib_types[2*dir];
@@ -868,6 +877,15 @@ public class TriMesh {
         								tris[btiley][btilex][4][dir] = atri.getAndAdd(2);
         							}
         						}
+        						// reserve indices for type5:
+        						for (int dir = 0; dir < 4; dir++) {
+        							int tneib = tneib_types[2*dir];         // pointed
+        							int tneib1= tneib_types[(2*dir+7) % 8]; // CCW 1 from pointed
+        							int tneib2= tneib_types[(2*dir+6) % 8]; // CCW 2 from pointed
+        							if ((tneib == 1) && (tneib1 == 2) && (tneib2 == 1)) {
+        								tris[btiley][btilex][5][dir] = atri.getAndAdd(1);
+        							}
+        						}
         					}
         				}
         			}                	
@@ -905,7 +923,7 @@ public class TriMesh {
         						int tri_index = tris[btiley][btilex][0][dir4]; // type0
         						if (tri_index >= 0) {
         							int [] edge = getEdgeIndices(tneib_indices [8], dir4);
-        							int indx_1 = tneib_indices[2 * dir4][0][0];
+        							int indx_1 = tneib_indices[2 * dir4][0][0]; // null pointer
         							for (int i = 0; i < subdiv_m1; i++) {
         								tri_indices[tri_index + i][0] = indx_1;
         								tri_indices[tri_index + i][1] = edge[i];
@@ -964,7 +982,19 @@ public class TriMesh {
         							
         							tri_indices[tri_index + 1][0] = indx_2;
         							tri_indices[tri_index + 1][1] = edge[subdiv_m1];
-        							tri_indices[tri_index + 1][2] = edge[0];
+        							tri_indices[tri_index + 1][2] = edge1[0];
+        						}
+        					}
+    						// build triangles for type5:
+        					for (int dir4 = 0; dir4 < 4; dir4++) {
+        						int tri_index = tris[btiley][btilex][5][dir4]; // type5
+        						if (tri_index >= 0) {
+        							int [] edge =  getEdgeIndices(tneib_indices [8], dir4);
+        							int [] edge1 = getEdgeIndices(tneib_indices [(2 * dir4 + 7) % 8], (dir4 + 2) % 4);
+        							int indx_1 = tneib_indices[2 * dir4][0][0];
+        							tri_indices[tri_index][0] = edge [subdiv_m1];
+        							tri_indices[tri_index][1] = edge1[subdiv_m1];
+        							tri_indices[tri_index][2] = indx_1;
         						}
         					}
         				}
@@ -1876,6 +1906,7 @@ public class TriMesh {
 			  String          id,
 			  String          class_name,
 			  Rectangle       bounds,
+			  Rectangle       texture_bounds,     // if not null - allows trimmed combo textures
 			  // Below selected and disparity are bounds.width*bounds.height
 			  boolean []      selected,           // may be either tilesX * tilesY or bounds.width*bounds.height
 			  double []       disparity,          // if null, will use min_disparity
@@ -1900,7 +1931,7 @@ public class TriMesh {
 		  if (bounds == null) {
 			  return; // not used in lwir
 		  }
-		  
+		  boolean display_triangles = debug_level > 0;
 		  
 		  
 		  /*
@@ -1933,8 +1964,19 @@ public class TriMesh {
 				  indices,          // int [][][][] indices)
 				  subdivide_mesh);  // final int [] num_indices) {
 		  
-		  Rectangle tex_rect = full_texture ? new Rectangle(bounds.x, bounds.y, tilesX, tilesY) : null;
-
+		  Rectangle tex_rect = full_texture ? (
+				  (texture_bounds != null) ?
+						  new Rectangle( // when combo texture is trimmed (alpha should still be for the full image)
+								  bounds.x - texture_bounds.x,
+								  bounds.y - texture_bounds.y,
+								  texture_bounds.width,
+								  texture_bounds.height):
+							  new Rectangle( // when combo texture is full tilesX * tilesY
+									  bounds.x,
+									  bounds.y,
+									  tilesX,
+									  tilesY)) :
+								  null; // when texture is for cluster only
 		  /*
 		   * Get texture coordinates (0..1) for horizontal (positive - to the right) and vertical (positive - up)
 		   */
@@ -1954,23 +1996,13 @@ public class TriMesh {
 				  tile_size,          // final int                tile_size,
 				  correctDistortions, // requires backdrop image to be corrected also
 				  geometryCorrection);// final GeometryCorrection geometryCorrection)
-/*
-		  double [] indexedDisparity = getIndexedDisparities( // get disparity for each index // updated 09.18.2022
-				  disparity,
-				  min_disparity,
-				  max_disparity,
-				  bounds,
-				  pnum_indices[0], // final int          num_indices,
-				  indices,
-				  tilesX);
-*/				  
 		  /*
 		   * Triangulate all vertice indices - combine triangulation of same-size equailateral 45-degree
 		   * large (tile size) and small (tile subdivisions) and add connections between large and small ones 
 		   */
 		  int [][] triangles = 	triangulateAll(
 				  indices);
-		  
+		  System.out.println("generateClusterX3d(): got "+triangles.length+" triangles");
 		  final boolean     plot_center = true;
 		  final double      line_color =  1.0;
 		  final double      center_color = 3.0;
@@ -1983,18 +2015,23 @@ public class TriMesh {
 					  plot_center,   // final boolean     plot_center,
 					  line_color,    // final double      line_color,
 					  center_color); // final double      center_color)
+			  if (display_triangles) {
+				  ShowDoubleFloatArrays.showArrays(
+						  tri_img,
+						  tri_img_width,
+						  tri_img.length / tri_img_width,
+						  "this-triangles");
+			  }
 		  }
 		  
-		  
-		  
 		  if (x3dOutput != null) {
-		  x3dOutput.addCluster(
-				  texturePath,
-				  id,
-				  class_name,
-				  texCoord,
-				  worldXYZ,
-				  triangles);
+			  x3dOutput.addCluster(
+					  texturePath,
+					  id,
+					  class_name,
+					  texCoord,
+					  worldXYZ,
+					  triangles);
 		  }
 		  if (wfOutput != null) {
 			  wfOutput.addCluster(

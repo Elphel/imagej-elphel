@@ -1969,7 +1969,7 @@ public class TexturedModel {
 				scenes,              // final QuadCLT []     scenes,
 				scenes_sel,          // final boolean []     scenes_sel, // null or which scenes to process
 				tileClusters,        // final TileCluster [] tileClusters, // disparities, borders, selections for texture passes
-				renormalize,         // final boolean        renormalize,  // false - use normalizations from previous scenes to keep consistent colors
+				renormalize,         // final boolean        re-normalize,  // false - use normalizations from previous scenes to keep consistent colors
 				max_disparity_lim,   // final double         max_disparity_lim,   //  100.0;  // do not allow stray disparities above this
 				min_trim_disparity,  // final double         min_trim_disparity,  //  2.0;  // do not try to trim texture outlines with lower disparities
 				debugLevel);         // final int            debug_level)
@@ -2080,11 +2080,6 @@ public class TexturedModel {
 			dbg_mesh_imgs = new double[tileClusters.length][dbg_scaled_width * dbg_scaled_height];
 			// maybe fill with NaN?
 		}
-//		double [][] dbg
-	/*
-							tp.getTilesX(), // int             tilesX,
-							tp.getTilesY(), // int             tilesY,
-	 */
 		for (int nslice = 0; nslice < tileClusters.length; nslice++){
 			if (dbg_tri_disp != null) {
 				Arrays.fill(dbg_tri_disp[nslice], Double.NaN);
@@ -2094,28 +2089,34 @@ public class TexturedModel {
 					((dbg_tri_disp != null)? (new double[][] {dbg_tri_disp[nslice], dbg_tri_tri[nslice]}):
 						(new double[][] {dbg_tri_tri[nslice]})	): null; 
 			
-			if (debugLevel > -1){
+			if (debugLevel > -2){
 				System.out.println("Generating cluster images from texture slice "+nslice);
 			}
 			int [] indices = tileClusters[nslice].getSubIndices();
-			Rectangle [] bounds = tileClusters[nslice].getSubBounds();
+			Rectangle [] bounds = tileClusters[nslice].getSubBounds(); // tiles?
+			Rectangle    texture_bounds = null;  // if not null - allows trimmed combo textures tiles?
 			int dbg_tri_indx = 3; // showing triangles for cluster 3 
 			for (int sub_i = 0; sub_i < indices.length; sub_i++) {
 				Rectangle roi = bounds[sub_i];
 				int cluster_index = indices[sub_i];
 				ImagePlus imp_texture_cluster = combined_textures[nslice];				
 				boolean [] alpha = (combined_alphas != null) ? combined_alphas[nslice] : null;
-				if (imp_textures != null) {
+				if (imp_textures != null) { // wrong? roi is in tiles or pixels?
+					//transform_size
 					imp_texture_cluster = imp_textures[cluster_index];
 					if (combined_alphas != null) {
-						alpha = new boolean[roi.height * roi.width];
-						for (int row = 0; row < roi.height; row++) {
+						int alpha_width =  roi.width *  transform_size;
+						int alpha_height = roi.height * transform_size;
+						int alpha_x0 =     roi.x * transform_size;
+						int alpha_y0 =     roi.y * transform_size;
+						alpha = new boolean[alpha_width * alpha_height];
+						for (int row = 0; row < alpha_height; row++) {
 							System.arraycopy(
 									combined_alphas[nslice],
-									(roi.y + row) * width + roi.x,
+									(alpha_y0 + row) * width + alpha_x0,
 									alpha,
-									row * roi.width,
-									roi.width);
+									row * alpha_width,
+									alpha_width);
 						}
 					}
 				}
@@ -2170,6 +2171,7 @@ public class TexturedModel {
 								"shape_id-"+cluster_index, // id
 								null,                   // class
 								roi,                    // scan.getTextureBounds(),
+								texture_bounds,         // Rectangle       texture_bounds,     // if not null - allows trimmed combo textures
 								scan_selected,          // scan.getSelected(),
 								scan_disparity,         // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 								clt_parameters.transform_size,
@@ -2198,6 +2200,16 @@ public class TexturedModel {
 			}
 			// if (imp_textures[nslice] != null)
 		} // for (int nslice = 0; nslice < tileClusters.length; nslice++){
+		
+		if (dbg_mesh_imgs != null) {
+			ShowDoubleFloatArrays.showArrays(
+					dbg_mesh_imgs,
+					dbg_scaled_width,
+					dbg_scaled_height,
+					true,
+					ref_scene.getImageName()+"-tri-meshes");
+		}
+		
 		if (dbg_tri_disp != null) {
 			ShowDoubleFloatArrays.showArrays(
 					dbg_tri_disp,
