@@ -209,7 +209,7 @@ public class TriMesh {
 	 * and alpha arrays may correspond to either full image or rectangular bounds, output
 	 * array always corresponds to bounds.
 	 * 
-	 * @param bounds         Rectangle roi for output and optionally input data
+	 * @param bounds         Rectangle ROI for output and optionally input data
 	 * @param selected_tiles selected tiles, all unselected are ignored
 	 * @param tilesX         full image width in tiles
 	 * @param tile_size      tile size (8)
@@ -225,6 +225,7 @@ public class TriMesh {
 	 *                       -1 for empty subtile.  
 	 */
 	
+
 	public static int [][][][] getCoordIndices( // starting with 0, -1 - not selected
 			final Rectangle  bounds,
 			final boolean [] selected_tiles,
@@ -237,22 +238,19 @@ public class TriMesh {
 		//TODO: add optimization (merging some in-tile triangles)
 		final boolean full_selection = selected_tiles.length > (bounds.height * bounds.width); // applies to selected_tiles 
 		final boolean full_alpha = alpha.length > (bounds.height * bounds.width * tile_size * tile_size);
-		final int [][][][] indices = new int [bounds.height][bounds.width][][];
 		final Thread[] threads = ImageDtt.newThreadArray(TexturedModel.THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final int source_tile_width =  full_selection? tilesX : bounds.width;
-//		final int source_pix_width =   source_tile_width * tile_size;
 		final int source_tile_offsx =  full_selection? bounds.x : 0;
 		final int source_tile_offsy =  full_selection? bounds.y : 0;
-//		final int source_pix_offsx = source_tile_offsx * tile_size;
-//		final int source_pix_offsy = source_tile_offsy * tile_size;
 		final int source_pix_offsx = (full_alpha? bounds.x : 0) * tile_size;
 		final int source_pix_offsy = (full_alpha? bounds.y : 0) * tile_size;
 		final int source_pix_width = (full_alpha? tilesX : bounds.width) * tile_size;
+		final boolean [][][][] nodes = new boolean [bounds.height][bounds.width][][]; // selected nodes to be enumerated
+		final boolean [][] emty_alpha = new boolean [bounds.height][bounds.width]; // selected tile with no opaque subtiles
 		
 		final int btiles = bounds.width * bounds.height;
 		
-		final AtomicInteger aindx = new AtomicInteger(0);
 		ai.set(0);
         for (int ithread = 0; ithread < threads.length; ithread++) {
             threads[ithread] = new Thread() {
@@ -277,9 +275,11 @@ public class TriMesh {
 							}
 							if (some_sel) {
 								if (all_sel) {
-									indices[btiley][btilex] = new int [][] {{aindx.getAndIncrement()}}; // single center index
+//									indices[btiley][btilex] = new int [][] {{aindx.getAndIncrement()}}; // single center index
+									nodes[btiley][btilex] = new boolean [][] {{true}}; // single center index
 								} else {
-									indices[btiley][btilex] = new int [subdiv][subdiv];
+//									indices[btiley][btilex] = new int [subdiv][subdiv];
+									nodes[btiley][btilex] = new boolean [subdiv][subdiv];
 									for (int ny = 0; ny < subdiv; ny++) {
 										int y0 = (ny * tile_size)/subdiv;
 										int y1 = Math.min(((ny+1) * tile_size)/subdiv, tile_size);
@@ -296,12 +296,78 @@ public class TriMesh {
 														}
 													}
 												}
+											nodes[btiley][btilex][ny][nx] = has_any;
+											/*
 											if (has_any) {
 												indices[btiley][btilex][ny][nx] = aindx.getAndIncrement();
 											} else {
 												indices[btiley][btilex][ny][nx] = -1;
 											}
+											*/
 										}										
+									}
+								}
+							} else {
+								emty_alpha[btiley][btilex] = true;
+							}
+						}
+					}
+                }
+            };
+        }		      
+        ImageDtt.startAndJoin(threads);
+        // split neighbors of emty_alpha. Direction in outer cycle to prevent thread conflicts
+        for (int dir = 0; dir < TileNeibs.DIR_S; dir++) {
+        	final int fdir = dir;
+    		ai.set(0);
+            for (int ithread = 0; ithread < threads.length; ithread++) {
+                threads[ithread] = new Thread() {
+                    public void run() {
+    					for (int btile = ai.getAndIncrement(); btile < btiles; btile = ai.getAndIncrement()) {
+    						int btilex = btile % bounds.width;
+    						int btiley = btile / bounds.width;
+    						if (emty_alpha[btiley][btilex]) { // empty_alpha a rare, this is why WE iterate over them 
+    							int btilex1 = btilex +  TileNeibs.DIR_XY[fdir][0];
+    							int btiley1 = btiley +  TileNeibs.DIR_XY[fdir][1];
+    							if ((btilex1 >= 0) && (btiley1 >= 0) &&
+    									(btilex1 < bounds.width) && (btiley1 < bounds.height) &&
+    									(nodes[btiley1][btilex1] != null) && (nodes[btiley1][btilex1].length == 1)) {
+    								// split single-tile
+									nodes[btiley1][btilex1] = new boolean [subdiv][subdiv];
+									for (int ny = 0; ny < subdiv; ny++) {
+										Arrays.fill(nodes[btiley1][btilex1][ny], true);
+									}
+    							}
+    						}
+    					}
+                    }
+                };
+            }		      
+            ImageDtt.startAndJoin(threads);
+        }
+        
+        // Assign indices to selected tiles/subtiles
+		final AtomicInteger aindx = new AtomicInteger(0);
+		final int [][][][] indices = new int [bounds.height][bounds.width][][];
+		ai.set(0);
+        for (int ithread = 0; ithread < threads.length; ithread++) {
+            threads[ithread] = new Thread() {
+                public void run() {
+					for (int btile = ai.getAndIncrement(); btile < btiles; btile = ai.getAndIncrement()) {
+						int btilex = btile % bounds.width;
+						int btiley = btile / bounds.width;
+						if (nodes[btiley][btilex] != null) {
+							if (nodes[btiley][btilex].length == 1) {
+								indices[btiley][btilex] = new int [][] {{aindx.getAndIncrement()}}; // single center index
+							} else {
+								indices[btiley][btilex] = new int [subdiv][subdiv];
+								for (int ny = 0; ny < subdiv; ny++) {
+									for (int nx = 0; nx < subdiv; nx++) {
+										if (nodes[btiley][btilex][ny][nx]) {
+											indices[btiley][btilex][ny][nx] = aindx.getAndIncrement();
+										} else {
+											indices[btiley][btilex][ny][nx] = -1;
+										}
 									}
 								}
 							}
@@ -318,9 +384,63 @@ public class TriMesh {
 	}
 
 	/**
+	 * Mark border tiles that should not be connected by triangles. Tiles with border_int[] of (max_border)
+	 * should not be connected to (max_border+1). THey are marked with 1 and 2 (all others are 0). 
+	 * @param bounds      Rectangle ROI for output and optionally input data
+	 * @param indices     array of [height][width]{{index}} for large tiles and [height][width][py][px]
+	 *                    for small ones. This array will be modified and re-indexed if needed.
+	 * @param border_int  border values array (same dimensions as disparity and selected) -1 - unassigned,
+	 *                    0 - not a border, 1 inner border, 2 and 3 (for max_border==2) are both outer borders,
+	 *                    but they are for different "leaves" and should not be meshed 
+	 * @param max_border  maximal border_int value - now 2
+	 * @param tilesX      full image width in tiles
+	 * @param tile_size   tile size (8)
+	 * @return            2D array corresponding to top indices. Value 0 - nop, 1 and 2 should not be connected
+	 *                    by any triangle.
+	 */
+	public static int [][] getNoConnect( // 0 - neutral 1 - max_neib_lev, 2 - max_neib_lev+1
+			final Rectangle  bounds,
+			final int [][][][] indices,
+			final int []     border_int,
+			final int        max_border,
+			final int        tilesX,
+			final int        tile_size		
+			) {
+		final int bwidth=indices[0].length;
+		final int bheight=indices.length;
+		final boolean full_selection = border_int.length > (bounds.height * bounds.width); // applies to selected_tiles 
+		final Thread[] threads = ImageDtt.newThreadArray(TexturedModel.THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int source_tile_width =  full_selection? tilesX : bounds.width;
+		final int source_tile_offsx =  full_selection? bounds.x : 0;
+		final int source_tile_offsy =  full_selection? bounds.y : 0;
+		final int btiles = bounds.width * bounds.height;
+		final int [][] no_connect = new int [bheight][bwidth];
+        ai.set(0);
+        for (int ithread = 0; ithread < threads.length; ithread++) {
+        	threads[ithread] = new Thread() {
+        		public void run() {
+        			for (int btile = ai.getAndIncrement(); btile < btiles; btile = ai.getAndIncrement()) {
+        				int btilex = btile % bwidth;
+        				int btiley = btile / bwidth;
+        				if (indices[btiley][btilex] != null) {
+    						int stile = (btilex + source_tile_offsx) + (btiley + source_tile_offsy) * source_tile_width;
+    						if (border_int[stile] >= max_border) {
+    							no_connect[btiley][btilex] = border_int[stile] - max_border + 1;
+    						}
+        				}
+        			}                	
+        		}
+        	};
+        }		      
+        ImageDtt.startAndJoin(threads);
+		return no_connect;
+	}	
+	
+	/**
 	 * Convert "large" tiles to arrays of small ones if it has a small-tile neighbor with
 	 * gaps along the border with this one
-	 * @param indices -   array of [height][width]{{index}} for large tiles and [heigh][width][py][px]
+	 * @param indices -   array of [height][width]{{index}} for large tiles and [height][width][py][px]
 	 *                    for small ones. This array will be modified and re-indexed if needed.
 	 * @param subdiv      subdivide tiles. Best if is equal to 1,2,4 and 8 that results in
 	 *                    uniform tiles 
@@ -483,13 +603,56 @@ public class TriMesh {
 	}
 	
 	/**
+	 * Check if triangle vertices do not cross mesh split
+	 * @param no_connect per-tile 2D array [y][x] corresponding to indices, indicating tile border status:
+	 *                   0 - not a border,  1 and 2 - incompatible outer border tiles  
+	 * @param x0         x index of the first vertex
+	 * @param y0         y index of the first vertex
+	 * @param x1         x index of the second vertex
+	 * @param y1         y index of the second vertex
+	 * @param x2         x index of the third vertex
+	 * @param y2         y index of the third vertex
+	 * @return           true if such triangle is possible, false - if not
+	 */
+	public static boolean sameLeafTri(
+			int [][] no_connect,
+			int x0, int y0,
+			int x1, int y1,
+			int x2, int y2) {
+		return sameLeafTri (new int[] {no_connect[y0][x0], no_connect[y1][x1], no_connect[y2][x2]});
+	}
+	
+	public static boolean sameLeafTri(
+			int [][] no_connect,
+			int x0, int y0,
+			int x1, int y1) {
+		return sameLeafTri (new int[] {no_connect[y0][x0],no_connect[y1][x1]});
+	}
+	
+	public static boolean sameLeafTri(
+			int [] samples) {
+		for (int i = 0; i < samples.length; i ++) {
+			if (samples[i] != 0) {
+				for (int j = i+1; j < samples.length; j ++) {
+					if ((samples[j] != 0) && (samples[j] != samples[i])) {
+						return false;
+					}
+				}
+				return true;
+			}
+		}
+		return true;
+	}
+	
+	/**
 	 * Triangulate large and small equilateral 45-degree triangles 
 	 * @param indices - array of [height][width]{{index}} for large tiles and [heigh][width][py][px]
 	 *                  for small ones. This array will be modified and re-indexed if needed.
 	 * @return          int [][3] - array of triangles 3 vertex indices, clockwise                 
 	 */
 	public static int [][] triangulateSameSize(
-			int [][][][] indices)
+			int [][][][] indices,
+			int [][]     no_connect)
 	{
 		final int bwidth=indices[0].length;
 		final int bheight=indices.length;
@@ -529,18 +692,30 @@ public class TriMesh {
         					if ((x > 0) &&
         							(indices[y + 1][x - 1] !=null) && (indices[y + 1][x - 1].length == 1) &&
         							(indices[y + 1][x] != null) && (indices[y + 1][x].length == 1)){
-        						tris_en |= (1 << TRI_DOWN_LEFT);
+        						if (sameLeafTri(no_connect,
+        								x,y,
+        								x - 1, y + 1,
+        								x, y+1)) {
+        							tris_en |= (1 << TRI_DOWN_LEFT);
+        						}
         					}
         					if (x < (bwidth - 1)) {
-        						if ((indices[y + 1][x] != null) && (indices[y + 1][x].length == 1)){
+        						if ((indices[y + 1][x] != null) && (indices[y + 1][x].length == 1)
+        								&& sameLeafTri(no_connect, x, y, x, y + 1)){
         							if ((indices[y][x + 1] != null) && (indices[y][x + 1].length == 1)){
-                						tris_en |= (1 << TRI_RIGHT_DOWNLEFT);
+        								if (sameLeafTri(no_connect, x, y, x + 1, y, x, y + 1)) {
+        									tris_en |= (1 << TRI_RIGHT_DOWNLEFT);
+        								}
         							} else if ((indices[y + 1][x + 1] != null) && (indices[y + 1][x + 1].length ==1)){
-                						tris_en |= (1 << TRI_DOWNRIGHT_LEFT);
+        								if (sameLeafTri(no_connect, x, y, x + 1, y + 1, x, y + 1)) {
+        									tris_en |= (1 << TRI_DOWNRIGHT_LEFT);
+        								}
         							}
         						} else if ((indices[y][x + 1] != null) && (indices[y][x + 1].length == 1) &&
         								(indices[y + 1][x + 1] != null) && (indices[y + 1][x + 1].length ==1)) {
-            						tris_en |= (1 << TRI_RIGHT_DOWN);
+        							if (sameLeafTri(no_connect, x, y, x + 1, y, x + 1, y + 1)) {
+        								tris_en |= (1 << TRI_RIGHT_DOWN);
+        							}
         						}
         					}
         					if (tris_en != 0) {
@@ -609,19 +784,23 @@ public class TriMesh {
         for (int ithread = 0; ithread < threads.length; ithread++) {
         	threads[ithread] = new Thread() {
         		public void run() {
-        			boolean [] quad_corners = new boolean [TRI_NONE.length]; // 4 corners: top-left, top=right, bottom-right and borrom-left 
+        			boolean [] quad_corners =    new boolean [TRI_NONE.length]; // 4 corners: top-left, top=right, bottom-right and borrom-left
+        			int []     quad_no_connect = new int     [TRI_NONE.length]; // 4 corners: top-left, top=right, bottom-right and borrom-left
         			for (int btile = ai.getAndIncrement(); btile < btiles; btile = ai.getAndIncrement()) {
         				int btilex = btile % bwidth;
         				int btiley = btile / bwidth;
         				if ((indices[btiley][btilex] != null) && (indices[btiley][btilex].length > 1)){ // subdivided
         					int [][][] tneib_indices = new int [TileNeibs.DIR_XY.length + 1][][];
+        					int [] no_connect_local = new int [TileNeibs.DIR_XY.length + 1];
         					tneib_indices[8] = indices[btiley][btilex];
+        					no_connect_local[8] = no_connect[btiley][btilex];
         					for (int dir = 2; dir <7; dir++) { // not all directions needed
         						int btx = btilex + TileNeibs.DIR_XY[dir][0];
         						int bty = btiley + TileNeibs.DIR_XY[dir][1];
         						if ((btx >= 0) && (btx < bwidth) && (bty >= 0) && (bty < bheight) &&
         								(indices[bty][btx] != null) && (indices[bty][btx].length > 1)) {
-        							tneib_indices[dir] = indices[bty][btx];
+        							tneib_indices[dir] =    indices[bty][btx];
+                					no_connect_local[dir] = no_connect[bty][btx];
         						}
         					}
         					
@@ -642,7 +821,8 @@ public class TriMesh {
         							boolean exists = false;
         							if (tneib_indices[xyd[2]] != null) {
         								exists = tneib_indices[xyd[2]][xyd[1]][xyd[0]] >= 0; // is populated
-        								quad_corners[dir] = exists;
+        								quad_corners[dir] =    exists;
+        			        			quad_no_connect[dir] = no_connect_local[xyd[2]];
         							}
         							if (exists) {
         								num_corn ++;
@@ -651,10 +831,12 @@ public class TriMesh {
         							}
         						}
         						if (num_corn >= 3) { // all 3 corners exist
-        							if (tris[btiley][btilex][y][x] == null) {
-        								tris[btiley][btilex][y][x] = TRI_NONE.clone();
+        							if (sameLeafTri(new int [] {quad_no_connect[1], quad_no_connect[2], quad_no_connect[3]})){
+        								if (tris[btiley][btilex][y][x] == null) {
+        									tris[btiley][btilex][y][x] = TRI_NONE.clone();
+        								}
+        								tris[btiley][btilex][y][x][TRI_DOWN_LEFT] = atri.getAndIncrement();
         							}
-        							tris[btiley][btilex][y][x][TRI_DOWN_LEFT] = atri.getAndIncrement();
         						}
         					}
         					Arrays.fill(quad_corners, false);
@@ -667,6 +849,7 @@ public class TriMesh {
         							y =  i - subdiv;
         						}
         						quad_corners[0] = tneib_indices[8][y][x] >= 0; // this subtile
+			        			quad_no_connect[0] = no_connect_local[8];
         						if (quad_corners[0]) { // all following triangles assume that top-left corner exists 
         							int num_corn = 1;
         							for (int dir = 1; dir < 4; dir++) { //  skipping top-left corner
@@ -676,22 +859,41 @@ public class TriMesh {
         								boolean exists = false;
         								exists = (tneib_indices[xyd[2]] != null) && (tneib_indices[xyd[2]][xyd[1]][xyd[0]] >= 0); // is populated
         								quad_corners[dir] = exists;
+        			        			quad_no_connect[dir] = no_connect_local[xyd[2]];
         								if (exists) {
         									num_corn ++;
         								}
         							}
         							if (num_corn >= 3) {
+        								boolean was_null = false; // to remove after
+        								int ntri = 0;
         								if (tris[btiley][btilex][y][x] == null) {
         									tris[btiley][btilex][y][x] = TRI_NONE.clone();
+        									was_null = true;
         								}
         								if (quad_corners[3]) {
         									if (quad_corners[1]) {
-        										tris[btiley][btilex][y][x][TRI_RIGHT_DOWNLEFT] = atri.getAndIncrement();
+        	        							if (sameLeafTri(new int [] 
+        	        									{quad_no_connect[0], quad_no_connect[1], quad_no_connect[3]})){
+        	        								tris[btiley][btilex][y][x][TRI_RIGHT_DOWNLEFT] = atri.getAndIncrement();
+        	        								ntri++;
+        	        							}
         									} else {
-        										tris[btiley][btilex][y][x][TRI_DOWNRIGHT_LEFT] = atri.getAndIncrement();
+        										if (sameLeafTri(new int [] 
+        												{quad_no_connect[0], quad_no_connect[2], quad_no_connect[3]})){
+        											tris[btiley][btilex][y][x][TRI_DOWNRIGHT_LEFT] = atri.getAndIncrement();
+        											ntri++;
+        										}
         									}
         								} else {
-        									tris[btiley][btilex][y][x][TRI_RIGHT_DOWN] = atri.getAndIncrement();
+        									if (sameLeafTri(new int [] 
+        											{quad_no_connect[0], quad_no_connect[1], quad_no_connect[2]})){
+        										tris[btiley][btilex][y][x][TRI_RIGHT_DOWN] = atri.getAndIncrement();
+        										ntri++;
+        									}
+        								}
+        								if ((ntri == 0) && was_null) { // only remove if it was null before
+        									tris[btiley][btilex][y][x] = null;
         								}
         							}
         						}
@@ -777,7 +979,8 @@ public class TriMesh {
 	 * @return          int [][3] - array of triangles 3 vertex indices, clockwise                 
 	 */
 	public static int [][] connectLargeSmallTriangles(
-			int [][][][] indices)
+			int [][][][] indices,
+			int [][]     no_connect)
 	{
 		final int bwidth=indices[0].length;
 		final int bheight=indices.length;
@@ -799,6 +1002,10 @@ public class TriMesh {
 		// from the last 2 (90 degrees CCW from the first 1)
 		// type 5 (4 dirs, 1 triangle): 
 		// 1 in ortho, 2 CCW from it, 1 CCW from 1. Does not need mirror
+		// type 6 (4 dirs, 1 triangle): 
+		// 1 in ortho, 1 CCW from it, 0 CCW from 1.
+		// type 7 (4 dirs, 1 triangle) (mirror of 6) 
+		// 1 in ortho, 1 CW from it, 0 CW from 1.
 	
 		// First pass - reserving triangles indices
 		final Thread[] threads = ImageDtt.newThreadArray(TexturedModel.THREADS_MAX);
@@ -814,6 +1021,8 @@ public class TriMesh {
         				if ((indices[btiley][btilex] != null) && (indices[btiley][btilex].length >1)) { // only for subdivided
         					int [] tneib_types = new int [TileNeibs.DIR_XY.length + 1];
         					tneib_types[8] = 2;
+        					int [] no_connect_local = new int [TileNeibs.DIR_XY.length + 1];
+        					no_connect_local[8] =     no_connect[btiley][btilex];
         					int subdiv = indices[btiley][btilex].length;
         					boolean has_full_neib = false;
         					for (int dir = 0; dir < 8; dir++) { // not all directions needed
@@ -821,23 +1030,22 @@ public class TriMesh {
         						int bty = btiley + TileNeibs.DIR_XY[dir][1];
         						if ((btx >= 0) && (btx < bwidth) && (bty >= 0) && (bty < bheight) &&
         								(indices[bty][btx] != null)) {
-        							tneib_types[dir] = 0; 
-//        							if (indices[bty][btx] != null) {
-        							tneib_types[dir] = (indices[bty][btx].length > 1) ? 2 : 1; 
-//        							}
+        							tneib_types[dir] =      (indices[bty][btx].length > 1) ? 2 : 1;
+        			                no_connect_local[dir] = no_connect[bty][btx];
         							// all modes 0..4 require 2-1 in ortho direction
         							has_full_neib |= (tneib_types[dir] == 1) && ((dir & 1) == 0);
         						}
         					}
         					if (has_full_neib) {
-        						tris[btiley][btilex] = new int [6][4]; // [types][directions
+        						tris[btiley][btilex] = new int [8][4]; // [types][directions
         						for (int i = 0; i < tris[btiley][btilex].length; i++) {
         							Arrays.fill(tris[btiley][btilex][i], -1);
         						}
         						// reserve indices for type0:
         						for (int dir = 0; dir < 4; dir++) {
         							int tneib = tneib_types[2*dir];
-        							if (tneib  == 1) {
+        							if ((tneib == 1) && sameLeafTri(new int []
+        									{no_connect_local[8], no_connect_local[2*dir]})) {
         								tris[btiley][btilex][0][dir] = atri.getAndAdd(subdiv - 1);
         							}
         						}
@@ -846,7 +1054,11 @@ public class TriMesh {
         							int tneib = tneib_types[2*dir];         // pointed
         							int tneib1= tneib_types[(2*dir+7) % 8]; // CCW 1 from pointed
         							int tneib2= tneib_types[(2*dir+6) % 8]; // CCW 2 from pointed
-        							if ((tneib == 1) && (tneib1 != 2) && (tneib2 == 1)) {
+        							if ((tneib == 1) && (tneib1 != 2) && (tneib2 == 1) && 
+        									sameLeafTri(new int [] {
+        											no_connect_local[8],
+        											no_connect_local[2*dir],
+        											no_connect_local[(2*dir+6) % 8]})) {
         								tris[btiley][btilex][1][dir] = atri.getAndAdd(1);
         							}
         						}
@@ -855,7 +1067,11 @@ public class TriMesh {
         							int tneib = tneib_types[2*dir];         // pointed
         							int tneib1= tneib_types[(2*dir+7) % 8]; // CCW 1 from pointed
         							int tneib2= tneib_types[(2*dir+6) % 8]; // CCW 2 from pointed
-        							if ((tneib == 1) && (tneib1 == 2) && (tneib2 != 1)) {
+        							if ((tneib == 1) && (tneib1 == 2) && (tneib2 != 1) && 
+        									sameLeafTri(new int [] {
+        											no_connect_local[8],
+        											no_connect_local[2*dir],
+        											no_connect_local[(2*dir+7) % 8]})) {
         								tris[btiley][btilex][2][dir] = atri.getAndAdd(1);
         							}
         						}
@@ -864,16 +1080,27 @@ public class TriMesh {
         							int tneib = tneib_types[2*dir];         // pointed
         							int tneib1= tneib_types[(2*dir+1) % 8]; // CW 1 from pointed
         							int tneib2= tneib_types[(2*dir+2) % 8]; // CW 2 from pointed
-        							if ((tneib == 1) && (tneib1 == 2) && (tneib2 != 1)) {
+        							if ((tneib == 1) && (tneib1 == 2) && (tneib2 != 1) && 
+        									sameLeafTri(new int [] {
+        											no_connect_local[8],
+        											no_connect_local[2*dir],
+        											no_connect_local[(2*dir+1) % 8]})) {
         								tris[btiley][btilex][3][dir] = atri.getAndAdd(1);
         							}
         						}
         						// reserve indices for type4:
+        						// simplified for discontinuities/borders: turn on/off both triangles
+        						// at once.
         						for (int dir = 0; dir < 4; dir++) {
         							int tneib = tneib_types[2*dir];         // pointed
         							int tneib1= tneib_types[(2*dir+7) % 8]; // CCW 1 from pointed
         							int tneib2= tneib_types[(2*dir+6) % 8]; // CCW 2 from pointed
-        							if ((tneib == 1) && (tneib1 == 1) && (tneib2 == 2)) {
+        							if ((tneib == 1) && (tneib1 == 1) && (tneib2 == 2) && 
+        									sameLeafTri(new int [] {
+        											no_connect_local[8],
+        											no_connect_local[2*dir],
+        											no_connect_local[(2*dir+7) % 8],
+        											no_connect_local[(2*dir+6) % 8]})) {
         								tris[btiley][btilex][4][dir] = atri.getAndAdd(2);
         							}
         						}
@@ -882,10 +1109,41 @@ public class TriMesh {
         							int tneib = tneib_types[2*dir];         // pointed
         							int tneib1= tneib_types[(2*dir+7) % 8]; // CCW 1 from pointed
         							int tneib2= tneib_types[(2*dir+6) % 8]; // CCW 2 from pointed
-        							if ((tneib == 1) && (tneib1 == 2) && (tneib2 == 1)) {
+        							if ((tneib == 1) && (tneib1 == 2) && (tneib2 == 1) && 
+        									sameLeafTri(new int [] {
+        											no_connect_local[8],
+        											no_connect_local[2*dir],
+        											no_connect_local[(2*dir+7) % 8]})) {
         								tris[btiley][btilex][5][dir] = atri.getAndAdd(1);
         							}
         						}
+        						// reserve indices for type6:
+        						for (int dir = 0; dir < 4; dir++) {
+        							int tneib = tneib_types[2*dir];         // pointed
+        							int tneib1= tneib_types[(2*dir+7) % 8]; // CCW 1 from pointed
+        							int tneib2= tneib_types[(2*dir+6) % 8]; // CCW 2 from pointed
+        							if ((tneib == 1) && (tneib1 == 1) && (tneib2 == 0) && 
+        									sameLeafTri(new int [] {
+        											no_connect_local[8],
+        											no_connect_local[2*dir],
+        											no_connect_local[(2*dir+7) % 8]})) {
+        								tris[btiley][btilex][6][dir] = atri.getAndAdd(1);
+        							}
+        						}
+        						// reserve indices for type7: (mirror of 6)
+        						for (int dir = 0; dir < 4; dir++) {
+        							int tneib = tneib_types[2*dir];         // pointed
+        							int tneib1= tneib_types[(2*dir+1) % 8]; // CW 1 from pointed
+        							int tneib2= tneib_types[(2*dir+2) % 8]; // CW 2 from pointed
+        							if ((tneib == 1) && (tneib1 == 1) && (tneib2 == 0) && 
+        									sameLeafTri(new int [] {
+        											no_connect_local[8],
+        											no_connect_local[2*dir],
+        											no_connect_local[(2*dir+1) % 8]})) {
+        								tris[btiley][btilex][7][dir] = atri.getAndAdd(1);
+        							}
+        						}
+        						
         					}
         				}
         			}                	
@@ -997,6 +1255,30 @@ public class TriMesh {
         							tri_indices[tri_index][2] = indx_1;
         						}
         					}
+    						// build triangles for type6:
+        					for (int dir4 = 0; dir4 < 4; dir4++) {
+        						int tri_index = tris[btiley][btilex][6][dir4]; // type6
+        						if (tri_index >= 0) {
+        							int [] edge =  getEdgeIndices(tneib_indices [8], dir4);
+        							int indx_1 = tneib_indices[2 * dir4][0][0];
+        							int indx_2 = tneib_indices[(2 * dir4 + 7) % 8][0][0];
+        							tri_indices[tri_index][0] = indx_1;
+        							tri_indices[tri_index][1] = edge[subdiv_m1];
+        							tri_indices[tri_index][2] = indx_2;
+        						}
+        					}        					
+    						// build triangles for type7:
+        					for (int dir4 = 0; dir4 < 4; dir4++) {
+        						int tri_index = tris[btiley][btilex][7][dir4]; // type7
+        						if (tri_index >= 0) {
+        							int [] edge =  getEdgeIndices(tneib_indices [8], dir4);
+        							int indx_1 = tneib_indices[2 * dir4][0][0];
+        							int indx_2 = tneib_indices[(2 * dir4 + 1) % 8][0][0];
+        							tri_indices[tri_index][0] = indx_2;
+        							tri_indices[tri_index][1] = edge[0];
+        							tri_indices[tri_index][2] = indx_1;
+        						}
+        					}        					
         				}
         			}                	
         		}
@@ -1014,10 +1296,11 @@ public class TriMesh {
 	   * @return          int [][3] - array of triangles 3 vertex indices, clockwise                 
 	   */
 	  public static int [][] triangulateAll(
-			  int [][][][] indices)
+			  int [][][][] indices,
+			  int [][]     no_connect)
 	  {
-		  int [][] tri_same =  triangulateSameSize(indices);
-		  int [][] tri_inter = connectLargeSmallTriangles(indices);
+		  int [][] tri_same =  triangulateSameSize        (indices, no_connect);
+		  int [][] tri_inter = connectLargeSmallTriangles (indices, no_connect);
 		  int [][] triangles = new int [tri_same.length + tri_inter.length][];
 		  System.arraycopy(tri_same,  0, triangles, 0,               tri_same.length);
 		  System.arraycopy(tri_inter, 0, triangles, tri_same.length, tri_inter.length);
@@ -1910,6 +2193,8 @@ public class TriMesh {
 			  // Below selected and disparity are bounds.width*bounds.height
 			  boolean []      selected,           // may be either tilesX * tilesY or bounds.width*bounds.height
 			  double []       disparity,          // if null, will use min_disparity
+			  int     []      border_int,
+			  int             max_border,
 			  int             tile_size,
 			  int             tilesX,
 			  int             tilesY,
@@ -1927,11 +2212,29 @@ public class TriMesh {
 			  int             debug_level
 			  ) throws IOException
 	  {
-		  boolean         show_triangles = tri_img != null; 
+//		  boolean         show_triangles = tri_img != null; 
 		  if (bounds == null) {
 			  return; // not used in lwir
 		  }
 		  boolean display_triangles = debug_level > 0;
+		  boolean display_src = debug_level > 1;
+		  
+		  if (display_src) {
+			  double [][] dbg_img = new double [3][selected.length];
+			  for (int i = 0; i < dbg_img[0].length; i++) {
+				  dbg_img[0][i] = disparity[i];
+				  dbg_img[1][i] = selected[i]? 20.0 : 0.0;
+				  dbg_img[2][i] = border_int[i] * 10;
+			  }
+				ShowDoubleFloatArrays.showArrays(
+						dbg_img,
+						bounds.width,
+						bounds.height,
+						true,
+						"src_for_triangles",
+						new String[] {"disparity", "selected","borders"});
+		  }
+		  
 		  
 		  
 		  /*
@@ -1956,6 +2259,13 @@ public class TriMesh {
 				  alpha,          // final boolean [] alpha,
 				  subdivide_mesh, // final int        subdiv,
 				  pnum_indices);  // final int []     num_indices
+		  int [][] no_connect = getNoConnect( // 0 - neutral 1 - max_neib_lev, 2 - max_neib_lev+1
+				  bounds,         // final Rectangle  bounds,
+				  indices,        // final int [][][][] indices,
+				  border_int,     // final int []     border_int,
+				  max_border,     // final int        max_border,
+				  tilesX,         // final int        tilesX,
+				  tile_size);     // final int        tile_size,		
 		  /*
 		   * Convert "large" tiles to arrays of small ones if it has a small-tile neighbor with
 		   * gaps along the border with this one
@@ -2001,7 +2311,9 @@ public class TriMesh {
 		   * large (tile size) and small (tile subdivisions) and add connections between large and small ones 
 		   */
 		  int [][] triangles = 	triangulateAll(
-				  indices);
+				  indices,           // int [][][][] indices,
+				  no_connect);       // int [][]     no_connect)
+
 		  System.out.println("generateClusterX3d(): got "+triangles.length+" triangles");
 		  final boolean     plot_center = true;
 		  final double      line_color =  1.0;

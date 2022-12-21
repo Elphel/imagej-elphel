@@ -1261,9 +1261,11 @@ public class TexturedModel {
 		for (ArrayList<Integer> part_loc: loc_multi) {
 			loc_list.addAll(part_loc);
 		}
+		boolean [] discontinued = new boolean [neib_lev.length];
 		// Temporarily mark loc_list with max_neib_lev+1 to remove them from averaging
 		for (int tile:loc_list) {
 			neib_lev[tile] = max_neib_lev+1;
+			discontinued[tile] = true;
 		}
 		
 		// there may be some orphans left neib_lev >0 that do not have neighbors with neib_lev one less
@@ -1372,9 +1374,24 @@ public class TexturedModel {
 			System.out.println("buildTileCluster() BUG - no tiles removed from disparity_layers[]");
 		}
 		
+// Marking	discontinued max_neib_lev with max_neib_lev+1 for building meshes they should not be connected to max_neib_lev	
+// Maybe there is a more elegant way to do this.		
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (discontinued[tile]){
+						neib_lev[tile] = max_neib_lev+1;
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		
+		
 		if (debugLevel > 0) {
 			String [] dbg_titles = {"Source","Intermediate","Final", "neib_lev0", "neib_lev1", "neib_lev2",
-					"seams", "seams_layers_0", "seams_layers_1", "disparity_layers_0", "disparity_layers_0"};
+					"seams", "seams_layers_0", "seams_layers_1", "disparity_layers_0", "disparity_layers_1"};
 			double [][] dbg_neib_lev = new double [6][tiles];
 			
 			for (int i = 0; i < tiles; i++) {
@@ -1410,6 +1427,8 @@ public class TexturedModel {
 					"source_final_disparity-"+String.format("%02d", cluster_list.size()-1),
 					dbg_titles);
 		}		
+		
+		
 		
 		
 		// Split result into connected clusters
@@ -2129,6 +2148,9 @@ public class TexturedModel {
 				String texturePath = imp_texture_cluster.getTitle()+".png";
 				double [] scan_disparity = tileClusters[nslice].getSubDisparity(sub_i); // limited to cluster bounds
 				boolean [] scan_selected = tileClusters[nslice].getSubSelected(sub_i); // limited to cluster bounds
+				int [] scan_border_int =   tileClusters[nslice].getSubBorderInt(sub_i); // limited to cluster bounds
+				int    max_border =        tileClusters[nslice].getBorderIntMax();
+
 				// skipping averaging disparity for a whole cluster (needs strength and does not seem to be useful)
 				try {
 					if (alpha == null) {
@@ -2174,6 +2196,8 @@ public class TexturedModel {
 								texture_bounds,         // Rectangle       texture_bounds,     // if not null - allows trimmed combo textures
 								scan_selected,          // scan.getSelected(),
 								scan_disparity,         // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+								scan_border_int,        //   int     []      border_int,
+								max_border, // int             max_border,
 								clt_parameters.transform_size,
 								tp.getTilesX(),         // int             tilesX,
 								tp.getTilesY(),         // int             tilesY,
