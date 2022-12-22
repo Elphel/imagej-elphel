@@ -297,13 +297,6 @@ public class TriMesh {
 													}
 												}
 											nodes[btiley][btilex][ny][nx] = has_any;
-											/*
-											if (has_any) {
-												indices[btiley][btilex][ny][nx] = aindx.getAndIncrement();
-											} else {
-												indices[btiley][btilex][ny][nx] = -1;
-											}
-											*/
 										}										
 									}
 								}
@@ -1581,6 +1574,107 @@ public class TriMesh {
         ImageDtt.startAndJoin(threads);
 	}
 
+	final static double [][] plotForMesh(
+			final boolean    full_selection, // false
+			final boolean    full_alpha,     // true
+			final Rectangle  bounds,
+			final int        out_width,
+			final int        tilesX,
+			final int        tilesY,
+			final int        tile_size,		
+			final int        subdiv,
+			final double []  disparity,
+			final boolean [] selection,
+			final int []     border_int,
+			final boolean [] alpha,
+			final double []  dalpha){
+		// scale pixels to match mesh triangles
+		final double scale_disparity = 0.05;
+		final double scale_selection = 1.0;
+		final double scale_border =    0.3;
+		final double scale_alpha =     1.0;
+		final double scale_dalpha =    1.0;
+		final int out_height = out_width * tilesY / tilesX;
+		final int out_scale = out_width / (tilesX * tile_size);
+		final int out_tile = out_scale * tile_size; 
+		final double [][] rslt_img = new double [5][];
+		if (disparity != null)  rslt_img[0] = new double [out_height * out_width];
+		if (selection != null)  rslt_img[1] = new double [out_height * out_width];
+		if (border_int != null) rslt_img[2] = new double [out_height * out_width];
+		if (alpha != null)      rslt_img[3] = new double [out_height * out_width];
+		if (dalpha != null)     rslt_img[4] = new double [out_height * out_width];
+		final int source_tile_width =  full_selection? tilesX : bounds.width;
+		final int source_tile_offsx =  full_selection? bounds.x : 0;
+		final int source_tile_offsy =  full_selection? bounds.y : 0;
+		final int source_pix_offsx = (full_alpha? bounds.x : 0) * tile_size;
+		final int source_pix_offsy = (full_alpha? bounds.y : 0) * tile_size;
+		final int source_pix_width = (full_alpha? tilesX : bounds.width) * tile_size;
+		final int btiles = bounds.width * bounds.height;
+		final Thread[] threads = ImageDtt.newThreadArray(TexturedModel.THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		// mark disparity, selection, borders
+        for (int ithread = 0; ithread < threads.length; ithread++) {
+            threads[ithread] = new Thread() {
+                public void run() {
+					for (int btile = ai.getAndIncrement(); btile < btiles; btile = ai.getAndIncrement()) {
+						int btilex = btile % bounds.width;
+						int btiley = btile / bounds.width;
+						int stile = (btilex + source_tile_offsx) + (btiley + source_tile_offsy) * source_tile_width;
+						int ftilex = bounds.x + btilex; // relative to full tile frame tilesX*tilesY
+						int ftiley = bounds.y + btiley;
+						// mark disparity, selection, borders
+						// out_scale * tile_size
+						int out_indx0 = (ftilex * out_tile) + (ftiley * out_tile) * out_width;
+						double d_disp = (disparity != null) ?                      scale_disparity * disparity[stile] : Double.NaN;
+						double d_sel =  ((selection != null) && selection[stile])? scale_selection : Double.NaN;
+						double d_bord = ((border_int != null) && (border_int[stile] >= 0))? scale_border * border_int[stile] : Double.NaN;
+						for (int oy = 0; oy < out_tile; oy++) {
+							int out_indx1 = out_indx0 + oy*out_width;
+							if (disparity != null)  Arrays.fill(rslt_img[0], out_indx1, out_indx1 + out_tile, d_disp);
+							if (selection != null)  Arrays.fill(rslt_img[1], out_indx1, out_indx1 + out_tile, d_sel);
+							if (border_int != null) Arrays.fill(rslt_img[2], out_indx1, out_indx1 + out_tile, d_bord);
+						}						
+						// index for alpha - top left of as tile
+						if (alpha != null) {
+							int aindx0 = (source_pix_offsx + btilex * tile_size) + (source_pix_offsy + btiley * tile_size) * source_pix_width;
+							for (int ay = 0; ay < tile_size; ay++) {
+								int aindx1 = aindx0 + ay*source_pix_width;
+								int out_indx1 = out_indx0 + ay * out_scale * out_width;
+								for (int ax = 0; ax < tile_size; ax++) {
+									int aindx = aindx1 + ax;
+									int out_indx2 = out_indx1 + ax * out_scale;
+									double d_alpha = alpha[aindx]? scale_alpha : 0.0;
+									for (int row = 0; row < out_scale; row++) {
+										int out_indx = out_indx2 + row * out_width;
+										Arrays.fill(rslt_img[3], out_indx, out_indx + out_scale, d_alpha);
+									}
+								}
+							}
+						}
+						// index for dalpha - top left of as tile
+						if (dalpha != null) {
+							int aindx0 = (source_pix_offsx + btilex * tile_size) + (source_pix_offsy + btiley * tile_size) * source_pix_width;
+							for (int ay = 0; ay < tile_size; ay++) {
+								int aindx1 = aindx0 + ay*source_pix_width;
+								int out_indx1 = out_indx0 + ay * out_scale * out_width;
+								for (int ax = 0; ax < tile_size; ax++) {
+									int aindx = aindx1 + ax;
+									int out_indx2 = out_indx1 + ax * out_scale;
+									double d_alpha = dalpha[aindx] * scale_dalpha;
+									for (int row = 0; row < out_scale; row++) {
+										int out_indx = out_indx2 + row * out_width;
+										Arrays.fill(rslt_img[4], out_indx, out_indx + out_scale, d_alpha);
+									}
+								}
+							}
+						}
+					}
+                }
+            };
+        }		      
+        ImageDtt.startAndJoin(threads);
+		return rslt_img;
+	}
 	
 	
 	
@@ -2182,6 +2276,7 @@ public class TriMesh {
 			  int             subdivide_mesh,     // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
 			  boolean []      alpha,              // boolean alpha - true - opaque, false - transparent. Full/bounds
 			                                      // matching selection
+			  double []       dalpha,             // before boolean
 			  X3dOutput       x3dOutput,          // output x3d if not null
 			  WavefrontExport wfOutput,           // output WSavefront if not null
 			  ArrayList<TriMesh> tri_meshes,
@@ -2218,6 +2313,9 @@ public class TriMesh {
 		  }
 		  boolean display_triangles = debug_level > 0;
 		  boolean display_src = debug_level > 1;
+		  boolean display_for_mesh = debug_level > 1;
+		  
+		  
 		  
 		  if (display_src) {
 			  double [][] dbg_img = new double [3][selected.length];
@@ -2235,7 +2333,36 @@ public class TriMesh {
 						new String[] {"disparity", "selected","borders"});
 		  }
 		  
-		  
+		  double [][] d_for_mesh = null;
+		  if (display_for_mesh) {
+				final boolean full_selection = selected.length > (bounds.height * bounds.width); // applies to selected_tiles 
+				final boolean full_alpha = alpha.length > (bounds.height * bounds.width * tile_size * tile_size);
+
+			  d_for_mesh =plotForMesh(
+					  full_selection, // final boolean    full_selection, // false
+					  full_alpha,     // final boolean    full_alpha,     // true
+					  bounds,         // final Rectangle  bounds,
+					  tri_img_width,  // final int        out_width,
+					  tilesX,         // final int        tilesX,
+					  tilesY,         // final int        tilesY,
+					  tile_size,      // final int        tile_size,		
+					  subdivide_mesh, // final int        subdiv,
+					  disparity,      // final double []  disparity,
+					  selected,       // final boolean [] selection,
+					  border_int,     // final int []     border_int,
+					  alpha,          // final boolean [] alpha)
+					  dalpha);        // final double []  dalpha){
+
+			  if (display_src) {
+					ShowDoubleFloatArrays.showArrays(
+							d_for_mesh,
+							tri_img_width,
+							d_for_mesh[0].length / tri_img_width,
+							true,
+							"fullsize_src_for_triangles",
+							new String[] {"disparity", "selected","borders","alpha", "dalpha"});
+			  }
+		  }
 		  
 		  /*
 		  int [][] indices =  getCoordIndices( // starting with 0, -1 - not selected // updated 09.18.2022
@@ -2328,11 +2455,22 @@ public class TriMesh {
 					  line_color,    // final double      line_color,
 					  center_color); // final double      center_color)
 			  if (display_triangles) {
-				  ShowDoubleFloatArrays.showArrays(
-						  tri_img,
-						  tri_img_width,
-						  tri_img.length / tri_img_width,
-						  "this-triangles");
+				  if (d_for_mesh != null) {
+					  ShowDoubleFloatArrays.showArrays(
+							  new double[][] {d_for_mesh[0], d_for_mesh[1], d_for_mesh[2], d_for_mesh[3], d_for_mesh[4], tri_img},
+							  tri_img_width,
+							  tri_img.length / tri_img_width,
+							  true,
+							  "full-src-triangles",
+							  new String[] {"disparity", "selected", "borders", "alpha", "dalpha", "mesh"});
+
+				  } else {
+					  ShowDoubleFloatArrays.showArrays(
+							  tri_img,
+							  tri_img_width,
+							  tri_img.length / tri_img_width,
+							  "this-triangles");
+				  }
 			  }
 		  }
 		  

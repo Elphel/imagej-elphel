@@ -2020,7 +2020,7 @@ public class TexturedModel {
 		}
 		double      alpha_threshold = 0.5;
 		boolean [][] combined_alphas = null;
-		if (subdiv_tiles > 0) {
+		if (subdiv_tiles > 0) { // Use subdiv_tiles==1 to keep alpha
 			combined_alphas = new boolean [faded_textures.length][faded_textures[0][0].length];
 			for (int i = 0; i < faded_textures.length; i++) { // TODO: accelerate with multi
 				for (int j = 0; j < faded_textures[i][1].length; j++) {
@@ -2086,16 +2086,16 @@ public class TexturedModel {
 			}
 		}
 		num_clusters++; // was cluster with largest index, became number of clusters
-		
-		
 		final double [][] dbg_tri_disp = debug_disp_tri? (new double [tileClusters.length][width*height]): null;
 		final double [][] dbg_tri_tri =  debug_disp_tri? (new double [tileClusters.length][width*height]): null;
 		boolean showTri = !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles);
 		int dbg_scale_mesh = 4; // <=0 - do not show
 		int dbg_scaled_width =  tp.getTilesX() * transform_size * dbg_scale_mesh; 
 		int dbg_scaled_height = tp.getTilesY() * transform_size * dbg_scale_mesh;
+		boolean debug_alpha = false;
 		double [][] dbg_mesh_imgs = null;
 		if (dbg_scale_mesh > 0) {
+			debug_alpha =   true;
 			dbg_mesh_imgs = new double[tileClusters.length][dbg_scaled_width * dbg_scaled_height];
 			// maybe fill with NaN?
 		}
@@ -2120,6 +2120,7 @@ public class TexturedModel {
 				int cluster_index = indices[sub_i];
 				ImagePlus imp_texture_cluster = combined_textures[nslice];				
 				boolean [] alpha = (combined_alphas != null) ? combined_alphas[nslice] : null;
+				double [] dbg_alpha = debug_alpha? faded_textures[nslice][1] : null;
 				if (imp_textures != null) { // wrong? roi is in tiles or pixels?
 					//transform_size
 					imp_texture_cluster = imp_textures[cluster_index];
@@ -2137,6 +2138,18 @@ public class TexturedModel {
 									row * alpha_width,
 									alpha_width);
 						}
+						if (dbg_alpha != null) {
+							dbg_alpha = new double[alpha_width * alpha_height];
+							for (int row = 0; row < alpha_height; row++) {
+								System.arraycopy(
+										faded_textures[nslice][1],
+										(alpha_y0 + row) * width + alpha_x0,
+										dbg_alpha,
+										row * alpha_width,
+										alpha_width);
+							}
+						}
+
 					}
 				}
 				if (imp_texture_cluster == null) {
@@ -2183,9 +2196,10 @@ public class TexturedModel {
 							debugLevel + 1); //   int             debug_level) > 0
 					} else {
 						TriMesh.generateClusterX3d( // new version with small triangles for alpha also generates wavefront obj
-								(imp_textures == null), //   boolean         full_texture, // true - full size image, false - bounds only
-								subdiv_tiles,           //   int             subdivide_mesh, // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
-								alpha,                  //   boolean []      alpha,     // boolean alpha - true - opaque, false - transparent. Full/bounds
+								(imp_textures == null), // boolean         full_texture, // true - full size image, false - bounds only
+								subdiv_tiles,           // int             subdivide_mesh, // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
+								alpha,                  // boolean []      alpha,     // boolean alpha - true - opaque, false - transparent. Full/bounds
+								dbg_alpha,              // double []       dalpha,             // before boolean
 								x3dOutput,
 								wfOutput,               // output WSavefront if not null
 								tri_meshes,             // ArrayList<TriMesh> tri_meshes,
