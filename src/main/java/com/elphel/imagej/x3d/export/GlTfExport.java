@@ -31,6 +31,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -87,11 +88,12 @@ public class GlTfExport {
 
 	
 	public static void glTFExport(
-			String x3d_dir,
-			String model_name,
+			String             x3d_dir,
+			String             model_name,
 			ArrayList<TriMesh> tri_meshes,
-			boolean gltf_emissive,
-			int debugLevel
+			boolean            gltf_emissive,
+			boolean            use_alpha_blend,
+			int                debugLevel
 			) throws IOException, JSONException {
 		boolean invert_faces = true; // false; //  true; // false; // true;
 		boolean [] inv_xyz = {false,false,false};
@@ -172,7 +174,6 @@ public class GlTfExport {
 					} else if (triangles[i][j] > minmax_indx[nmesh][1]) {
 						minmax_indx[nmesh][1] = triangles[i][j];
 					}
-
 				}
 			}
 		}
@@ -241,7 +242,8 @@ public class GlTfExport {
 		String [] short_names = new String[total_meshes];
 		for (int nmesh = 0; nmesh < total_meshes; nmesh++) {
 			String tex_uri = tri_meshes.get(nmesh).getImage();
-			short_names[nmesh] = tex_uri.substring(tex_uri.indexOf("-")+1,tex_uri.lastIndexOf("-"));
+//			short_names[nmesh] = tex_uri.substring(tex_uri.indexOf("-")+1,tex_uri.lastIndexOf("-"));
+			short_names[nmesh] = tex_uri.substring(tex_uri.indexOf("-")+1,tex_uri.lastIndexOf("-"))+"-"+String.format("%03d", nmesh);
 		}		
 		
 		JSONObject gltf_json =  new JSONObject();
@@ -269,28 +271,42 @@ public class GlTfExport {
 		gltf_scene0.put("name",  model_name);
 		gltf_scene0.put("nodes", gltf_scene0_nodes);
 		
-		// Crete scenes
+		// Create scenes
 		JSONArray gltf_scenes = new JSONArray();
 		gltf_scenes.put(gltf_scene0);
 		gltf_json.put("scenes", gltf_scenes);
 		
 		// Create images
-		JSONArray gltf_images = new JSONArray();
+		HashMap<String,Integer> map_texture_url = new HashMap<String,Integer>();
+		int [] image_index =      new int [total_meshes];   // nmesh first mentioning the url
+		boolean [] is_first_ref = new boolean[total_meshes]; // this nmesh is the first to mention		
+		JSONArray gltf_images =   new JSONArray();
 		for (int nmesh = 0; nmesh < total_meshes; nmesh++) {
 			JSONObject gltf_image =  new JSONObject();
-			gltf_image.put("uri", tri_meshes.get(nmesh).getImage());
-			gltf_images.put(gltf_image);
+			String uri = tri_meshes.get(nmesh).getImage();
+			int sz = map_texture_url.size();
+			Integer fm = map_texture_url.putIfAbsent(uri,sz);
+			if (fm == null) { // did not yet exist
+				gltf_image.put("uri", uri);
+				gltf_images.put(gltf_image);
+				image_index[nmesh] = sz;
+				is_first_ref[nmesh] = true;
+			} else {
+				image_index[nmesh] = fm;
+			}
 		}
 		gltf_json.put("images", gltf_images);
 		
 		// Create textures
 		JSONArray gltf_textures = new JSONArray();
 		for (int nmesh = 0; nmesh < total_meshes; nmesh++) {
-			JSONObject gltf_texture =  new JSONObject();
-			gltf_texture.put("sampler", 0);
-			gltf_texture.put("source", nmesh);
-			gltf_texture.put("name", short_names[nmesh]+"-tex");
-			gltf_textures.put(gltf_texture);
+			if (is_first_ref[nmesh]) {
+				JSONObject gltf_texture =  new JSONObject();
+				gltf_texture.put("sampler", 0);
+				gltf_texture.put("source", image_index[nmesh]); // nmesh);
+				gltf_texture.put("name", short_names[nmesh]+"-tex");
+				gltf_textures.put(gltf_texture);
+			}
 		}
 		gltf_json.put("textures", gltf_textures);
 		
@@ -321,26 +337,33 @@ or
 		// Create materials (material references texture, so each mesh object - new material
 		JSONArray gltf_materials = new JSONArray(); 
 		for (int nmesh = 0; nmesh < total_meshes; nmesh++) {
-			JSONObject gltf_material =             new JSONObject();
-			JSONObject gltf_pbrMetallicRoughness = new JSONObject();
-			JSONObject gltf_baseColorTexture =     new JSONObject();
-			gltf_baseColorTexture.put("index", nmesh); // reference corresponding texture
-			gltf_pbrMetallicRoughness.put("baseColorTexture", gltf_baseColorTexture);
-			gltf_pbrMetallicRoughness.put("metallicFactor", 0.0);
-			gltf_material.put("pbrMetallicRoughness",gltf_pbrMetallicRoughness);
-			gltf_material.put("name", short_names[nmesh]+"-mat");
-			gltf_material.put("alphaMode", ALPHAMODE_BLEND);
-			if (gltf_emissive) {
-				JSONObject gltf_emissiveTexture =        new JSONObject();
-				gltf_emissiveTexture.put("index", nmesh);
-				gltf_material.put("emissiveTexture", gltf_emissiveTexture);
-				JSONArray gltf_material_emissiveFactor = new JSONArray();
-				gltf_material_emissiveFactor.put(1.0);
-				gltf_material_emissiveFactor.put(1.0);
-				gltf_material_emissiveFactor.put(1.0);
-				gltf_material.put("emissiveFactor", gltf_material_emissiveFactor);
+			if (is_first_ref[nmesh]) {
+				int indx = image_index[nmesh];
+				JSONObject gltf_material =             new JSONObject();
+				JSONObject gltf_pbrMetallicRoughness = new JSONObject();
+				JSONObject gltf_baseColorTexture =     new JSONObject();
+				gltf_baseColorTexture.put("index", indx); // nmesh); // reference corresponding texture
+				gltf_pbrMetallicRoughness.put("baseColorTexture", gltf_baseColorTexture);
+				gltf_pbrMetallicRoughness.put("metallicFactor", 0.0);
+				gltf_material.put("pbrMetallicRoughness",gltf_pbrMetallicRoughness);
+				gltf_material.put("name", short_names[nmesh]+"-mat");
+				if (use_alpha_blend) {
+					gltf_material.put("alphaMode", ALPHAMODE_BLEND);
+				} else {
+					gltf_material.put("alphaMode", ALPHAMODE_OPAQUE);
+				}
+				if (gltf_emissive) {
+					JSONObject gltf_emissiveTexture =        new JSONObject();
+					gltf_emissiveTexture.put("index", indx); //  nmesh);
+					gltf_material.put("emissiveTexture", gltf_emissiveTexture);
+					JSONArray gltf_material_emissiveFactor = new JSONArray();
+					gltf_material_emissiveFactor.put(1.0);
+					gltf_material_emissiveFactor.put(1.0);
+					gltf_material_emissiveFactor.put(1.0);
+					gltf_material.put("emissiveFactor", gltf_material_emissiveFactor);
+				}
+				gltf_materials.put(gltf_material);
 			}
-			gltf_materials.put(gltf_material);
 		}
 		gltf_json.put("materials", gltf_materials);
 		
@@ -461,7 +484,7 @@ or
 			gltf_mesh0_primitive.put("attributes",      gltf_mesh0_primitive_attr);
 			gltf_mesh0_primitive.put("indices",         3 * nmesh + 0);
 			gltf_mesh0_primitive.put("mode",            MODE_TRIANGLES);
-			gltf_mesh0_primitive.put("material",        nmesh);
+			gltf_mesh0_primitive.put("material",        image_index[nmesh]); // nmesh);
 			gltf_mesh0_primitives.put(gltf_mesh0_primitive);
 		}
 		gltf_mesh0.put("primitives", gltf_mesh0_primitives);

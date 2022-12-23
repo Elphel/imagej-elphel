@@ -1845,6 +1845,7 @@ public class TexturedModel {
 	{
 		final boolean       batch_mode = clt_parameters.batch_run;
 		final boolean       gltf_emissive = clt_parameters.gltf_emissive;
+		final boolean       use_alpha_blend = false;		
 		final int           ref_index =  scenes.length - 1;
 		final QuadCLT       ref_scene =  scenes[ref_index];
 		final TileProcessor tp =         ref_scene.getTileProcessor();
@@ -2300,10 +2301,11 @@ public class TexturedModel {
 		if (clt_parameters.output_glTF && (tri_meshes != null)) {
 			try {
 				GlTfExport.glTFExport(
-						x3d_dir, // String x3d_dir,
+						x3d_dir,         // String x3d_dir,
 						ref_scene.correctionsParameters.getModelName(ref_scene.getImageName()), // String model_name,
-						tri_meshes, // ArrayList<TriMesh> tri_meshes,
-						gltf_emissive, // boolean gltf_emissive,
+						tri_meshes,      // ArrayList<TriMesh> tri_meshes,
+						gltf_emissive,   // boolean gltf_emissive,
+						use_alpha_blend, // boolean            use_alpha_blend,
 						1);
 			} catch (JSONException e) {
 				// TODO Auto-generated catch block

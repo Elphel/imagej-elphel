@@ -424,6 +424,7 @@ public class CLTParameters {
 	public int        min_bgnd_tiles    = 10;     // Minimal number of background tiles to generate background
 
 	public boolean    gltf_emissive =     false; // true;   // Use emissive textures
+	public boolean    gltf_alpha_blend =  false; // true;   // Use alpha blend (false - opaque)
 
 	public boolean    show_textures    = true;  // show generated textures
 	public boolean    debug_filters    = false;// show intermediate results of filtering
@@ -1450,6 +1451,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"min_bgnd_tiles",             this.min_bgnd_tiles+"");
 
 		properties.setProperty(prefix+"gltf_emissive",              this.gltf_emissive+"");
+		properties.setProperty(prefix+"gltf_alpha_blend",           this.gltf_alpha_blend+"");
 		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
 		properties.setProperty(prefix+"debug_filters",              this.debug_filters+"");
@@ -2354,6 +2356,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"min_bgnd_tiles")!=null)                this.min_bgnd_tiles=Integer.parseInt(properties.getProperty(prefix+"min_bgnd_tiles"));
 		
 		if (properties.getProperty(prefix+"gltf_emissive")!=null)                 this.gltf_emissive=Boolean.parseBoolean(properties.getProperty(prefix+"gltf_emissive"));
+		if (properties.getProperty(prefix+"gltf_alpha_blend")!=null)              this.gltf_alpha_blend=Boolean.parseBoolean(properties.getProperty(prefix+"gltf_alpha_blend"));
 
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
 		if (properties.getProperty(prefix+"debug_filters")!=null)                 this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
@@ -3450,6 +3453,7 @@ public class CLTParameters {
 		
 		gd.addMessage     ("glTF export");
 		gd.addCheckbox    ("glTF use emissive textures",                                                             this.gltf_emissive);
+		gd.addCheckbox    ("glTF use alpha blend",                                                                   this.gltf_alpha_blend);
 		
 		gd.addMessage     ("Earlier 3D generation parameters");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
@@ -4492,6 +4496,7 @@ public class CLTParameters {
 		this.min_bgnd_tiles=  (int) gd.getNextNumber();
 		
 		this.gltf_emissive=         gd.getNextBoolean();
+		this.gltf_alpha_blend=      gd.getNextBoolean();
 		
 		this.show_textures=         gd.getNextBoolean();
 		this.debug_filters=         gd.getNextBoolean();
