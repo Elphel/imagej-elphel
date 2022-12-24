@@ -384,29 +384,49 @@ public class CLTParameters {
 	public int        photo_offs_set =                0;     // 0 - keep weighted offset average, 1 - balance result image, 2 - set weighted average to specific value
 	public double     photo_offs =                 21946;    // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
 	
-	public boolean    photo_debug =                   false; // Generate images and text
+	public boolean    photo_debug =                   false;// Generate images and text
 	
-	public double     tex_disp_adiffo =               0.12; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
-	public double     tex_disp_rdiffo =               0.1; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
-	public double     tex_disp_adiffd =               0.18; // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
-	public double     tex_disp_rdiffd =               0.15; // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
+	public double     tex_disp_adiffo =               0.10; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
+	public double     tex_disp_rdiffo =               0.08; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
+	public double     tex_disp_adiffd =               0.14; // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
+	public double     tex_disp_rdiffd =               0.12; // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
 	public double     tex_disp_fof =                  1.5;  // Increase tolerance for friend of a friend
+
+	public int        tex_jump_tiles =                2;    // "jump" over small gaps when building initial clusters. jump_r == 2 allows jumping to other tiles in 5x5 square around the defined tile
+	public double     tex_disp_adiffj =               0.10; // maximal absolute disparity difference for the "jumps". 
+	public double     tex_disp_rdiffj =               0.08; // maximal relative disparity difference for the "jumps". 
+	
 	public double     tex_fg_bg =                     0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
 	public double     tex_distort =                   0.8;  // Maximal texture distortion to accumulate multiple scenes (0 - any)
 	public double     tex_mb =                        1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
 	
-	public boolean    tex_um =                       true;   // Use unsharp mask filter for textures 
-	public double     tex_um_sigma =                    2.0; // Unsharp mask sigma for textures
-	public double     tex_um_weight =                   0.8;// Unsharp mask weight
-	public boolean    tex_lwir_autorange =           true;   // Autorange LWIR textures
-	public boolean    tex_um_fixed =                false;   // Use fixed range after unsharp mask instead of autorange
-	public double     tex_um_range =                  500;   // Full range after unsharp mask 
-	public boolean    tex_hist_norm =                true;   // Normalize texture histogram 
-	public double     tex_hist_amount =                 0.7; // Texture histogram normalization amount (0.0 - no normalization, 1.0 - full normalization)
-	public int        tex_hist_bins =                1024;   // Number of histogram bins to use for texture histograms 
-	public int        tex_hist_segments =              32;   // Number of evenly-spaced percentiles to use for histogram normalization 
-	public boolean    tex_color =                    true;   // Use pseudo-colored textures 
-	public int        tex_palette =                     1;   // Palette number for pseudo colors 
+	public double     tex_max_disparity_lim =       100.0;  // do not allow stray disparities above this
+	public double     tex_min_trim_disparity =        2.0;  // do not try to trim texture outlines with lower disparities
+	public int        tex_max_neib_lev =              2;    // 1 - single tiles layer around, 2 - two layers
+	public boolean    tex_split_textures =          false;  // (debugLevel > 1000); // false;
+	public int        tex_subdiv_tiles =              4;    // subdivide tiles to smaller triangles
+	public int        tex_sky_below =                10;    // extend sky these tile rows below lowest
+	public boolean    tex_debug_disp_tri =          false;  // !batch_mode && (debugLevel > 0); // TODO: use clt_parameters
+	
+	public int        tex_add_bg_tiles =              0;    // If there is gap between clusters, add extra row of background tiles
+	public boolean    tex_save_full_textures =       true;  // false; // true;
+	public double     tex_alpha_threshold =           0.5;
+	public boolean    tex_renormalize =              true;  // false - use normalizations from previous scenes to keep consistent colors
+	public boolean    tex_alpha =                    false; // also - use jpeg?
+	public int        tex_jpeg_quality =               95;   // JPEG quality for textures
+	
+	public boolean    tex_um =                       true;  // Use unsharp mask filter for textures 
+	public double     tex_um_sigma =                  2.0;  // Unsharp mask sigma for textures
+	public double     tex_um_weight =                 0.8;  // Unsharp mask weight
+	public boolean    tex_lwir_autorange =           true;  // Autorange LWIR textures
+	public boolean    tex_um_fixed =                false;  // Use fixed range after unsharp mask instead of autorange
+	public double     tex_um_range =                  500;  // Full range after unsharp mask 
+	public boolean    tex_hist_norm =                true;  // Normalize texture histogram 
+	public double     tex_hist_amount =               0.7;  // Texture histogram normalization amount (0.0 - no normalization, 1.0 - full normalization)
+	public int        tex_hist_bins =                1024;  // Number of histogram bins to use for texture histograms 
+	public int        tex_hist_segments =              32;  // Number of evenly-spaced percentiles to use for histogram normalization 
+	public boolean    tex_color =                    true;  // Use pseudo-colored textures 
+	public int        tex_palette =                     1;  // Palette number for pseudo colors 
 	
 	public int        max_clusters     = 5000;   // Maximal number of clusters to generate for one run
 	public boolean    remove_scans     = true;  // Remove all unneeded scans when generating x3d output to save memory
@@ -1416,14 +1436,34 @@ public class CLTParameters {
 		properties.setProperty(prefix+"tex_disp_adiffd",            this.tex_disp_adiffd+"");     // double
 		properties.setProperty(prefix+"tex_disp_rdiffd",            this.tex_disp_rdiffd+"");     // double
 		properties.setProperty(prefix+"tex_disp_fof",               this.tex_disp_fof+"");        // double
+		
+		properties.setProperty(prefix+"tex_jump_tiles",             this.tex_jump_tiles+"");      // int
+		properties.setProperty(prefix+"tex_disp_adiffj",            this.tex_disp_adiffj+"");     // double
+		properties.setProperty(prefix+"tex_disp_rdiffj",            this.tex_disp_rdiffj+"");     // double
+		
 		properties.setProperty(prefix+"tex_fg_bg",                  this.tex_fg_bg+"");           // double
 		properties.setProperty(prefix+"tex_distort",                this.tex_distort+"");         // double
 		properties.setProperty(prefix+"tex_mb",                     this.tex_mb+"");              // double
 		
+		properties.setProperty(prefix+"tex_max_disparity_lim",      this.tex_max_disparity_lim+"");  // double
+		properties.setProperty(prefix+"tex_min_trim_disparity",     this.tex_min_trim_disparity+""); // double
+		properties.setProperty(prefix+"tex_max_neib_lev",           this.tex_max_neib_lev+"");       // int
+		properties.setProperty(prefix+"tex_split_textures",         this.tex_split_textures+"");     // boolean
+		properties.setProperty(prefix+"tex_subdiv_tiles",           this.tex_subdiv_tiles+"");       // int
+		properties.setProperty(prefix+"tex_sky_below",              this.tex_sky_below+"");          // int
+		properties.setProperty(prefix+"tex_debug_disp_tri",         this.tex_debug_disp_tri+"");     // boolean
+		
+		properties.setProperty(prefix+"tex_add_bg_tiles",           this.tex_add_bg_tiles+"");       // int
+		properties.setProperty(prefix+"tex_save_full_textures",     this.tex_save_full_textures+""); // boolean
+		properties.setProperty(prefix+"tex_alpha_threshold",        this.tex_alpha_threshold+"");    // double
+		properties.setProperty(prefix+"tex_renormalize",            this.tex_renormalize+"");        // boolean
+		properties.setProperty(prefix+"tex_alpha",                  this.tex_alpha+"");              // boolean
+		properties.setProperty(prefix+"tex_jpeg_quality",           this.tex_jpeg_quality+"");       // int
+		
 		properties.setProperty(prefix+"tex_um",                     this.tex_um+"");              // boolean
 		properties.setProperty(prefix+"tex_um_sigma",               this.tex_um_sigma+"");        // double
 		properties.setProperty(prefix+"tex_um_weight",              this.tex_um_weight+"");       // double
-		properties.setProperty(prefix+"tex_lwir_autorange",         this.tex_lwir_autorange+"");        // boolean
+		properties.setProperty(prefix+"tex_lwir_autorange",         this.tex_lwir_autorange+"");  // boolean
 		properties.setProperty(prefix+"tex_um_fixed",               this.tex_um_fixed+"");        // boolean
 		properties.setProperty(prefix+"tex_um_range",               this.tex_um_range+"");        // double
 		properties.setProperty(prefix+"tex_hist_norm",              this.tex_hist_norm+"");       // boolean
@@ -2321,9 +2361,28 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"tex_disp_adiffd")!=null)      this.tex_disp_adiffd=Double.parseDouble(properties.getProperty(prefix+"tex_disp_adiffd"));
 		if (properties.getProperty(prefix+"tex_disp_rdiffd")!=null)      this.tex_disp_rdiffd=Double.parseDouble(properties.getProperty(prefix+"tex_disp_rdiffd"));
 		if (properties.getProperty(prefix+"tex_disp_fof")!=null)         this.tex_disp_fof=Double.parseDouble(properties.getProperty(prefix+"tex_disp_fof"));
+		
+		if (properties.getProperty(prefix+"tex_jump_tiles")!=null)       this.tex_jump_tiles=Integer.parseInt(properties.getProperty(prefix+"tex_jump_tiles"));		
+		if (properties.getProperty(prefix+"tex_disp_adiffj")!=null)      this.tex_disp_adiffj=Double.parseDouble(properties.getProperty(prefix+"tex_disp_adiffj"));
+		if (properties.getProperty(prefix+"tex_disp_rdiffj")!=null)      this.tex_disp_rdiffj=Double.parseDouble(properties.getProperty(prefix+"tex_disp_rdiffj"));
+		
 		if (properties.getProperty(prefix+"tex_fg_bg")!=null)            this.tex_fg_bg=Double.parseDouble(properties.getProperty(prefix+"tex_fg_bg"));
 		if (properties.getProperty(prefix+"tex_distort")!=null)          this.tex_distort=Double.parseDouble(properties.getProperty(prefix+"tex_distort"));
 		if (properties.getProperty(prefix+"tex_mb")!=null)               this.tex_mb=Double.parseDouble(properties.getProperty(prefix+"tex_mb"));
+		if (properties.getProperty(prefix+"tex_max_disparity_lim")!=null)this.tex_max_disparity_lim=Double.parseDouble(properties.getProperty(prefix+"tex_max_disparity_lim"));
+		if (properties.getProperty(prefix+"tex_min_trim_disparity")!=null)this.tex_min_trim_disparity=Double.parseDouble(properties.getProperty(prefix+"tex_min_trim_disparity"));
+		if (properties.getProperty(prefix+"tex_max_neib_lev")!=null)     this.tex_max_neib_lev=Integer.parseInt(properties.getProperty(prefix+"tex_max_neib_lev"));		
+		if (properties.getProperty(prefix+"tex_split_textures")!=null)   this.tex_split_textures=Boolean.parseBoolean(properties.getProperty(prefix+"tex_split_textures"));		
+		if (properties.getProperty(prefix+"tex_subdiv_tiles")!=null)     this.tex_subdiv_tiles=Integer.parseInt(properties.getProperty(prefix+"tex_subdiv_tiles"));		
+		if (properties.getProperty(prefix+"tex_sky_below")!=null)        this.tex_sky_below=Integer.parseInt(properties.getProperty(prefix+"tex_sky_below"));		
+		if (properties.getProperty(prefix+"tex_debug_disp_tri")!=null)   this.tex_debug_disp_tri=Boolean.parseBoolean(properties.getProperty(prefix+"tex_debug_disp_tri"));		
+		
+		if (properties.getProperty(prefix+"tex_add_bg_tiles")!=null)      this.tex_add_bg_tiles=Integer.parseInt(properties.getProperty(prefix+"tex_add_bg_tiles"));		
+		if (properties.getProperty(prefix+"tex_save_full_textures")!=null)this.tex_save_full_textures=Boolean.parseBoolean(properties.getProperty(prefix+"tex_save_full_textures"));		
+		if (properties.getProperty(prefix+"tex_alpha_threshold")!=null)   this.tex_alpha_threshold=Double.parseDouble(properties.getProperty(prefix+"tex_alpha_threshold"));
+		if (properties.getProperty(prefix+"tex_renormalize")!=null)       this.tex_renormalize=Boolean.parseBoolean(properties.getProperty(prefix+"tex_renormalize"));		
+		if (properties.getProperty(prefix+"tex_alpha")!=null)             this.tex_alpha=Boolean.parseBoolean(properties.getProperty(prefix+"tex_alpha"));		
+		if (properties.getProperty(prefix+"tex_jpeg_quality")!=null)      this.tex_jpeg_quality=Integer.parseInt(properties.getProperty(prefix+"tex_jpeg_quality"));		
 		
 		if (properties.getProperty(prefix+"tex_um")!=null)               this.tex_um=Boolean.parseBoolean(properties.getProperty(prefix+"tex_um"));		
 		if (properties.getProperty(prefix+"tex_um_sigma")!=null)         this.tex_um_sigma=Double.parseDouble(properties.getProperty(prefix+"tex_um_sigma"));
@@ -3386,12 +3445,48 @@ public class CLTParameters {
 				"Disparity relative tolerance to connect in diagonal directions.");
 		gd.addNumericField("Relax friend-of-a friend tolerance", this.tex_disp_fof, 5,7,"",
 				"Relax (increase disparity) tolerance for friend of a friend.");
+
+		gd.addNumericField("Jump over gaps building clusters",   this.tex_jump_tiles, 0,3,"",
+				"Jump over small gaps when building initial clusters. jump_r == 2 allows jumping to other tiles in 5x5 square around the defined tile.");
+		gd.addNumericField("Maximal absolute disparity difference for jumps", this.tex_disp_adiffj, 5,7,"",
+				"Maximal absolute disparity difference for the \"jumps\".");
+		gd.addNumericField("Maximal relative disparity difference for jumps", this.tex_disp_rdiffj, 5,7,"",
+				"Maximal relative disparity difference for the \"jumps\".");
+		
 		gd.addNumericField("Minimal FG/BG disparity separation", this.tex_fg_bg, 5,7,"pix",
 				"Minimal FG/BG disparity difference (NaN bg if difference from FG < this).");
 		gd.addNumericField("Multiscene texture distortion",      this.tex_distort, 5,7,"pix",
 				"Maximal texture distortion to accumulate multiple scenes (neighbor tile center offset from the uniform grid. 0 - do not filter");
 		gd.addNumericField("Maximal motion blur to reduce weight",this.tex_mb, 5,7,"pix",
 				"Reduce texture weight if motion blur exceeds this (as square of MB length).");
+		
+		gd.addNumericField("Max disparity for meshe generation", this.tex_max_disparity_lim, 5,7,"pix",
+				"Do not allow stray disparities above this.");
+		gd.addNumericField("Minimal disparity for FG trimming",  this.tex_min_trim_disparity, 5,7,"pix",
+				"Do not try to trim texture outlines with lower disparities.");
+		gd.addNumericField("Maximal border tile level",          this.tex_max_neib_lev, 0,3,"",
+				"1 - single tiles layer around, 2 - two layers. Optimized for 2, may be broken for other values.");
+		gd.addCheckbox ("Split combo textures",                  this.tex_split_textures,
+				"Split combined texture images. False use multi-cluster full size texture images.");
+		gd.addNumericField("Subdivide tiles to emulate alpha",   this.tex_subdiv_tiles, 0,3,"",
+				"Subdivide tiles to smaller triangles to improve lateral resolution. Best for 1-2-4-8.");
+		gd.addNumericField("Extend sky area",                    this.tex_sky_below, 0,3,"tiles",
+				"if >=0, extend sky these tile rows below lowest and extend sky up, right and left to full image.");
+		gd.addCheckbox ("Debug mesh triangles",                  this.tex_debug_disp_tri,
+				"Generate debug images for mesh triangles.");
+		
+		gd.addNumericField("Add background tiles",               this.tex_add_bg_tiles, 0,3,"tiles",
+				"If there is gap between clusters, add extra row of background tiles. Obsolete?");
+		gd.addCheckbox ("Save full textures",                    this.tex_save_full_textures,
+				"Will save anyway if !tex_split_textures.");
+		gd.addNumericField("Alpha threshold",                    this.tex_alpha_threshold, 5,7,"",
+				"Alpha threshold to consider it opaque.");
+		gd.addCheckbox ("Re-normalize photometric range",        this.tex_renormalize,
+				"If false - use normalizations from previous scenes to keep consistent colors.");
+		gd.addCheckbox ("Use alpha in textures",                 this.tex_alpha,
+				"Use alpha in textures, false - remove alpha.");
+		gd.addNumericField("JPEG quality for textures",          this.tex_jpeg_quality, 0,3,"%",
+				"If <=0 - save as png.");
 		
 		gd.addMessage     ("Textures rendering");
 		gd.addCheckbox ("Apply unsharp mask",                    this.tex_um,
@@ -4461,9 +4556,29 @@ public class CLTParameters {
 		this.tex_disp_adiffd =          gd.getNextNumber();
 		this.tex_disp_rdiffd =          gd.getNextNumber();
 		this.tex_disp_fof =             gd.getNextNumber();
+
+		this.tex_jump_tiles =     (int) gd.getNextNumber();
+		this.tex_disp_adiffj =          gd.getNextNumber();
+		this.tex_disp_rdiffj =          gd.getNextNumber();
+		
 		this.tex_fg_bg =                gd.getNextNumber();
 		this.tex_distort =              gd.getNextNumber();
 		this.tex_mb =                   gd.getNextNumber();
+		
+		this.tex_max_disparity_lim =    gd.getNextNumber();
+		this.tex_min_trim_disparity =   gd.getNextNumber();
+		this.tex_max_neib_lev =   (int) gd.getNextNumber();
+		this.tex_split_textures =       gd.getNextBoolean();
+		this.tex_subdiv_tiles =   (int) gd.getNextNumber();
+		this.tex_sky_below =      (int) gd.getNextNumber();
+		this.tex_debug_disp_tri =       gd.getNextBoolean();
+
+		this.tex_add_bg_tiles =   (int) gd.getNextNumber();
+		this.tex_save_full_textures =   gd.getNextBoolean();
+		this.tex_alpha_threshold =      gd.getNextNumber();
+		this.tex_renormalize =          gd.getNextBoolean();
+		this.tex_alpha =                gd.getNextBoolean();
+		this.tex_jpeg_quality =   (int) gd.getNextNumber();
 		
 		this.tex_um =                   gd.getNextBoolean();
 		this.tex_um_sigma =             gd.getNextNumber();

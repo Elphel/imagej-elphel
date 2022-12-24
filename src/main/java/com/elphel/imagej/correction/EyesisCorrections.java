@@ -2715,6 +2715,7 @@ public class EyesisCorrections {
 			int                   jpegQuality,//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 			int                   debugLevel){
 		if (path!=null) {
+			FileInfo fi = new FileInfo();
 			path+=Prefs.getFileSeparator()+imp.getTitle();
 			boolean hasAlphaHighByte = false;
 			if ((imp.getStackSize()==1) && (imp.getFileInfo().fileType== FileInfo.RGB)) {
@@ -2735,7 +2736,8 @@ public class EyesisCorrections {
 							path +".png",
 							debugLevel
 							);
-
+					fi.url = path+".png";
+					fi.fileName = imp.getTitle()+".png";
 				} else {
 					if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".tiff");
 					try {
@@ -2753,6 +2755,8 @@ public class EyesisCorrections {
 					} catch (DependencyException e) {
 						e.printStackTrace();
 					}
+					fi.url = path+".tiff";
+					fi.fileName = imp.getTitle()+".tiff";
 				}
 
 			} else if (((imp.getStackSize()==1)) && (jpegQuality!=0) && ((imp.getFileInfo().fileType== FileInfo.RGB) || (jpegQuality>0))) {
@@ -2760,6 +2764,8 @@ public class EyesisCorrections {
 				FileSaver fs=new FileSaver(imp);
 				if (jpegQuality>0) FileSaver.setJpegQuality(jpegQuality);
 				fs.saveAsJpeg(path+".jpeg");
+				fi.url = path+".jpeg";
+				fi.fileName = imp.getTitle()+".jpeg";
 			} else {
 				if (debugLevel>0) System.out.println("Saving result to "+path+".tiff");
 				FileSaver fs=new FileSaver(imp);
@@ -2789,7 +2795,10 @@ public class EyesisCorrections {
 					}
 				} else if (imp.getStackSize()>1)  fs.saveAsTiffStack(path+".tiff");
 				else fs.saveAsTiff(path+".tiff");
+				fi.url = path+".tiff";
+				fi.fileName = imp.getTitle()+".tiff";
 			}
+			imp.setFileInfo(fi); // only url
 		}
 		if (show) {
 			imp.getProcessor().resetMinAndMax(); // probably not needed

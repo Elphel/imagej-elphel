@@ -1843,15 +1843,39 @@ public class TexturedModel {
 			final boolean                            updateStatus,
 			final int                                debugLevel)
 	{
-		final boolean       batch_mode = clt_parameters.batch_run;
-		final boolean       gltf_emissive = clt_parameters.gltf_emissive;
-		final boolean       use_alpha_blend = false;		
+		final boolean batch_mode =        clt_parameters.batch_run;
+		final boolean gltf_emissive =     clt_parameters.gltf_emissive;
+		final boolean use_alpha_blend =   clt_parameters.gltf_alpha_blend;
+		final double  tex_disp_adiffo =   clt_parameters.tex_disp_adiffo;       // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
+		final double  tex_disp_rdiffo =   clt_parameters.tex_disp_rdiffo;       // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
+		final double  tex_disp_adiffd =   clt_parameters.tex_disp_adiffd;       // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
+		final double  tex_disp_rdiffd =   clt_parameters.tex_disp_rdiffd;       // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
+		final double  tex_disp_fof =      clt_parameters.tex_disp_fof;          // 1.5;  // Increase tolerance for friend of a friend
+		final int     jump_r =            clt_parameters.tex_jump_tiles;        // 2;
+		final double  disp_adiffj =       clt_parameters.tex_disp_adiffj;
+		final double  disp_rdiffj =       clt_parameters.tex_disp_rdiffj;
+		final double  tex_fg_bg =         clt_parameters.tex_fg_bg;             // 0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
+		final double  max_disparity_lim = clt_parameters.tex_max_disparity_lim; // 100.0;  // do not allow stray disparities above this
+		final double  min_trim_disparity =clt_parameters.tex_min_trim_disparity;//   2.0;  // do not try to trim texture outlines with lower disparities
+		final int     max_neib_lev =      clt_parameters.tex_max_neib_lev;      //   2; // 1 - single tiles layer around, 2 - two layers
+		final boolean split_textures =    clt_parameters.tex_split_textures;    // (debugLevel > 1000); // false;
+		final int     subdiv_tiles =      clt_parameters.tex_subdiv_tiles;      //   4; // subdivide tiles to smaller triangles
+		final int     sky_below =         clt_parameters.tex_sky_below;         //  10; // extend sky these tile rows below lowest
+		final boolean debug_disp_tri =    clt_parameters.tex_debug_disp_tri;    //   !batch_mode && (debugLevel > 0); // TODO: use clt_parameters
+		
+		// If there is gap between clusters, add extra row of background tiles
+		int     add_bg_tiles =       clt_parameters.tex_add_bg_tiles;           // 0; // 1;
+		final boolean save_full_textures=clt_parameters.tex_save_full_textures  || !clt_parameters.tex_split_textures; //true; // false; // true;
+		final double  alpha_threshold =  clt_parameters.tex_alpha_threshold;    // 0.5;
+		final boolean renormalize =      clt_parameters.tex_renormalize;        // true; // false - use normalizations from previous scenes to keep consistent colors
+		final boolean no_alpha =        !clt_parameters.tex_alpha;              // true; // also - use jpeg?
+		final int     jpeg_quality =     clt_parameters.tex_jpeg_quality; //95;   // JPEG quality for textures
+		
+		final int sky_layer = 0; // source disparity layer that contains "blue sky" 
+		
 		final int           ref_index =  scenes.length - 1;
 		final QuadCLT       ref_scene =  scenes[ref_index];
 		final TileProcessor tp =         ref_scene.getTileProcessor();
-		final boolean       split_textures = (debugLevel > 1000); // false;
-		final int           subdiv_tiles = 4; // subdivide tiles to smaller triangles
-		final boolean       debug_disp_tri = !batch_mode && (debugLevel > 0); // TODO: use clt_parameters
 
 		if (ref_scene.image_data == null){
 			return false; // not used in lwir
@@ -1863,23 +1887,7 @@ public class TexturedModel {
 		long startStepTime=System.nanoTime();
 		final int    tilesX = tp.getTilesX();
 		final int    transform_size = tp.getTileSize();
-		final double tex_disp_adiffo = clt_parameters.tex_disp_adiffo; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
-		final double tex_disp_rdiffo = clt_parameters.tex_disp_rdiffo; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
-		final double tex_disp_adiffd = clt_parameters.tex_disp_adiffd; // 0.6;  // 0.4;  disparity absolute tolerance to connect in diagonal directions
-		final double tex_disp_rdiffd = clt_parameters.tex_disp_rdiffd; // 0.18; // 0.12; disparity relative tolerance to connect in diagonal directions
-		final double tex_disp_fof =    clt_parameters.tex_disp_fof;    // 1.5;  // Increase tolerance for friend of a friend
 		
-		final int    jump_r =      2; // FIXME
-		final double disp_adiffj = clt_parameters.tex_disp_adiffo; // FIXME
-		final double disp_rdiffj = clt_parameters.tex_disp_rdiffo; // FIXME
-		
-		final double tex_fg_bg =       clt_parameters.tex_fg_bg;       // 0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
-		final int    max_neib_lev = 2; // 1 - single tiles layer around, 2 - two layers
-		
-		
-		final int    tex_cluster_gap=      2; // gap between clusters Make clt_parameters
-		final double max_disparity_lim = 100.0;  // do not allow stray disparities above this
-		final double min_trim_disparity =  2.0;  // do not try to trim texture outlines with lower disparities
 		final int width = tilesX * transform_size;
 		final int height = tp.getTilesY() * transform_size;
 		// get multi-scene disparity map for FG and BG and filter it
@@ -1931,8 +1939,6 @@ public class TexturedModel {
 				ds_fg_bg[1][i] = Double.NaN;
 			}
 		}
-		int sky_layer = 0;
-		int sky_below = 10; // extend sky these tile rows below lowest
 		// Create data for consolidated textures (multiple texture segments combined in same "passes" 
 		TileCluster [] tileClusters = clusterizeFgBg( // wrong result type, not decided
 				tilesX,            // final int          tilesX,
@@ -1967,7 +1973,6 @@ public class TexturedModel {
 			scenes_sel[i] = true;
 		}
 		// If there is gap between clusters, add extra row of background tiles
-		int add_bg_tiles = 0; // 1;
 		while ((add_bg_tiles--) > 0) {
 			extendClustersBackground(
 					tileClusters, // final TileCluster[] tileClusters,
@@ -1977,8 +1982,6 @@ public class TexturedModel {
 					tilesX);            // final int           tilesX)
 		}
 		
-		boolean        renormalize = true;// false - use normalizations from previous scenes to keep consistent colors
-		final boolean        no_alpha = true;
 		
 		double[][][] faded_textures = getInterCombinedTextures( // return ImagePlus[] matching tileClusters[], with alpha
 				clt_parameters,      // final CLTParameters  clt_parameters,
@@ -2004,22 +2007,21 @@ public class TexturedModel {
 				transform_size,      // int                  transform_size,
 				debugLevel);         // final int            debug_level)
 		
-		boolean save_full_textures = true; // false; // true;
 				
 		EyesisCorrectionParameters.CorrectionParameters correctionsParameters = ref_scene.correctionsParameters;
 		String x3d_dir = ref_scene.getX3dDirectory();
-		if (save_full_textures || !split_textures) {
+		boolean use_png = (jpeg_quality <= 0) || !no_alpha; 
+		if (save_full_textures) { //  || !split_textures) {
 			for (int nslice = 0; nslice < combined_textures.length; nslice++) {
 				EyesisCorrections.saveAndShow(
 						combined_textures[nslice], // imp_texture_cluster,
 						x3d_dir,
-						correctionsParameters.png,
-						false, // (nslice < 4), // clt_parameters.show_textures,
-						-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
-						1); //
+						use_png,      // correctionsParameters.png,
+						false,        // (nslice < 4), // clt_parameters.show_textures,
+						jpeg_quality, // -1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+						1);           //
 			}
 		}
-		double      alpha_threshold = 0.5;
 		boolean [][] combined_alphas = null;
 		if (subdiv_tiles > 0) { // Use subdiv_tiles==1 to keep alpha
 			combined_alphas = new boolean [faded_textures.length][faded_textures[0][0].length];
@@ -2040,9 +2042,9 @@ public class TexturedModel {
 				EyesisCorrections.saveAndShow(
 						imp_textures[i], // imp_texture_cluster,
 						x3d_dir,
-						correctionsParameters.png,
+						use_png, // correctionsParameters.png,
 						false, // (nslice < 4), // clt_parameters.show_textures,
-						-1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+						jpeg_quality, // -1, // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 						1); //
 			}
 		}
@@ -2159,7 +2161,9 @@ public class TexturedModel {
 					}
 					continue;
 				}
-				String texturePath = imp_texture_cluster.getTitle()+".png";
+//				String texturePath = imp_texture_cluster.getTitle()+".png";
+				String texturePath = imp_texture_cluster.getOriginalFileInfo().fileName;
+				
 				double [] scan_disparity = tileClusters[nslice].getSubDisparity(sub_i); // limited to cluster bounds
 				boolean [] scan_selected = tileClusters[nslice].getSubSelected(sub_i); // limited to cluster bounds
 				int [] scan_border_int =   tileClusters[nslice].getSubBorderInt(sub_i); // limited to cluster bounds
