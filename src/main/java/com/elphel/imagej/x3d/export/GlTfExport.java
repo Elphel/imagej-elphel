@@ -165,7 +165,7 @@ public class GlTfExport {
 					bb.putInt(triangles[i][triangle[2]]);
 				}
 			}
-			minmax_indx[nmesh][0] = triangles[0][0];
+			minmax_indx[nmesh][0] = triangles[0][0]; // zero triangles:Index 0 out of bounds for length 0
 			minmax_indx[nmesh][1] = minmax_indx[nmesh][0];
 			for (int i = 0; i < triangles.length; i++) {
 				for (int j = 0; j < triangles[i].length; j++) {

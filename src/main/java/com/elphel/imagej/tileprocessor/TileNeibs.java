@@ -2,6 +2,7 @@ package com.elphel.imagej.tileprocessor;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  ** TileNeibs - handles walking inside rectangular area
@@ -42,7 +43,7 @@ public class TileNeibs{
 	final public static int DIR_RIGHT =   6; // Left
 	final public static int [][] DIR_XY = {{0,-1}, {1,-1}, {1,0}, {1,1}, {0,1}, {-1,1}, {-1,0}, {-1,-1}};
 	final public static int DIRS =        DIR_XY.length; //8; // total dirs
-	
+	final static int THREADS_MAX =        100;
 	
 	public static int reverseDir(int dir) {
 		if ((dir < 0) || (dir >= DIRS)) {
@@ -386,18 +387,75 @@ public class TileNeibs{
 		}
 		return -1; // should not happen
 	}
+	
+	public static boolean [] invertSelection(
+			final boolean [] tiles) {
+		final boolean [] itiles = new boolean [tiles.length];
+		invertSelection(tiles, itiles);
+		return itiles;
+	}
+
+	public static void invertSelection(
+			final boolean [] tiles,
+			final boolean [] itiles
+			) {
+		boolean is_main = isMainThread();
+		final Thread[] threads = is_main ? ImageDtt.newThreadArray(THREADS_MAX) : null;
+		final AtomicInteger ai =  is_main ?   new AtomicInteger(0) : null;
+		if (is_main) {
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles.length; tile = ai.getAndIncrement()) {
+							itiles[tile] = !tiles[tile];
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		} else {
+			for (int tile = 0; tile < tiles.length; tile++) itiles[tile] = !tiles[tile];
+		}
+	}
+
+	public static void andSelection(
+			final boolean [] src_tiles,
+			final boolean [] dst_tiles
+			) {
+		boolean is_main = isMainThread();
+		final Thread[] threads = is_main ? ImageDtt.newThreadArray(THREADS_MAX) : null;
+		final AtomicInteger ai =  is_main ?   new AtomicInteger(0) : null;
+		if (is_main) {
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < src_tiles.length; tile = ai.getAndIncrement()) {
+							dst_tiles[tile] &= src_tiles[tile];
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		} else {
+			for (int tile = 0; tile < src_tiles.length; tile++) dst_tiles[tile] &= src_tiles[tile];
+		}
+	}
+	
+	
+	
 	public void shrinkSelection(
 			int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-			boolean [] tiles,
-			boolean [] prohibit)
+			final boolean [] tiles,
+			final boolean [] prohibit)
 	{
-		boolean [] itiles = new boolean [tiles.length];
-		for (int i = 0; i < tiles.length; i++) itiles[i] = !tiles[i];
+		final boolean [] itiles = invertSelection(tiles);
 		growSelection(
 				shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				itiles,
 				prohibit);
-		for (int i = 0; i < tiles.length; i++) tiles[i] = !itiles[i];
+		invertSelection(itiles, tiles);
 	}
 
 	
@@ -406,32 +464,142 @@ public class TileNeibs{
 			boolean [] tiles,
 			boolean [] prohibit)
 	{
-		boolean [] etiles = new boolean [tiles.length];
-		for (int i = 0; i < tiles.length; i++) etiles[i] = !tiles[i];
+		final boolean [] etiles = invertSelection(tiles);
 		growSelection(
 				shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				etiles,
 				prohibit);
-		for (int i = 0; i < tiles.length; i++) etiles[i] &= tiles[i];
+		andSelection (tiles, etiles);
 		return etiles;
 	}
 	
+	public void growSelectionMulti( // multithreaded version
+			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+			final boolean [] tiles,
+			final boolean [] prohibit)
+	{
+		final Thread[] threads =    ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai =    new AtomicInteger(0);
+		final AtomicInteger anew =  new AtomicInteger(0);
+		final boolean [] src_tiles = tiles.clone(); // just in case
+		final int sizeXm1 = sizeX - 1;
+		final int sizeYm1 = sizeY - 1;
+		// grow
+		boolean hor = true;
+		int num_prev = 1; // as if previous pass was successful
+		for (; grow > 0; grow--){
+			boolean single = (grow ==1) && hor;
+			System.arraycopy(tiles, 0, src_tiles, 0, tiles.length);
+			anew.set(0);
+			if (hor){
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
+								int tileX = tindx % sizeX;
+								if ((tileX < sizeXm1) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx + 1]))) {
+									if (!src_tiles[tindx + 1] && src_tiles[tindx]){
+										anew.getAndIncrement();
+										tiles[tindx + 1] = true; // |= src_tiles[tindx];
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				System.arraycopy(tiles, 0, src_tiles, 0, tiles.length);
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
+								int tileX = tindx % sizeX;
+								if ((tileX > 0) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx - 1]))) {
+									if (!src_tiles[tindx - 1] && src_tiles[tindx]){
+										anew.getAndIncrement();
+										tiles[tindx - 1] = true; // |= src_tiles[tindx];
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+			if (!hor || single){ // do vertically, but from previous state
+				System.arraycopy(tiles, 0, src_tiles, 0, tiles.length);
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
+								int tileY = tindx / sizeX;
+								if ((tileY < sizeYm1) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx + sizeX]))) {
+									if (!src_tiles[tindx + sizeX] && src_tiles[tindx]){
+										anew.getAndIncrement();
+										tiles[tindx + sizeX] = true; // |= src_tiles[tindx];
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				System.arraycopy(tiles, 0, src_tiles, 0, tiles.length);
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
+								int tileY = tindx / sizeX;
+								if ((tileY > 0) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx - sizeX]))) {
+									if (!src_tiles[tindx - sizeX] && src_tiles[tindx]){
+										anew.getAndIncrement();
+										tiles[tindx - sizeX] = true; // |= src_tiles[tindx];
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+			hor = !hor;
+			if ((anew.get() == 0) && (num_prev == 0)){
+				break;
+			}
+			num_prev = anew.get();
+		}
+	}
 	
+	public static boolean isMainThread() {
+		return Thread.currentThread().getName().equals("main");
+	}
 	
 
 	public void growSelection(
-			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-			boolean [] tiles,
-			boolean [] prohibit)
+			int              grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+			final boolean [] tiles,
+			final boolean [] prohibit)
 	{
+		// if it is not in multithreaded mode - run multithreaded version instead;
+		if (isMainThread()) {
+			growSelectionMulti (
+					grow,
+					tiles,
+					prohibit);
+			return;
+		}
 		boolean [] src_tiles = tiles.clone(); // just in case
 		// grow
 		boolean hor = true;
-		int num_prev = 0;
+		int num_prev = 1; // as if previous pass was successful
 		for (; grow > 0; grow--){
 			boolean single = (grow ==1) && hor;
 			src_tiles = tiles.clone();
-			int num_new = 1; // as if previous pass was successful
+			int num_new = 0; // as if previous pass was successful
 			if (hor){
 				for (int tileY = 0; tileY < sizeY; tileY++){
 					for (int tileX = 0; tileX < (sizeX - 1); tileX++){
@@ -442,7 +610,6 @@ public class TileNeibs{
 							}
 							tiles[tindx + 1] |= src_tiles[tindx];
 						}
-
 					}
 					for (int tileX = 1; tileX < sizeX; tileX++){
 						int tindx = tileY * sizeX + tileX;

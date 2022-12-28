@@ -2441,7 +2441,14 @@ public class TriMesh {
 				  indices,           // int [][][][] indices,
 				  no_connect);       // int [][]     no_connect)
 
-		  System.out.println("generateClusterX3d(): got "+triangles.length+" triangles");
+		  if (triangles.length == 0) {
+			  System.out.println("generateClusterX3d(): got NO triangles, do not output 3D mesh");
+			  return;
+		  } else {
+			  System.out.println("generateClusterX3d(): got "+triangles.length+" triangles");
+
+		  }
+		  
 		  final boolean     plot_center = true;
 		  final double      line_color =  1.0;
 		  final double      center_color = 3.0;
