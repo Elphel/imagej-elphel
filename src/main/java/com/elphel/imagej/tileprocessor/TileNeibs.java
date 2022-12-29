@@ -486,6 +486,7 @@ public class TileNeibs{
 		final int sizeYm1 = sizeY - 1;
 		// grow
 		boolean hor = true;
+		final int dbg_tile = -82228; // 71992; //312/112 or 61800 for 360/96
 		int num_prev = 1; // as if previous pass was successful
 		for (; grow > 0; grow--){
 			boolean single = (grow ==1) && hor;
@@ -498,6 +499,9 @@ public class TileNeibs{
 						public void run() {
 							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
 								int tileX = tindx % sizeX;
+								if ((tindx == dbg_tile) || (tindx == (dbg_tile-1))){
+									System.out.println("growSelectionMulti().1: tindx="+tindx);
+								}
 								if ((tileX < sizeXm1) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx + 1]))) {
 									if (!src_tiles[tindx + 1] && src_tiles[tindx]){
 										anew.getAndIncrement();
@@ -516,6 +520,9 @@ public class TileNeibs{
 						public void run() {
 							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
 								int tileX = tindx % sizeX;
+								if ((tindx == dbg_tile) || (tindx == (dbg_tile+1))){
+									System.out.println("growSelectionMulti().2: tindx="+tindx);
+								}
 								if ((tileX > 0) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx - 1]))) {
 									if (!src_tiles[tindx - 1] && src_tiles[tindx]){
 										anew.getAndIncrement();
@@ -536,6 +543,9 @@ public class TileNeibs{
 						public void run() {
 							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
 								int tileY = tindx / sizeX;
+								if ((tindx == dbg_tile) || (tindx == (dbg_tile-sizeX))){
+									System.out.println("growSelectionMulti().3: tindx="+tindx);
+								}
 								if ((tileY < sizeYm1) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx + sizeX]))) {
 									if (!src_tiles[tindx + sizeX] && src_tiles[tindx]){
 										anew.getAndIncrement();
@@ -554,6 +564,9 @@ public class TileNeibs{
 						public void run() {
 							for (int tindx = ai.getAndIncrement(); tindx < tiles.length; tindx = ai.getAndIncrement()) {
 								int tileY = tindx / sizeX;
+								if ((tindx == dbg_tile) || (tindx == (dbg_tile+sizeX))){
+									System.out.println("growSelectionMulti().1: tindx="+tindx);
+								}
 								if ((tileY > 0) && ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx - sizeX]))) {
 									if (!src_tiles[tindx - sizeX] && src_tiles[tindx]){
 										anew.getAndIncrement();

@@ -2860,6 +2860,32 @@ public class TexturedModel {
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
+		}
+		// if stitch and FG - make others with the same disparity FG strong
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement())
+							if (stitch_tile[fnslice][tile] && is_fg[fnslice][tile]){ 
+							for (int ns = 0; ns < num_slices; ns++)
+								if ((ns != fnslice) && (slice_disparities[fnslice][tile] == slice_disparities[ns][tile])){
+									is_fg       [ns][tile] = true;
+									is_fg_weak  [ns][tile] = true;
+									is_fg_strong[ns][tile] = true;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}		
+
+		// Trim keep after processing stitch
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			int fnslice = nslice;
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
@@ -2869,13 +2895,16 @@ public class TexturedModel {
 									// Even no-bg should not save peripheral (outside of weak) FG tiles
 									(!has_bg_strong[fnslice][tile] && (!is_fg[fnslice][tile] || is_fg_weak  [fnslice][tile])) ||
 									(slice_border_int[fnslice][tile] <= max_wbg_keep) ||
-									stitch_tile[fnslice][tile];
+									stitch_tile[fnslice][tile] ||
+									is_fg_strong [fnslice][tile] // other's stitch area and fg makes this strong fg
+									;
 						}
 					}
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
-		}
+		}		
+		
 		boolean[][][] rslt = new boolean [TILE_BOOLEANS][][];
 		rslt[TILE_IS_FG_WEAK] =     is_fg_weak;
 		rslt[TILE_IS_FG_STRONG] =   is_fg_strong;
@@ -2892,6 +2921,7 @@ public class TexturedModel {
 	 * tiles from strong FG tiles
 	 * @param weak_tiles     [tilesX*tilesY] selected weak tiles (include strong tiles)
 	 * @param strong_tiles   [tilesX*tilesY] selected stgrong tiles (should be true for weak tiles)
+	 * @param grow_tiles     grow strong into weak. == transform_size (8) - grow half tile
 	 * @param transform_size CLT transform size (==8)
 	 * @param tilesX         number of tiles in a row    
 	 * @return               [(tilesX*transform_size) * (tilesY*transform_size)] array that includes
@@ -2902,6 +2932,7 @@ public class TexturedModel {
 	public static boolean [][] halfStrong( // select pixels between weak and strong 
 			final boolean [][]  weak_tiles,
 			final boolean [][]  strong_tiles,
+			final int           grow_tiles,
 			final int           transform_size,
 			final int           tilesX) {
 		final int num_slices = weak_tiles.length;
@@ -2950,7 +2981,7 @@ public class TexturedModel {
 			}
 			
 			pn.growSelection( // will fill half of "weak" has_bg_tiles - it is where triangular mesh will reach
-					transform_size,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					grow_tiles,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 					half_strong_pix[fnslice],
 					prohibit);
 			if (dbg_img != null) {
@@ -2979,16 +3010,78 @@ public class TexturedModel {
 		return half_strong_pix;
 	}
 	
-	public static boolean [][]getTrimPixels(
+	
+	public static boolean [][] tileToPix( // expand tile selection to pixel selection 
+			final boolean [][]  sel_tiles,
+			final int           transform_size,
+			final int           tilesX) {
+		final int num_slices = sel_tiles.length;
+		final int tiles = sel_tiles[0].length;
+		final int tilesY = tiles / tilesX;
+		final int width =  tilesX * transform_size;
+		final int height = tilesY * transform_size;
+		final int pixels = width * height;
+		final boolean [][] sel_pixels = new boolean [num_slices][pixels];
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final TileNeibs pn =     new TileNeibs(width, height);
+		final boolean dbg = width < 0; // never
+		final double [][] dbg_img = dbg? new double [3*num_slices] [pixels]:null;
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (sel_tiles[fnslice][tile]) {
+							int tileX = tile % tilesX;
+							int tileY = tile / tilesX;
+							int indx0 = (tileY * width + tileX) * transform_size;
+							for (int y = 0; y < transform_size; y++) {
+								int indx1 = indx0 + y * width;  
+								for (int x = 0; x < transform_size; x++) {
+									int indx2 = indx1 + x;
+									sel_pixels[fnslice][indx2] = true;
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return sel_pixels;
+	}
+	
+	public static boolean [][] getTrimPixels(
 			final boolean [][] is_fg_pix,
-			final boolean [][] has_bg_pix) {
+			final boolean [][] has_bg_pix,
+			final boolean [][] is_stitch_tile,
+			final int          transform_size,
+			final int          tilesX) {
 		final boolean [][] trim_pixels = new boolean [is_fg_pix.length][];
+		boolean [][] inv_stitch_pixels = null;
+		if (is_stitch_tile != null) {
+			inv_stitch_pixels = tileToPix(    // expand tile selection to pixel selection 
+					is_stitch_tile,        // final boolean [][]  sel_tiles,
+					transform_size,                    // final int           transform_size,
+					tilesX);                           // final int           tilesX)
+		}
 		for (int nslice = 0; nslice < trim_pixels.length; nslice++) {
 			trim_pixels[nslice] = has_bg_pix[nslice].clone();
 			TileNeibs.andSelection(
 					is_fg_pix[nslice], // final boolean [] src_tiles,
 					trim_pixels[nslice] // final boolean [] dst_tiles
 					);//
+			if (is_stitch_tile != null) {
+				TileNeibs.invertSelection(
+						inv_stitch_pixels[nslice],
+						inv_stitch_pixels[nslice]);
+				TileNeibs.andSelection(
+						inv_stitch_pixels[nslice], // final boolean [] src_tiles,
+						trim_pixels[nslice]        // final boolean [] dst_tiles
+						);
+			}
 		}
 		return trim_pixels;
 	}
@@ -3157,6 +3250,7 @@ public class TexturedModel {
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final TileNeibs pn =     new TileNeibs(width, height);
+		final int dbg_tile = -82228; // 71992; //312/112 or 61800 for 360/96
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			final int fnslice = nslice;
 			if (btmp != null) {
@@ -3166,6 +3260,9 @@ public class TexturedModel {
 					threads[ithread] = new Thread() {
 						public void run() {
 							for (int pix = ai.getAndIncrement(); pix < num_pix; pix = ai.getAndIncrement()) if (alpha_pix[fnslice][pix]){
+								if ((pix == dbg_tile) || (pix == (dbg_tile-1))){
+								    System.out.println("filterAlpha(): pix="+pix);
+								}
 								int nneibs = 0;
 								for (int dir = 0; dir < TileNeibs.DIR_S; dir++) {
 									int pix1 = pn.getNeibIndex(pix, dir);
@@ -4674,19 +4771,29 @@ public class TexturedModel {
 		boolean [][] has_bg_pix = halfStrong(      // select pixels between weak and strong 
 				tile_booleans[TILE_HAS_BG_WEAK],   // final boolean [][]  weak_tiles,
 				tile_booleans[TILE_HAS_BG_STRONG], // final boolean [][]  strong_tiles,
+				6, // transform_size,              // final int           grow_tiles,
 				transform_size,                    // final int           transform_size,
 				tilesX);                           // final int           tilesX)
 
 		boolean [][] is_fg_pix = halfStrong(       // select pixels between weak and strong 
 				tile_booleans[TILE_IS_FG_WEAK],    // final boolean [][]  weak_tiles,
 				tile_booleans[TILE_IS_FG_STRONG],  // final boolean [][]  strong_tiles,
+				transform_size,                    // final int           grow_tiles,
 				transform_size,                    // final int           transform_size,
 				tilesX);                           // final int           tilesX)
-
+		boolean [][] stitch_pixels = null;
+		if (dbg_prefix != null) {
+			stitch_pixels = tileToPix(    // expand tile selection to pixel selection 
+					tile_booleans[TILE_STITCH],        // final boolean [][]  sel_tiles,
+					transform_size,                    // final int           transform_size,
+					tilesX);                           // final int           tilesX)
+		}
 		boolean [][] trim_pixels = getTrimPixels(
 				is_fg_pix,   // final boolean [][] is_fg_pix,
-				has_bg_pix); // final boolean [][] has_bg_pix)
-
+				has_bg_pix, // final boolean [][] has_bg_pix)
+				tile_booleans[TILE_STITCH],        // final boolean [][] is_stitch_tile,
+				transform_size, // final int          transform_size,
+				tilesX); // final int          tilesX)
 		
 		boolean [][] unbound_alpha =  getFgEdge( 
 				tile_booleans[TILE_IS_FG_WEAK],    // final boolean [][]  fg_weak_tiles,
@@ -4750,6 +4857,13 @@ public class TexturedModel {
 				min_neibs_alpha, // final int           min_neibs,  // minimal neighbors to keep alpha
 				grow_alpha,      // final int           grow_alpha, // grow alpha selection
 				width);          // final int           width) {
+
+		final boolean [][] filtered_alpha = (dbg_prefix != null)? new boolean [num_slices][] : null;
+		if (dbg_prefix != null) {
+			for (int i = 0; i < num_slices; i++) {
+				filtered_alpha[i] = unbound_alpha[i].clone();
+			}
+		}
 		
 		// remove remaining border FG half-tiles 
 		filterWeakFG(
@@ -4761,6 +4875,13 @@ public class TexturedModel {
 				transform_size,                   // final int           transform_size,
 				tilesX);                          // final int           tilesX);
 		
+		final boolean [][] weak_fg_alpha = (dbg_prefix != null)? new boolean [num_slices][] : null;
+		if (dbg_prefix != null) {
+			for (int i = 0; i < num_slices; i++) {
+				weak_fg_alpha[i] = unbound_alpha[i].clone();
+			}
+		}
+
 		unbound_alpha =  trimAlphaToTiles( // reuse same array
 				unbound_alpha,             // final boolean [][]  alpha_pix,
 				tile_booleans[TILE_KEEP],  // final boolean [][]  selected_tiles,
@@ -4950,8 +5071,11 @@ public class TexturedModel {
 				final double [] vars_ratio =               new double [img_size];
 				final double [] vars_dir_ratio =           new double [img_size];
 				final double [] half_pix =                 new double [img_size];
+				final double [] stitch_trim_pix =          new double [img_size];
 				final double [] trim_seed_pix =            new double [img_size];
 				final double [] unfilt_filt_pix =          new double [img_size];
+				final double [] weak_fg_pix =              new double [img_size];
+				final double [] trim_tiles_pix =           new double [img_size];
 				final double [] fix_same_pix =             new double [img_size];
 				final double [] trim_alpha_pix =           new double [img_size];
 				for (int i = 0; i <img_size; i++) {
@@ -4960,13 +5084,21 @@ public class TexturedModel {
 					half_pix[i] = 
 							(has_bg_pix [nslice][i]? 1.0:0.0) +
 							(is_fg_pix  [nslice][i]? 2.0:0.0);
+					stitch_trim_pix[i] = 
+							(stitch_pixels [nslice][i]? 1.0:0.0) +
+							(trim_pixels    [nslice][i]? 2.0:0.0);
 					trim_seed_pix[i] = 
 							(trim_pixels [nslice][i]? 1.0:0.0) +
-							(trim_seeds  [nslice][i]?  2.0:0.0);
+							(trim_seeds  [nslice][i]? 2.0:0.0);
 					unfilt_filt_pix[i] = 
 							(unfiltered_alpha  [nslice][i]? 1.0:0.0) +
-							(unbound_alpha     [nslice][i]?  2.0:0.0);
-
+							(filtered_alpha    [nslice][i]?  2.0:0.0);
+					weak_fg_pix[i] = 
+							(filtered_alpha    [nslice][i]? 1.0:0.0) +
+							(weak_fg_alpha     [nslice][i]?  2.0:0.0);
+					trim_tiles_pix[i] = 
+							(weak_fg_alpha     [nslice][i]? 1.0:0.0) +
+							(before_fix_same   [nslice][i]?  2.0:0.0);
 					fix_same_pix[i] = 
 							(unbound_alpha  [nslice][i]? 1.0:0.0) +
 							((unbound_alpha  [nslice][i] ^ before_fix_same  [nslice][i])?  2.0:0.0);
@@ -4986,8 +5118,12 @@ public class TexturedModel {
 						vars_ratio,
 						vars_dir_ratio,
 						half_pix,
+						stitch_trim_pix,
 						trim_seed_pix,
-						unfilt_filt_pix, 
+						unfilt_filt_pix,
+						weak_fg_pix,
+						trim_tiles_pix,
+						fix_same_pix,
 						trim_alpha_pix,
 						dbg_text_edge[nslice], // dbg_text_edge,
 						dbg_text_en[nslice],
@@ -5029,8 +5165,12 @@ public class TexturedModel {
 						"VAR_RATIO",
 						"DIR_RATIO",
 						"HALF_BG_FG",
+						"STITCH_TRIM",
 						"TRIM_SEED",
 						"UNFILT_FILT",
+						"WEAK_FG",
+						"TRIM_TILES",
+						"FIX_SAME",
 						"TRIM_ALPHA",
 						"TEXTURE_EDGE",
 						"TEXTURE_ON",
