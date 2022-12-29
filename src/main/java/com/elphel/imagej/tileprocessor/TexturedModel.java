@@ -3383,10 +3383,12 @@ public class TexturedModel {
 	/**
 	 * Fix gap (copy alpha row/col) between meshes were strong has_bg is on the edge.
 	 * Alpha should already be set everywhere needed.
-	 *  
+	 *   
 	 * @param alpha_pix
 	 * @param selected_tiles
 	 * @param has_bg_strong_tiles 
+	 * @param slice_border_int    to prevent bridging disparity gap 
+	 * @param neib_max maximal neib_lev, now 2 (there can be neib_max+1 - outmost BG) 
 	 * @param transform_size
 	 * @param tilesX
 	 * @return
@@ -3395,13 +3397,14 @@ public class TexturedModel {
 			final boolean [][]  alpha_pix,
 			final boolean [][]  selected_tiles,
 			final boolean [][]  has_bg_strong_tiles,
+			final int      [][] slice_border_int,
+			final int           neib_max, // now 2
 			final int           transform_size,
 			final int           tilesX) {
 		final int num_slices = selected_tiles.length;
 		final int tiles = selected_tiles[0].length;
 		final int tilesY = tiles / tilesX;
 		final int width =  tilesX * transform_size;
-		final int height = tilesY * transform_size;
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final TileNeibs tn =     new TileNeibs(tilesX, tilesY);
@@ -3409,6 +3412,15 @@ public class TexturedModel {
 		final int [] corner =   {0, transform_size - 1, (transform_size - 1) * (width + 1), (transform_size - 1) * width };
 		final int [] src_offs =  {-width, 1,      width, -1};
 		final int [] step_offs = {      1, width, -1,     -width};
+		final int outmost_fg = neib_max;
+		final int outmost_bg = neib_max+1;
+		final boolean [][] compat_outmost = new boolean[neib_max+2][neib_max+2];
+		for (int i = 0; i < compat_outmost.length; i++) {
+			for (int j = i; j < compat_outmost.length; j++) {
+				compat_outmost[i][j] = ! (((i == outmost_fg) && (j == outmost_bg)) || ((j == outmost_fg) && (i == outmost_bg)));
+				compat_outmost[j][i] = compat_outmost[i][j]; 
+			}
+		}
 		for (int nslice =0; nslice < num_slices; nslice++) {
 			final int fnslice = nslice;
 			Arrays.fill(new_sel,false);
@@ -3423,7 +3435,10 @@ public class TexturedModel {
 								int indx0 = px + py * width; 
 								for (int dir2 = 0; dir2 < TileNeibs.DIRS; dir2 += 2) {
 									int tile1 = tn.getNeibIndex(tile, dir2);
-									if ((tile1 >= 0) && selected_tiles[fnslice][tile1]) {
+									if ((tile1 >= 0) &&
+											selected_tiles[fnslice][tile1] &&
+											compat_outmost[slice_border_int[fnslice][tile]][slice_border_int[fnslice][tile1]])
+									{
 										new_sel[tile] = true;
 										int dir = dir2 / 2;
 										// copy existing row from that direction
@@ -4983,6 +4998,8 @@ public class TexturedModel {
 				unbound_alpha,                     // final boolean [][]  alpha_pix,
 				tile_booleans[TILE_KEEP],          // final boolean [][]  selected_tiles,
 				tile_booleans[TILE_HAS_BG_STRONG], // final boolean [][]  has_bg_strong_tiles,
+				slice_border_int,                  // final int      [][] slice_border_int,
+				border_int_max,                    // final int           neib_max, // now 2
 				transform_size,                    // final int           transform_size,
 				tilesX);                           // final int           tilesX)
 		

@@ -377,6 +377,9 @@ public class TriMesh {
 	}
 
 	/**
+	 * Designed to prevent bridging between neighbor tiles over disparity discontinuity gap. 
+	 * neib_lev==2 is the outermost FG tile, while neib_lev3 - the outermost of the BG. For the FG
+	 * levels go from 0 (inner tiles) 0-1-2, for the BG - 0-1-3, so tiles 3 should not be connected to 2.
 	 * Mark border tiles that should not be connected by triangles. Tiles with border_int[] of (max_border)
 	 * should not be connected to (max_border+1). THey are marked with 1 and 2 (all others are 0). 
 	 * @param bounds      Rectangle ROI for output and optionally input data
@@ -1004,6 +1007,8 @@ public class TriMesh {
 		final Thread[] threads = ImageDtt.newThreadArray(TexturedModel.THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger atri = new AtomicInteger(0);
+//		final int dbg_x =  32;
+//		final int dbg_y =  22;
 		// initialize triangles array
         for (int ithread = 0; ithread < threads.length; ithread++) {
         	threads[ithread] = new Thread() {
@@ -1011,6 +1016,9 @@ public class TriMesh {
         			for (int btile = ai.getAndIncrement(); btile < btiles; btile = ai.getAndIncrement()) {
         				int btilex = btile % bwidth;
         				int btiley = btile / bwidth;
+//        				if ((btiley==dbg_y) && (btilex==dbg_x)) {
+//        					System.out.println("connectLargeSmallTriangles().1: btilex="+btilex+", btiley="+btiley);
+//       				}
         				if ((indices[btiley][btilex] != null) && (indices[btiley][btilex].length >1)) { // only for subdivided
         					int [] tneib_types = new int [TileNeibs.DIR_XY.length + 1];
         					tneib_types[8] = 2;
@@ -1157,6 +1165,9 @@ public class TriMesh {
         			for (int btile = ai.getAndIncrement(); btile < btiles; btile = ai.getAndIncrement()) {
         				int btilex = btile % bwidth;
         				int btiley = btile / bwidth;
+//        				if ((btiley==dbg_y) && (btilex==dbg_x)) {
+//        					System.out.println("connectLargeSmallTriangles().2: btilex="+btilex+", btiley="+btiley);
+//        				}
         				if (tris[btiley][btilex] != null) { // only for subdivided
         					int [][][] tneib_indices = new int [TileNeibs.DIR_XY.length + 1][][];
         					tneib_indices [8] = indices[btiley][btilex];
