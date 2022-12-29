@@ -3379,6 +3379,85 @@ public class TexturedModel {
 		}
 		return alpha;
 	}
+
+	/**
+	 * Fix gap (copy alpha row/col) between meshes were strong has_bg is on the edge.
+	 * Alpha should already be set everywhere needed.
+	 *  
+	 * @param alpha_pix
+	 * @param selected_tiles
+	 * @param has_bg_strong_tiles 
+	 * @param transform_size
+	 * @param tilesX
+	 * @return
+	 */
+	public static void  fix_bg_overlap(
+			final boolean [][]  alpha_pix,
+			final boolean [][]  selected_tiles,
+			final boolean [][]  has_bg_strong_tiles,
+			final int           transform_size,
+			final int           tilesX) {
+		final int num_slices = selected_tiles.length;
+		final int tiles = selected_tiles[0].length;
+		final int tilesY = tiles / tilesX;
+		final int width =  tilesX * transform_size;
+		final int height = tilesY * transform_size;
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final TileNeibs tn =     new TileNeibs(tilesX, tilesY);
+		final boolean [] new_sel = new boolean [tiles];
+		final int [] corner =   {0, transform_size - 1, (transform_size - 1) * (width + 1), (transform_size - 1) * width };
+		final int [] src_offs =  {-width, 1,      width, -1};
+		final int [] step_offs = {      1, width, -1,     -width};
+		for (int nslice =0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			Arrays.fill(new_sel,false);
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement())
+							if (has_bg_strong_tiles[fnslice][tile] && !selected_tiles[fnslice][tile]) {
+								int px = (tile % tilesX) * transform_size;
+								int py = (tile / tilesX) * transform_size;
+								int indx0 = px + py * width; 
+								for (int dir2 = 0; dir2 < TileNeibs.DIRS; dir2 += 2) {
+									int tile1 = tn.getNeibIndex(tile, dir2);
+									if ((tile1 >= 0) && selected_tiles[fnslice][tile1]) {
+										new_sel[tile] = true;
+										int dir = dir2 / 2;
+										// copy existing row from that direction
+										int dindx = indx0 + corner[dir];
+										int sindx = dindx + src_offs[dir];
+										for (int i = 0; i < transform_size; i++) {
+											alpha_pix[fnslice][dindx] |= alpha_pix[fnslice][sindx];
+											sindx += step_offs[dir];
+											dindx += step_offs[dir];
+										}
+									}
+								}
+							}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement())
+							if (new_sel[tile]) {
+								selected_tiles[fnslice][tile] = true;
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+	}
+	
+	
 	
 
 	
@@ -4728,6 +4807,19 @@ public class TexturedModel {
 		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [5][][] : null;
 
 		// New processing
+		
+		final double        seed_inter = 50.0;
+		final double        seed_fom =   15.0;
+		final double        thr_same =   16; // 20; // minimal value of vars_same to block propagation
+		final double        thr_ratio =  2.5; //  3.0; // minimal value of vars_same/vars_inter  to block propagation
+		final int           trim_grow_pix = transform_size * 3;      // 3*transform_size?
+		final int           min_neibs_alpha = 1;  // minimal neighbors to keep alpha
+		final int           grow_alpha = 2; // grow alpha selection
+		final double        alphaOverlapTolerance = 0.0; // exact match only
+		final int           reduce_has_bg_grow = 2; // 0 - exactly half tile (between strong and weak)
+		final int           strong_bg_overlap = 1;
+		
+		
 		boolean [][][] tile_booleans = getTileBooleans(
 				slice_disparities,                 // final double [][] slice_disparities,
 				slice_border_int,                  // final int    [][] slice_border_int, // not extended
@@ -4771,7 +4863,7 @@ public class TexturedModel {
 		boolean [][] has_bg_pix = halfStrong(      // select pixels between weak and strong 
 				tile_booleans[TILE_HAS_BG_WEAK],   // final boolean [][]  weak_tiles,
 				tile_booleans[TILE_HAS_BG_STRONG], // final boolean [][]  strong_tiles,
-				6, // transform_size,              // final int           grow_tiles,
+				transform_size-reduce_has_bg_grow, // final int           grow_tiles,
 				transform_size,                    // final int           transform_size,
 				tilesX);                           // final int           tilesX)
 
@@ -4808,14 +4900,6 @@ public class TexturedModel {
 				gcombo_texture, // 				final double [][]   combo_texture,
 				var_radius, // 				final double        var_radius,
 				width); // 				final int           width,
-		final double        seed_inter = 50.0;
-		final double        seed_fom =   15.0;
-		final double        thr_same =   16; // 20; // minimal value of vars_same to block propagation
-		final double        thr_ratio =  2.5; //  3.0; // minimal value of vars_same/vars_inter  to block propagation
-		final int           trim_grow_pix = transform_size * 3;      // 3*transform_size?
-		final int           min_neibs_alpha = 1;  // minimal neighbors to keep alpha
-		final int           grow_alpha = 2; // grow alpha selection
-		final double        alphaOverlapTolerance = 0.0; // exact match only		
 		getTrimSeeds(
 				trim_pixels,  // final boolean [][]  trim_pix,  // pixels that may be trimmed
 				unbound_alpha,  // final boolean [][]  seed_pix,  // FG edge, just outside of trim_pix. Will be modified
@@ -4887,6 +4971,21 @@ public class TexturedModel {
 				tile_booleans[TILE_KEEP],  // final boolean [][]  selected_tiles,
 				transform_size,            // final int           transform_size,
 				tilesX);                   // final int           tilesX)
+		
+		final boolean [][] before_fix_bg_overlap = (dbg_prefix != null)? new boolean [num_slices][] : null;
+		if (dbg_prefix != null) {
+			for (int i = 0; i < num_slices; i++) {
+				before_fix_bg_overlap[i] = unbound_alpha[i].clone();
+			}
+		}
+
+		fix_bg_overlap(
+				unbound_alpha,                     // final boolean [][]  alpha_pix,
+				tile_booleans[TILE_KEEP],          // final boolean [][]  selected_tiles,
+				tile_booleans[TILE_HAS_BG_STRONG], // final boolean [][]  has_bg_strong_tiles,
+				transform_size,                    // final int           transform_size,
+				tilesX);                           // final int           tilesX)
+		
 		
 		final boolean [][] before_fix_same = (dbg_prefix != null)? new boolean [num_slices][] : null;
 		if (dbg_prefix != null) {
@@ -5076,6 +5175,7 @@ public class TexturedModel {
 				final double [] unfilt_filt_pix =          new double [img_size];
 				final double [] weak_fg_pix =              new double [img_size];
 				final double [] trim_tiles_pix =           new double [img_size];
+				final double [] fix_bg_pix =               new double [img_size];
 				final double [] fix_same_pix =             new double [img_size];
 				final double [] trim_alpha_pix =           new double [img_size];
 				for (int i = 0; i <img_size; i++) {
@@ -5099,6 +5199,9 @@ public class TexturedModel {
 					trim_tiles_pix[i] = 
 							(weak_fg_alpha     [nslice][i]? 1.0:0.0) +
 							(before_fix_same   [nslice][i]?  2.0:0.0);
+					fix_bg_pix[i] = 
+							(before_fix_same [nslice][i]? 1.0:0.0) +
+							((before_fix_same [nslice][i] ^ before_fix_bg_overlap[nslice][i])? 2.0:0.0);
 					fix_same_pix[i] = 
 							(unbound_alpha  [nslice][i]? 1.0:0.0) +
 							((unbound_alpha  [nslice][i] ^ before_fix_same  [nslice][i])?  2.0:0.0);
@@ -5123,6 +5226,7 @@ public class TexturedModel {
 						unfilt_filt_pix,
 						weak_fg_pix,
 						trim_tiles_pix,
+						fix_bg_pix,
 						fix_same_pix,
 						trim_alpha_pix,
 						dbg_text_edge[nslice], // dbg_text_edge,
@@ -5170,6 +5274,7 @@ public class TexturedModel {
 						"UNFILT_FILT",
 						"WEAK_FG",
 						"TRIM_TILES",
+						"FIX_HAS_BG",
 						"FIX_SAME",
 						"TRIM_ALPHA",
 						"TEXTURE_EDGE",
