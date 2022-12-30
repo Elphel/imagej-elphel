@@ -2896,15 +2896,36 @@ public class TexturedModel {
 									(!has_bg_strong[fnslice][tile] && (!is_fg[fnslice][tile] || is_fg_weak  [fnslice][tile])) ||
 									(slice_border_int[fnslice][tile] <= max_wbg_keep) ||
 									stitch_tile[fnslice][tile] ||
-									is_fg_strong [fnslice][tile] // other's stitch area and fg makes this strong fg
-									;
+									is_fg_strong [fnslice][tile]; // other's stitch area and fg makes this strong fg
 						}
 					}
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
 		}		
-		
+		// Remove outer stitch tiles (max_neib_lev +1) if there is other (non-stitch) with the same disparity
+		// (level==l = does it need to be tested) 
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement())
+							if (stitch_tile[fnslice][tile] && (slice_border_int[fnslice][tile] == (max_neib_lev +1))){
+								for (int ns = 0; ns < num_slices; ns++)
+									if (!stitch_tile[ns][tile] &&
+											(slice_disparities[ns][tile] == slice_disparities[fnslice][tile])) {
+										has_tile[fnslice][tile] = false;
+									break;	
+								}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}		
+
 		boolean[][][] rslt = new boolean [TILE_BOOLEANS][][];
 		rslt[TILE_IS_FG_WEAK] =     is_fg_weak;
 		rslt[TILE_IS_FG_STRONG] =   is_fg_strong;
@@ -4234,6 +4255,33 @@ public class TexturedModel {
 		return;
 	}	
 	
+
+	public static void setMeshTileSelection(
+			final double  [][] slice_disparities,
+			final boolean [][] keep_tiles) {
+		final int num_slices = slice_disparities.length;
+		final int num_tiles =  slice_disparities[0].length;
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int nslice = 0; nslice < num_slices; nslice++){
+			final int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < num_tiles; tile = ai.getAndIncrement()) {
+							if (!keep_tiles[fnslice][tile]) {
+								slice_disparities[fnslice][tile] = Double.NaN;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+	}
+	
+	
 	// new version with binary alpha. I
 	public static void fixAlphaSameDisparity(
 			final TileCluster [] tileClusters,
@@ -4256,7 +4304,7 @@ public class TexturedModel {
 			tile_disparity[nslice] = tileClusters[nslice].getDisparity(); 
 		}
 		final double min_disparity = 2.0;
-		final int dbg_tile=1872; // 32:23
+		final int dbg_tile=2122; // : 42/26 // 1872: 32/23
 		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -4279,7 +4327,7 @@ public class TexturedModel {
 						if (num_tiles > 1) {
 							Arrays.fill(group, -1);
 							int ngroup = 0;
-							for (int i = 0; i < (num_slices-1); i++) if ((group[i] < 0) && !Double.isNaN(disparities[i])){
+							for (int i = 0; i < (num_slices-1); i++) if ((group[i] < 0) && !Double.isNaN(disparities[i]) && keep_tiles[i][tile]){
 								int nsame = 0;
 								group_members[nsame++] = i;
 								double max_diff = Math.max(disparities[i], min_disparity) * alphaOverlapTolerance; 
@@ -4832,7 +4880,7 @@ public class TexturedModel {
 		final int           grow_alpha = 2; // grow alpha selection
 		final double        alphaOverlapTolerance = 0.0; // exact match only
 		final int           reduce_has_bg_grow = 2; // 0 - exactly half tile (between strong and weak)
-		final int           strong_bg_overlap = 1;
+//		final int           strong_bg_overlap = 1;
 		
 		
 		boolean [][][] tile_booleans = getTileBooleans(
@@ -5012,9 +5060,9 @@ public class TexturedModel {
 		}
 		
 		// use minimal alpha if disparity is exactly the same (stitch area)
-		fixAlphaSameDisparity(
+		fixAlphaSameDisparity( // uses disparities from tileCluster, not slice_disparities ?
 				tileClusters,             // final TileCluster [] tileClusters,
-				tile_booleans[TILE_KEEP], //final boolean [][]   keep_tiles,
+				tile_booleans[TILE_KEEP], // final boolean [][]   keep_tiles,
 				unbound_alpha,            // final boolean [][]   alpha_pix,
 				false,                    // final boolean        use_or, // (maximal alpha), false - and (minimal alpha)
 				alphaOverlapTolerance,    // final double         alphaOverlapTolerance, // 0 - require exact match
@@ -5367,6 +5415,16 @@ public class TexturedModel {
 			}
 			textures_alphas[nslice] = new double [][] {out_textures[nslice], alphas[nslice]};
 		}
+		
+		// set slice_disparities to NaN for unselected tiles - it will update tileClusters
+		setMeshTileSelection(
+				slice_disparities,         // final double  [][] slice_disparities,
+				tile_booleans[TILE_KEEP]); //final boolean [][] keep_tiles)
+		String dbg_prefix1 = (dbg_prefix==null)? null: (dbg_prefix+"-masked");
+		showDebugDisparities( // nop if dbg_prefix== null
+				slice_disparities, // final double [][] slice_disparities,
+				tilesX,            // final int   tilesX,
+				dbg_prefix1);       // String      prefix);
 		return textures_alphas; // What about colors? 
 	}
 	
