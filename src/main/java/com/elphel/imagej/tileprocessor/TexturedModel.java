@@ -65,7 +65,8 @@ public class TexturedModel {
 	public static final int TILE_HAS_BG_STRONG = 3;
 	public static final int TILE_KEEP =          4;
 	public static final int TILE_STITCH =        5; 
-	public static final int TILE_BOOLEANS =      TILE_STITCH + 1;
+	public static final int TILE_STITCHED =      6; 
+	public static final int TILE_BOOLEANS =      TILE_STITCHED + 1;
 
 	public static final int PIX_TRIM_FG =        0; 
 	public static final int PIX_HAS_BG =         1;
@@ -1025,6 +1026,7 @@ public class TexturedModel {
 	 *                         same as regular ones.  
 	 * @param disparity_layers [layers][tiles] multi-layer disparity array with NaN for non-existing tiles
 	 * @param seams_layers     [layers][tiles] multi-layer border levels to communicate BG stitches
+	 * @param seams            [tiles] seams corresponding to source_disparity
 	 * @param source_disparity [tiles] continuous tiles used to generate this tileCluster that uses only
 	 *                         of source_disparity and extrapolated borders.
 	 * @param max_neib_lev     maximal neighbor level of borders used to generate internal int [] neib_lev
@@ -1054,12 +1056,15 @@ public class TexturedModel {
 			final int             tilesX,
 			final int             debugLevel)
 	{
+		final int dbg_tile = 3868; // 28+48*80;
 		//		final int       num_layers = disparity_layers.length;
-		final int       tiles =      source_disparity.length;
-		final int       tilesY =     tiles/tilesX;
-		final int []    neib_lev =   new int   [tiles];
-		final double [] disparity =  new double[tiles]; // current cluster disparities
-		final double [] max_neib =   new double[tiles]; // maximal disparity of neibs
+		final int        tiles =        source_disparity.length;
+		final int        tilesY =       tiles/tilesX;
+		final int []     neib_lev =     new int   [tiles];
+		final boolean [] initial_seam = new boolean [tiles]; // neib_lev was set from initial seam
+		final boolean [] new_seam =     new boolean [tiles];
+		final double []  disparity =    new double[tiles]; // current cluster disparities
+		final double []  max_neib =     new double[tiles]; // maximal disparity of neibs
 //		final boolean [] disp_mod = new boolean[tiles]; // disparity modified from surce_disparity
 		Arrays.fill(neib_lev, -1);
 		System.arraycopy(source_disparity, 0, disparity, 0, tiles);
@@ -1071,7 +1076,6 @@ public class TexturedModel {
 		final AtomicInteger ati = new AtomicInteger(0);
 		ai.set(0);
 		ati.set(0);
-		
 		// create list of conflicts and 1 tile around defined, mark known disparity in neib_lev[]
 		final ArrayList<ArrayList<Integer>> loc_multi = new ArrayList<ArrayList<Integer>>(threads.length);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -1094,7 +1098,13 @@ public class TexturedModel {
 						}
 						double disp = disparity[tile];
 						if (!Double.isNaN(disp)) {
-							neib_lev[tile] = (seams[tile] > 0) ? (max_neib_lev - seams[tile] + 1) : 0; // 2-> 1; 1 -> 2; 0-> 0;
+// 							neib_lev[tile] = (seams[tile] > 0) ? (max_neib_lev - seams[tile] + 1) : 0; // 2-> 1; 1 -> 2; 0-> 0;
+							if (seams[tile] > 0) {
+								neib_lev[tile] = max_neib_lev - seams[tile] + 1;
+								initial_seam[tile] = true; 
+							} else {
+								neib_lev[tile] = 0;
+							}
 						}
 						if (!Double.isNaN(max_n)) { // got at least 1 neighbor
 							if (Double.isNaN(disp)) {
@@ -1141,10 +1151,10 @@ public class TexturedModel {
 			lor_list.ensureCapacity(loc_list.size());
 			while (!loc_list.isEmpty()) {
 				int tile = loc_list.remove(0);
-				if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
-					System.out.println("buildTileCluster().11: tile="+tile);
-					System.out.println();
-				}
+//				if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
+//					System.out.println("buildTileCluster().11: tile="+tile);
+//					System.out.println();
+//				}
 				// find highest neighbor of neib_lev < max_neib_lev
 //				double max_n = Double.NaN;
 //				int source_neib_level = 0; // maybe find max separately for each neib_level, and assign
@@ -1190,10 +1200,10 @@ public class TexturedModel {
 				// look around, for conflicts, add if was not already there (consider using additional array?)
 				for (int dir0 = 0; dir0 < 8; dir0++) {
 					int tile = tn.getNeibIndex(tile0, dir0);
-					if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
-						System.out.println("buildTileCluster().12: tile="+tile+", tile0="+tile0);
-						System.out.println();
-					}
+//					if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
+//						System.out.println("buildTileCluster().12: tile="+tile+", tile0="+tile0);
+//						System.out.println();
+//					}
 					// tries many times as it does not qualify to be added
 					if ((tile >= 0) && !loc_list.contains(tile)) { // Do not check+add same tile
 						double disp = disparity[tile];
@@ -1213,10 +1223,10 @@ public class TexturedModel {
 						}
 						//
 						if (!Double.isNaN(max_n)) { // got at least 1 neighbor
-							if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
-								System.out.println("buildTileCluster().13: tile="+tile+", tile0="+tile0);
-								System.out.println();
-							}
+//							if (((tile >= 4028) && (tile <= 4032)) || ((tile >= 4108) && (tile <= 4112))) {
+//								System.out.println("buildTileCluster().13: tile="+tile+", tile0="+tile0);
+//								System.out.println();
+//							}
 							if (Double.isNaN(disparity[tile])) {
 								max_neib[tile] = max_n; // is it needed? Yes, for ordering
 								loc_list.add(tile);
@@ -1325,8 +1335,12 @@ public class TexturedModel {
 		}
 		final int [] dbg_neib_lev_predefined = (debugLevel > 0)? neib_lev.clone() : null;
 		final AtomicInteger num_removed = new AtomicInteger(0); 		
+
 		// Recreate border tiles by selecting existing one touching last detected conflicts
 		// current loc_list is marked with max_neib_lev+1, will change to max_neib_lev.
+		// As the new border may overlap old ones, 
+		
+		
 		if (!loc_list.isEmpty()) {
 			for (int nlev = max_neib_lev; nlev > 0; nlev--) {
 				if (loc_list.isEmpty()) {
@@ -1345,6 +1359,7 @@ public class TexturedModel {
 							break;
 						}
 					}
+					new_seam [tile] = true;
 				}
 				if (nlev == 1) { // just mark, do not create a new list
 					break;
@@ -1354,10 +1369,14 @@ public class TexturedModel {
 					int tile = loc_list.remove(0);
 					for (int dir = 0; dir < 8; dir++) {
 						int tile1 = tn.getNeibIndex(tile, dir);
-						if ((tile1 >= 0) && (neib_lev[tile1] >=0 ) && (neib_lev[tile1] < (nlev -1))) {
+						if ((tile1 >= 0) &&
+								(neib_lev[tile1] >=0 ) &&
+								((neib_lev[tile1] < (nlev -1)) || initial_seam[tile1]) 
+								) {
 							if (!loc_list.contains(tile1)) {
 								loc_list.add(tile1);
 							}
+							initial_seam[tile1] = false;
 						}
 					}
 				}
@@ -1370,11 +1389,16 @@ public class TexturedModel {
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) if (!Double.isNaN(disparity[tile])){
-					    if ((neib_lev[tile] == 0) || // is it an inner tile, or
-					    		// an old seam area now resolved
-					    		((seams[tile] > 0) && ((max_neib_lev - seams[tile] - neib_lev[tile] + 1) == 0))) {
+						if ((neib_lev[tile] == 0) || // is it an inner tile, or
+								// an old seam area now resolved
+								(       !new_seam[tile] && // resolved but made a seam again
+										(seams[tile] > 0) &&
+										((max_neib_lev - seams[tile] - neib_lev[tile] + 1) == 0))) {
 							for (int layer = 0; layer < disparity_layers.length; layer++) {
 								if (disparity_layers[layer][tile] == disparity[tile]) {
+									if (tile == dbg_tile ) {
+										System.out.println("buildTileCluster() tile="+tile);
+									}
 									disparity_layers[layer][tile] = Double.NaN;
 									seams_layers[layer][tile] = 0;
 									num_removed.getAndIncrement();
@@ -1404,12 +1428,11 @@ public class TexturedModel {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
-		
-		
-		if (debugLevel > 0) {
+		if (debugLevel > 1) {
 			String [] dbg_titles = {"Source","Intermediate","Final", "neib_lev0", "neib_lev1", "neib_lev2",
-					"seams", "seams_layers_0", "seams_layers_1", "disparity_layers_0", "disparity_layers_1"};
-			double [][] dbg_neib_lev = new double [6][tiles];
+					"seams", "seams_layers_0", "seams_layers_1", "newseam_discontinued",
+					"disparity_layers_0", "disparity_layers_1"};
+			double [][] dbg_neib_lev = new double [7][tiles];
 			
 			for (int i = 0; i < tiles; i++) {
 				if (dbg_neib_lev_preorph != null) {
@@ -1422,6 +1445,7 @@ public class TexturedModel {
 				dbg_neib_lev[3][i] = 10*seams[i];
 				dbg_neib_lev[4][i] = 10*seams_layers[0][i];
 				dbg_neib_lev[5][i] = 10*seams_layers[1][i];
+				dbg_neib_lev[6][i] = 10*(new_seam[i]?1:0) + 20*(discontinued[i]? 1:0);
 			}
 			
 			double [][] dbg_img = {
@@ -1434,6 +1458,7 @@ public class TexturedModel {
 					dbg_neib_lev[3],
 					dbg_neib_lev[4],
 					dbg_neib_lev[5],
+					dbg_neib_lev[6],
 					disparity_layers[0],
 					disparity_layers[1]};
 			ShowDoubleFloatArrays.showArrays(
@@ -1441,7 +1466,7 @@ public class TexturedModel {
 					tilesX,
 					tilesY,
 					true,
-					"source_final_disparity-"+String.format("%02d", cluster_list.size()-1),
+					"source_final_disparity-"+String.format("%02d", cluster_list.size()),
 					dbg_titles);
 		}		
 		
@@ -2743,6 +2768,8 @@ public class TexturedModel {
 		final boolean [][] has_bg_strong = new boolean [num_slices][tiles];
 		final boolean [][] has_tile =      new boolean [num_slices][tiles];
 		final boolean [][] stitch_tile =   new boolean [num_slices][tiles];
+		final boolean [][] stitched_tile = new boolean [num_slices][tiles]; // stitch for other
+		
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double disparity_max = getMaxDisparity (
@@ -2756,8 +2783,7 @@ public class TexturedModel {
 		final int max_obscuring_lev =  1; // maximal border level that can obscure other tiles
 		final int max_wbg_keep =       1; // keep tiles that have opaque BG ones with level not greater than ??
 		final boolean [] stitch_this =   new boolean [tiles];
-		
-	
+//		final int dbg_tile = 3948; // 28+49*80;
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			int fnslice = nslice;
 			ai.set(0);
@@ -2801,6 +2827,36 @@ public class TexturedModel {
 				ImageDtt.startAndJoin(threads);
 			}
 		}
+		
+		// mark stitched to other
+		
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
+//							if (tile == dbg_tile ) {
+//								System.out.println("getTileBooleans().2 tile="+tile);
+//							}
+							if (stitch_tile[fnslice][tile]) {
+								for (int ns = 0; ns < num_slices; ns++)
+									if ((ns != fnslice) &&
+											!stitch_tile[ns][tile] && 
+											(slice_disparities[ns][tile] == slice_disparities[fnslice][tile])) {
+										stitched_tile[ns][tile] = true;
+									}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}		
+
+		
+		
 		// restart outer loop to be available for all slices later
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			int fnslice = nslice;
@@ -2896,6 +2952,7 @@ public class TexturedModel {
 									(!has_bg_strong[fnslice][tile] && (!is_fg[fnslice][tile] || is_fg_weak  [fnslice][tile])) ||
 									(slice_border_int[fnslice][tile] <= max_wbg_keep) ||
 									stitch_tile[fnslice][tile] ||
+									stitched_tile[fnslice][tile] ||
 									is_fg_strong [fnslice][tile]; // other's stitch area and fg makes this strong fg
 						}
 					}
@@ -2911,14 +2968,18 @@ public class TexturedModel {
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
-						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement())
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
+//							if (tile == dbg_tile ) {
+//								System.out.println("getTileBooleans().6 tile="+tile);
+//							}
 							if (stitch_tile[fnslice][tile] && (slice_border_int[fnslice][tile] == (max_neib_lev +1))){
 								for (int ns = 0; ns < num_slices; ns++)
 									if (!stitch_tile[ns][tile] &&
 											(slice_disparities[ns][tile] == slice_disparities[fnslice][tile])) {
 										has_tile[fnslice][tile] = false;
-									break;	
-								}
+										break;	
+									}
+							}
 						}
 					}
 				};
@@ -2933,6 +2994,7 @@ public class TexturedModel {
 		rslt[TILE_HAS_BG_STRONG] =  has_bg_strong;
 		rslt[TILE_KEEP] =           has_tile;
 		rslt[TILE_STITCH] =         stitch_tile;
+		rslt[TILE_STITCHED] =       stitched_tile;
 		return rslt;
 	}
 	
@@ -4893,24 +4955,28 @@ public class TexturedModel {
 				tilesX);                           // final int         tilesX)
 		
 		if (dbg_prefix != null) {
-			double [][] dbg_img = new double [tile_booleans[0].length * 4][tile_booleans[0][0].length];
-			String[] dbg_titles = new String [tile_booleans[0].length * 4];
+			double [][] dbg_img = new double [tile_booleans[0].length * 5][tile_booleans[0][0].length];
+			String[] dbg_titles = new String [tile_booleans[0].length * 5];
 			for (int nslice = 0; nslice < tile_booleans[0].length; nslice++) {
-				dbg_titles[4*nslice + 0] = "BORDER-"+nslice;
-				dbg_titles[4*nslice + 1] = "HAS_BG-"+nslice;
-				dbg_titles[4*nslice + 2] = "IS_FG-"+nslice;
-				dbg_titles[4*nslice + 3] = "KEEP_STITCH-"+nslice;
+				dbg_titles[5*nslice + 0] = "BORDER-"+nslice;
+				dbg_titles[5*nslice + 1] = "HAS_BG-"+nslice;
+				dbg_titles[5*nslice + 2] = "IS_FG-"+nslice;
+				dbg_titles[5*nslice + 3] = "STITCH-STITCHED"+nslice;
+				dbg_titles[5*nslice + 4] = "ALL_KEEP"+nslice;
 				for (int i = 0; i < dbg_img[0].length; i++) {
-					dbg_img[4*nslice + 0][i] = slice_border_int[nslice][i];
-					dbg_img[4*nslice + 1][i] = 
+					dbg_img[5*nslice + 0][i] = slice_border_int[nslice][i];
+					dbg_img[5*nslice + 1][i] = 
 							(tile_booleans[TILE_HAS_BG_WEAK][nslice][i]?   1.0 : 0.0) +
 							(tile_booleans[TILE_HAS_BG_STRONG][nslice][i]? 2.0 : 0.0) ;
-					dbg_img[4*nslice + 2][i] = 
+					dbg_img[5*nslice + 2][i] = 
 							(tile_booleans[TILE_IS_FG_WEAK][nslice][i]?   1.0 : 0.0) +
 							(tile_booleans[TILE_IS_FG_STRONG][nslice][i]? 2.0 : 0.0) ;
-					dbg_img[4*nslice + 3][i] = 
-							(tile_booleans[TILE_KEEP][nslice][i]?   1.0 : 0.0) +
-							(tile_booleans[TILE_STITCH][nslice][i]? 2.0 : 0.0) ;
+					dbg_img[5*nslice + 3][i] = 
+							(tile_booleans[TILE_STITCH][nslice][i]? 1.0 : 0.0) +
+							(tile_booleans[TILE_STITCHED][nslice][i]? 2.0 : 0.0);
+					dbg_img[5*nslice + 4][i] = 
+							((slice_border_int[nslice][i] >= 0)? 1.0 : 0.0) +
+							(tile_booleans[TILE_KEEP][nslice][i]? 2.0 : 0.0);
 				}
 			}
 			ShowDoubleFloatArrays.showArrays(
