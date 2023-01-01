@@ -5299,6 +5299,7 @@ public class TexturedModel {
 
 			for (int nslice = 0; nslice < num_slices; nslice++) {
 				final double [] vars_ratio =               new double [img_size];
+				final double [] vars_fom =                 new double [img_size]; // inter/sqrt(same)
 				final double [] vars_dir_ratio =           new double [img_size];
 				final double [] half_pix =                 new double [img_size];
 				final double [] stitch_trim_pix =          new double [img_size];
@@ -5311,6 +5312,7 @@ public class TexturedModel {
 				final double [] trim_alpha_pix =           new double [img_size];
 				for (int i = 0; i <img_size; i++) {
 					vars_ratio[i] =     vars[0][nslice][i]/vars[1][nslice][i];
+					vars_fom[i] =       vars[1][nslice][i]/Math.sqrt(vars[0][nslice][i]);
 					vars_dir_ratio[i] = vars[0][nslice][i]/dbg_out[1][nslice][i]; //vars_dir_final;
 					half_pix[i] = 
 							(has_bg_pix [nslice][i]? 1.0:0.0) +
@@ -5344,12 +5346,13 @@ public class TexturedModel {
 				double [][] dbg_img = {
 						vars[0][nslice],
 						vars[1][nslice],
+						vars_ratio,
+						vars_fom,
 						dbg_out[0][nslice], // gdbg_vars_dir_initial[nslice],
 						dbg_out[1][nslice], // gdbg_vars_dir_final[nslice],
 						dbg_out[2][nslice], // gdbg_dirs_initial[nslice],
 						dbg_out[3][nslice], // gdbg_dirs_final[nslice],
 						dbg_out[4][nslice], // gdbg_dirs_len[nslice],
-						vars_ratio,
 						vars_dir_ratio,
 						half_pix,
 						stitch_trim_pix,
@@ -5392,12 +5395,13 @@ public class TexturedModel {
 				String [] dbg_titles = {
 						"VAR_SAME",
 						"VAR_INTER",
+						"VAR_RATIO",
+						"VAR_FOM",
 						"VAR_DIR_INITIAL",
 						"VAR_DIR_FINAL",
 						"DIR_INITIAL",
 						"DIR_FINAL",
 						"LEN",
-						"VAR_RATIO",
 						"DIR_RATIO",
 						"HALF_BG_FG",
 						"STITCH_TRIM",
