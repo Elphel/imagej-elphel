@@ -35,6 +35,7 @@ import org.json.JSONException;
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.x3d.export.GlTfExport;
@@ -3235,15 +3236,14 @@ public class TexturedModel {
 			final boolean [][]  seed_pix,  // FG edge, just outside of trim_pix. Will be modified
 			final double  [][]  vars_same,
 			final double  [][]  vars_inter,
-			final double        seed_inter, // minimal value of vars_inter
+			final double        seed_same_fz, // add to var_same in denominator
 			final double        seed_fom,   // minimal value of vars_inter/sqrt(vars_same)
+			final double        seed_inter, //  =   150;
 			final int           width) {
 		final int num_slices = trim_pix.length;
 		final int num_pix =    trim_pix[0].length;
-		final int height = num_pix/width;
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
-		final TileNeibs pn =     new TileNeibs(width, height);
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			final int fnslice = nslice;
 			ai.set(0);
@@ -3251,8 +3251,10 @@ public class TexturedModel {
 				threads[ithread] = new Thread() {
 					public void run() {
 						for (int pix = ai.getAndIncrement(); pix < num_pix; pix = ai.getAndIncrement()) if (trim_pix[fnslice][pix]) {
-							if (vars_inter[fnslice][pix] >= seed_inter) {
-								double fom = vars_inter[fnslice][pix]/Math.sqrt(vars_same[fnslice][pix]);
+							if (vars_inter[fnslice][pix] > seed_inter) {  // works for high-contrast over sky
+								seed_pix[fnslice][pix] = true;
+							} else { // for foreground with lower contrast
+								double fom = vars_inter[fnslice][pix]/(vars_same[fnslice][pix] + seed_same_fz);
 								if (fom >= seed_fom) {
 									seed_pix[fnslice][pix] = true;
 								}
@@ -3266,13 +3268,90 @@ public class TexturedModel {
 		return seed_pix;
 	}
 
-	public static boolean [][]  getTrimAlpha(
+	
+	public static double [][] getTrimFom(
 			final boolean [][]  trim_pix,  // pixels that may be trimmed
-			final boolean [][]  seed_pix,  // FG edge (just outside of trim_pix) and seeds from vars_inter mismatch
 			final double  [][]  vars_same,
 			final double  [][]  vars_inter,
-			final double        thr_same,  // minimal value of vars_same to block propagation
-			final double        thr_ratio, // minimal value of vars_same/vars_inter  to block propagation
+			final double        trim_inter_fz,  // minimal value of vars_same to block propagation
+			final double        trim_fom_threshold, // = 120.0; // count only pixels with VAR_SAME > this value 
+			final double        trim_fom_boost, // = 5;   // boost high-varinace values that exceed threshold  
+			final double        trim_fom_blur,
+			final int           width,
+			final double [][][] fom_dbg) {
+		final int num_slices = trim_pix.length;
+		final int num_pix =    trim_pix[0].length;
+		final int height = num_pix/width;
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double [][] trim_foms = new double [num_slices][num_pix];
+		final double []   fom_blurred = (trim_fom_blur > 0) ? new double [num_pix] : null;
+		final double boost_scale = trim_fom_boost / trim_fom_threshold;
+		final double boost_subtract =  trim_fom_boost - 1.0;
+		if (fom_dbg != null) {
+			for (int i = 0; i <fom_dbg.length; i++) {
+				fom_dbg[i] = new double[num_slices][];
+			}
+		}
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			Arrays.fill(trim_foms[fnslice], Double.NaN);
+			if (trim_fom_blur > 0) {
+				Arrays.fill(fom_blurred, 1.0); // trim_fom_threshold);
+			}
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int pix = ai.getAndIncrement(); pix < num_pix; pix = ai.getAndIncrement()) if (!Double.isNaN(vars_same[fnslice][pix])){
+							if (trim_pix[fnslice][pix]) { // should be NaN outside of trim_pix
+								trim_foms[fnslice][pix] = vars_same[fnslice][pix]/(vars_inter[fnslice][pix] + trim_inter_fz);
+							}
+							if ((trim_fom_blur > 0) && !Double.isNaN(trim_foms[fnslice][pix])) {
+								fom_blurred[pix] = Math.max(vars_same[fnslice][pix],trim_fom_threshold) * boost_scale - boost_subtract;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (fom_dbg != null) {
+				fom_dbg[0][nslice] = trim_foms[fnslice].clone();
+				fom_dbg[2][nslice] = fom_blurred.clone();
+			}
+			if (trim_fom_blur > 0) {
+				(new DoubleGaussianBlur()).blurDouble(
+						fom_blurred,
+						width,
+						height,
+						trim_fom_blur,
+						trim_fom_blur,
+						0.01);
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int pix = ai.getAndIncrement(); pix < num_pix; pix = ai.getAndIncrement()) if (!Double.isNaN(trim_foms[fnslice][pix])){
+								trim_foms[fnslice][pix] /= fom_blurred[pix];
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				if (fom_dbg != null) {
+					fom_dbg[3][nslice] = fom_blurred.clone();
+					fom_dbg[1][nslice] = trim_foms[fnslice].clone();
+				}
+			}
+		}
+		return trim_foms;
+	}
+	
+	public static void getTrimAlpha(
+			final double  [][]  fom_pix,   // should be NaN outside of trim_pix
+			final boolean [][]  trim_pix,  // pixels that may be trimmed
+			final boolean [][]  seed_pix,  // FG edge (just outside of trim_pix) and seeds from vars_inter mismatch
+			final double        trim_fom, // minimal value of vars_same/vars_inter  to block propagation
 			final int           trim_grow,      // 3*transform_size?
 			final int           width) {
 		final int num_slices = trim_pix.length;
@@ -3282,6 +3361,7 @@ public class TexturedModel {
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final TileNeibs pn =     new TileNeibs(width, height);
+		final double [][] foms = new double [2][num_pix];
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			final int fnslice = nslice;
 			Arrays.fill(prohibit, true);
@@ -3290,13 +3370,10 @@ public class TexturedModel {
 				threads[ithread] = new Thread() {
 					public void run() {
 						for (int pix = ai.getAndIncrement(); pix < num_pix; pix = ai.getAndIncrement()) {
-							if (trim_pix[fnslice][pix]) {
-								if ((vars_same[fnslice][pix] < thr_same) ||
-										(vars_same[fnslice][pix]/vars_inter[fnslice][pix] < thr_ratio)) {
-									prohibit[pix] = false;
-								}
-							} else if (seed_pix[fnslice][pix]) {
-								prohibit[pix] = false; // enable FG edge that is the only outside trim_pix
+							 // NaN should keep prohibit (fom_pix should be NaN outside of trim_pix
+							if (((fom_pix[fnslice][pix] <= trim_fom) && trim_pix[fnslice][pix])
+									|| seed_pix[fnslice][pix]) {
+								prohibit[pix] = false;
 							}
 						}
 					}
@@ -3315,10 +3392,59 @@ public class TexturedModel {
 		    		seed_pix[fnslice],
 		    		seed_pix[fnslice]);
 		}
-		return seed_pix; // extends outside selected tiles, but that's OK
+		return; //  seed_pix; // extends outside selected tiles, but that's OK
 	}
 	
+	public static void expandTrimAlpha(
+			final boolean [][]  trim_pix,   // pixels that may be trimmed
+			final boolean [][]  alpha_pix,  //
+			final double  [][]  value,      // will grow only in increasing
+			final double        min_incr,
+			final boolean       dual_pass,
+			final int           trim_grow,      // 3*transform_size?
+			final int           width) {
+		final int num_slices = trim_pix.length;
+		final int num_pix =    trim_pix[0].length;
+		final int height = num_pix/width;
+		final boolean [] removed =  new boolean[num_pix];
+		final boolean [] prohibit = new boolean[num_pix];
+		final TileNeibs pn =     new TileNeibs(width, height);
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+		    TileNeibs.invertSelection(
+		    		alpha_pix[fnslice],
+		    		removed); // 
+		    TileNeibs.invertSelection(
+		    		trim_pix[fnslice],
+		    		prohibit); // prohibit all that is not trim
+		    pn.growSelectionGradient( //
+		    		trim_grow,          // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+		    		removed,            // final boolean [] tiles,
+		    		prohibit,           // final boolean [] prohibit,
+		    		value[fnslice],     // final double []  value,
+		    		min_incr,           // final double     min_incr,
+					true,               // final boolean    keep_top,     // do not grow over local max
+					false);             // final boolean    keep_thin_top)// do not grow over local max only if next after that is already selected
+			if (dual_pass) {
+			    pn.growSelectionGradient( //
+			    		2, // trim_grow,    // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+			    		removed,            // final boolean [] tiles,
+			    		prohibit,           // final boolean [] prohibit,
+			    		value[fnslice],     // final double []  value,
+			    		min_incr,           // final double     min_incr,
+						false,              // final boolean    keep_top,     // do not grow over local max
+						true);              // final boolean    keep_thin_top)// do not grow over local max only if next after that is already selected
+			}
+		    TileNeibs.invertSelection(
+		    		removed,
+		    		alpha_pix[fnslice]); // 
+		}
+		return;
+	}
 
+	
+	
+	
 	public static void filterAlpha(
 			final boolean [][]  alpha_pix,  // per-pixel alpha
 			final boolean [][]  trim_pix,   // pixels that may be trimmed
@@ -3684,7 +3810,6 @@ public class TexturedModel {
 			final double [][]   combo_texture,
 			final double        var_radius,
 			final int           width) { // last slice - ratio
-
 		final int num_slices =  sensor_texture.length;
 		final int num_sensors = sensor_texture[0].length;
 		final int img_size =    sensor_texture[0][0].length;
@@ -3696,7 +3821,7 @@ public class TexturedModel {
 				var_weights[i][j] = Math.cos(0.5*Math.PI*i/var_radius) * Math.cos(0.5*Math.PI*j/var_radius);
 			}
 		}
-		final double [][][] vars = new double [2][num_slices][img_size];
+		final double [][][] vars = new double [5][num_slices][img_size]; // same, inter, d/dx, d/dy,sqrt ((d/dx)^2+(d/dy)^2)
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
  		final TileNeibs pn =     new TileNeibs(width, height);
@@ -3717,24 +3842,32 @@ public class TexturedModel {
 								double var_same = Double.NaN;
 								double var_inter = Double.NaN;
 								// calculate weighted variance
-								double sw = 0.0, swd=0.0, swd2 = 0.0;
+								double sw = 0.0, swd=0.0, swd2 = 0.0, swxd = 0.0, swyd = 0.0;
 								for (int dvy = -ivar_radius; dvy <= ivar_radius; dvy++) {
 									for (int dvx = -ivar_radius; dvx <= ivar_radius; dvx++) {
 										int indx = pn.getIndex(x0+dvx, y0+dvy);
 										if ((indx >= 0) && !Double.isNaN(combo_texture[fnslice][indx])) {
 											double w = var_weights[Math.abs(dvy)][Math.abs(dvx)]; // 1.0;
 											double d = combo_texture[fnslice][indx];
+											double wd = w * d;
 											sw += w;
-											swd += w * d;
-											swd2 += w * d*d;
+											swd += wd;
+											swd2 += wd*d;
+											swxd += dvx * wd;
+											swyd += dvy * wd;
 										}
 									}
 								}
 								if (sw > 0.0) { // always
 									double avg =  swd/sw;
 									double avg2 = swd2/sw;
+									swxd /= sw;
+									swyd /= sw;
 									var_same = Math.sqrt(avg2-avg*avg);
 									vars[0][fnslice][cindx] = var_same;
+									vars[2][fnslice][cindx] = swxd;
+									vars[3][fnslice][cindx] = swyd;
+									vars[4][fnslice][cindx] = Math.sqrt(swxd*swxd + swyd*swyd);
 								}
 								// calculate inter-sensor variance (add local normalization?)
 								sw = 0.0; swd=0.0; swd2 = 0.0;
@@ -4898,7 +5031,7 @@ public class TexturedModel {
 			final double         max_disparity_lim, //  = 100.0;  // do not allow stray disparities above this
 			final double         min_trim_disparity, //  =  2.0;  // do not try to trim texture outlines with lower disparities
 			final String         dbg_prefix) {
-		final double var_radius =         3.5;   // for variance filter of the combo disparity
+		final double var_radius =         1.5; // 3.5;   // for variance filter of the combo disparity
 		final double dir_radius =         1.5;   // averaging inter-sensor variance to view behind obstacles 
 		final double try_dir_var =       20.0;   // try directional if the intersensor variance exceeds this value
 		final int    dir_num_start =      7;     // start with this number of consecutive sensors
@@ -4933,13 +5066,22 @@ public class TexturedModel {
 
 		// New processing
 		
-		final double        seed_inter = 50.0;
-		final double        seed_fom =   15.0;
-		final double        thr_same =   16; // 20; // minimal value of vars_same to block propagation
-		final double        thr_ratio =  2.5; //  3.0; // minimal value of vars_same/vars_inter  to block propagation
+		final double        seed_inter =   150; // 120; // 150;
+		final double        seed_same_fz =  6.5; // 13; // seed_inter = 50.0;
+		final double        seed_fom =      2.0; // 1.9; // 1.2;
+		final double        trim_inter_fz = 5.0; // 13.0;
+		final double        trim_fom =      0.5; // 0.8; // 1.3; // 1.8; // 1.2; // 0.8; // 0.4;  // 0.7;
+		// scale down fom for pixels near high-variance VAR_SAME
+		final double        trim_fom_threshold = 120.0; // count only pixels with VAR_SAME > this value 
+		final double        trim_fom_boost = 5;   // boost high-varinace values that exceed threshold  
+		final double        trim_fom_blur = 10.0; // divide trim_fom array by blurred version to reduce over sky sharp edge
+		
+		final double        min_incr =      100; // temporary disable // 5; // 20.0; // 0.5; // only for sky?
+//		final double        thr_same =   16; // 20; // minimal value of vars_same to block propagation
+//		final double        thr_ratio =  2.5; //  3.0; // minimal value of vars_same/vars_inter  to block propagation
 		final int           trim_grow_pix = transform_size * 3;      // 3*transform_size?
 		final int           min_neibs_alpha = 1;  // minimal neighbors to keep alpha
-		final int           grow_alpha = 2; // grow alpha selection
+		final int           grow_alpha = 0; // 2; // grow alpha selection
 		final double        alphaOverlapTolerance = 0.0; // exact match only
 		final int           reduce_has_bg_grow = 2; // 0 - exactly half tile (between strong and weak)
 //		final int           strong_bg_overlap = 1;
@@ -5030,13 +5172,14 @@ public class TexturedModel {
 				var_radius, // 				final double        var_radius,
 				width); // 				final int           width,
 		getTrimSeeds(
-				trim_pixels,  // final boolean [][]  trim_pix,  // pixels that may be trimmed
+				trim_pixels,    // final boolean [][]  trim_pix,  // pixels that may be trimmed
 				unbound_alpha,  // final boolean [][]  seed_pix,  // FG edge, just outside of trim_pix. Will be modified
-				vars[0],      // final double  [][]  vars_same,
-				vars[1],      // 	final double  [][]  vars_inter,
-				seed_inter,   // final double        seed_inter, // minimal value of vars_inter
-				seed_fom,     // final double        seed_fom,   // minimal value of vars_inter/sqrt(vars_same)
-				width);       // final int           width)		
+				vars[0],        // final double  [][]  vars_same,
+				vars[1],        // 	final double  [][]  vars_inter,
+				seed_same_fz,   // final double        seed_same_fz, // add to var_same in denominator
+				seed_fom,       // final double        seed_fom,   // minimal value of vars_inter/sqrt(vars_same)
+				seed_inter,     // final double        seed_inter, //  =   150;
+				width);         // final int           width)		
 // copy unbound_alpha here for debug		
 //		boolean [][]  unbound_alpha = 
 		
@@ -5047,15 +5190,41 @@ public class TexturedModel {
 				trim_seeds[i] = unbound_alpha[i].clone();
 			}
 		}
+		final double [][][] fom_dbg = (dbg_prefix != null)? new double [4][][] : null;
+		double [][] trim_fom_pix = getTrimFom(
+				trim_pixels,        // final boolean [][]  trim_pix,  // pixels that may be trimmed
+				vars[0],            // final double  [][]  vars_same,
+				vars[1],            // final double  [][]  vars_inter,
+				trim_inter_fz,      // final double        trim_inter_fz,  // minimal value of vars_same to block propagation
+				trim_fom_threshold, //final double        trim_fom_threshold, // = 120.0; // count only pixels with VAR_SAME > this value 
+				trim_fom_boost,     //final double        trim_fom_boost, // = 5;   // boost high-varinace values that exceed threshold  
+				trim_fom_blur,      // final double        trim_fom_blur,
+				width,            // final int           width)
+				fom_dbg); // final double [][][] fom_dbg)
+		
 		getTrimAlpha(
+				trim_fom_pix,   // final double  [][]  fom_pix,   // should be NaN outside of trim_pix
 				trim_pixels,    // final boolean [][]  trim_pix,  // pixels that may be trimmed
 				unbound_alpha,  // final boolean [][]  seed_pix,  // FG edge (just outside of trim_pix) and seeds from vars_inter mismatch
-				vars[0],        // final double  [][]  vars_same,
-				vars[1],        // final double  [][]  vars_inter,
-				thr_same,       // final double        thr_same,  // minimal value of vars_same to block propagation
-				thr_ratio,      // final double        thr_ratio, // minimal value of vars_same/vars_inter  to block propagation
+				trim_fom,       // final double        trim_fom, // minimal value of vars_same/vars_inter  to block propagation
 				trim_grow_pix,  // final int           trim_grow,      // 3*transform_size?
 				width);         // final int           width)
+
+		final boolean [][] first_trimmed_alpha = (dbg_prefix != null)? new boolean [num_slices][] : null;
+		if (dbg_prefix != null) {
+			for (int i = 0; i < num_slices; i++) {
+				first_trimmed_alpha[i] = unbound_alpha[i].clone();
+			}
+		}
+		final boolean       dual_pass = false; // true;
+		expandTrimAlpha(
+				trim_pixels,    // final boolean [][]  trim_pix,  // pixels that may be trimmed
+				unbound_alpha,  // final boolean [][]  alpha_pix,  //
+				vars[0],        // final double  [][]  value,      // will grow only in increasing
+				min_incr,       // final double        min_incr,
+				dual_pass,      // final boolean       dual_pass,
+				trim_grow_pix,  // final int           trim_grow,      // 3*transform_size?
+			    width);         // final int           width) {
 
 		final boolean [][] unfiltered_alpha = (dbg_prefix != null)? new boolean [num_slices][] : null;
 		if (dbg_prefix != null) {
@@ -5304,16 +5473,61 @@ public class TexturedModel {
 				final double [] half_pix =                 new double [img_size];
 				final double [] stitch_trim_pix =          new double [img_size];
 				final double [] trim_seed_pix =            new double [img_size];
+				final double [] seed_trim_grow_pix =       new double [img_size];
 				final double [] unfilt_filt_pix =          new double [img_size];
 				final double [] weak_fg_pix =              new double [img_size];
 				final double [] trim_tiles_pix =           new double [img_size];
 				final double [] fix_bg_pix =               new double [img_size];
 				final double [] fix_same_pix =             new double [img_size];
 				final double [] trim_alpha_pix =           new double [img_size];
+				final double [] grad_abs_over_same =       new double [img_size];
+				final double [] ridges_pix =               new double [img_size];
+				final double [] ridges2_pix =              new double [img_size];
+				final TileNeibs pn =     new TileNeibs(width, img_size/width);
 				for (int i = 0; i <img_size; i++) {
-					vars_ratio[i] =     vars[0][nslice][i]/vars[1][nslice][i];
-					vars_fom[i] =       vars[1][nslice][i]/Math.sqrt(vars[0][nslice][i]);
+					grad_abs_over_same[i] = vars[4][nslice][i] / (vars[0][nslice][i]+seed_same_fz);
+				}		
+				final double  min_over1 = 0.0;
+				final double max_rel_slope = 0.05; // ) { // maximal ridge slope relative to the value if >0
+				boolean [] ridges = pn.getRidges(
+						grad_abs_over_same,    // final double  [] value,
+						null,                  // trim_pixels [nslice], // final boolean [] en,
+					    min_over1,             // final double     min_over)
+					    max_rel_slope);        // final double max_rel_slope) // maximal ridge slope relative to the value if >0
+				final double  min_over2 = 0.0;
+				boolean [] ridges2 = pn.getRidges(
+						vars[4][nslice],       // final double  [] value,
+						null,                  // trim_pixels [nslice], // final boolean [] en,
+					    min_over2,             // final double     min_over)
+					    max_rel_slope);        // final double max_rel_slope) // maximal ridge slope relative to the value if >0
+				double [] ridges3_pix =  pn.getRidgeValue(
+						vars[4][nslice],       // final double  [] value,
+						null,                  // final boolean [] en,
+						var_radius);           // final double     var_radius) now 3.5
+				double [] ridges4_pix =  pn.getRidgeValue(
+						grad_abs_over_same,    // final double  [] value,
+						null,                  // final boolean [] en,
+						var_radius);           // final double     var_radius) now 3.5
+				
+				for (int i = 0; i <img_size; i++) {
+					vars_ratio[i] =     vars[0][nslice][i]/(vars[1][nslice][i]+trim_inter_fz);
+					vars_fom[i] =       vars[1][nslice][i]/(vars[0][nslice][i]+seed_same_fz);
+					//vars[0][nslice]
+					if (Double.isNaN(vars_ratio[i])) vars_ratio[i] = 0;
+					if (Double.isNaN(vars_fom[i]))   vars_fom[i] = 0;
+					for (int k = 0; k < vars.length; k++) {
+						if (Double.isNaN(vars[k][nslice][i]))   vars[k][nslice][i] = 0;
+					}
+					
 					vars_dir_ratio[i] = vars[0][nslice][i]/dbg_out[1][nslice][i]; //vars_dir_final;
+//					grad_abs_over_same[i] = vars[4][nslice][i] / (vars[0][nslice][i]+seed_same_fz);
+					ridges_pix[i] = 
+							(trim_pixels [nslice][i]? 1.0:0.0) +
+							(ridges              [i]? 2.0:0.0);
+					ridges2_pix[i] = 
+							(trim_pixels [nslice][i]? 1.0:0.0) +
+							(ridges2             [i]? 2.0:0.0);
+					
 					half_pix[i] = 
 							(has_bg_pix [nslice][i]? 1.0:0.0) +
 							(is_fg_pix  [nslice][i]? 2.0:0.0);
@@ -5323,6 +5537,12 @@ public class TexturedModel {
 					trim_seed_pix[i] = 
 							(trim_pixels [nslice][i]? 1.0:0.0) +
 							(trim_seeds  [nslice][i]? 2.0:0.0);
+					
+					seed_trim_grow_pix[i] = 
+							(trim_seeds         [nslice][i]? 1.0:0.0) +
+							(first_trimmed_alpha[nslice][i]? 2.0:0.0) + // after first trimming
+							(unfiltered_alpha   [nslice][i]? 4.0:0.0);  // grown by var_same increase 
+					
 					unfilt_filt_pix[i] = 
 							(unfiltered_alpha  [nslice][i]? 1.0:0.0) +
 							(filtered_alpha    [nslice][i]?  2.0:0.0);
@@ -5346,7 +5566,21 @@ public class TexturedModel {
 				double [][] dbg_img = {
 						vars[0][nslice],
 						vars[1][nslice],
+						vars[2][nslice],
+						vars[3][nslice],
+						vars[4][nslice],
+						grad_abs_over_same,
+						ridges_pix,
+						ridges2_pix,
+						ridges3_pix,
+						ridges4_pix,
 						vars_ratio,
+						trim_fom_pix[nslice], // normalized by blurred
+						
+						fom_dbg[0][nslice],
+						fom_dbg[1][nslice],
+						fom_dbg[2][nslice],
+						fom_dbg[3][nslice],
 						vars_fom,
 						dbg_out[0][nslice], // gdbg_vars_dir_initial[nslice],
 						dbg_out[1][nslice], // gdbg_vars_dir_final[nslice],
@@ -5357,6 +5591,7 @@ public class TexturedModel {
 						half_pix,
 						stitch_trim_pix,
 						trim_seed_pix,
+						seed_trim_grow_pix,
 						unfilt_filt_pix,
 						weak_fg_pix,
 						trim_tiles_pix,
@@ -5395,8 +5630,21 @@ public class TexturedModel {
 				String [] dbg_titles = {
 						"VAR_SAME",
 						"VAR_INTER",
-						"VAR_RATIO",
-						"VAR_FOM",
+						"GRAD_X",
+						"GRAD_Y",
+						"GRAD_ABS",
+						"GRAD_NORM",
+						"RIDGES_NORM",
+						"RIDGES_ABS",
+						"RIDGES_ANA_NORM",
+						"RIDGES_ANA_ABS",
+						"TRIM_FOM", // same/(inter+trim_inter_fz)
+						"TRIM_FOM_NORM", // same/(inter+trim_inter_fz) normalized by blurred version
+						"TRIM_FOM_INI", // initial fom
+						"TRIM_FOM_FIN", // final fom
+						"TRIM_FOM_THRESH", // var_same_thresholded
+						"TRIM_FOM_THRESH_BLUR", // var_same_thresholded_blured
+						"SEED_FOM", // inter/(same+seed_same_fz)
 						"VAR_DIR_INITIAL",
 						"VAR_DIR_FINAL",
 						"DIR_INITIAL",
@@ -5406,6 +5654,7 @@ public class TexturedModel {
 						"HALF_BG_FG",
 						"STITCH_TRIM",
 						"TRIM_SEED",
+						"SEED_TRIMMED_MORE",
 						"UNFILT_FILT",
 						"WEAK_FG",
 						"TRIM_TILES",
