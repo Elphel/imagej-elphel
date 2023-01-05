@@ -1775,24 +1775,25 @@ public class QuadCLT extends QuadCLTCPU {
 	}
 	
 	public static double [][][][] texturesNoOverlapGPUFromDSI(
-			CLTParameters     clt_parameters,
-			double []         disparity_ref,
+			CLTParameters      clt_parameters,
+			double []          disparity_ref,
 			// motion blur compensation 
-			double            mb_tau,      // 0.008; // time constant, sec
-			double            mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
-			double [][]       mb_vectors,  // now [2][ntiles];
-			final double []   scene_xyz, // camera center in world coordinates
-			final double []   scene_atr, // camera orientation relative to world frame
-			final QuadCLT     scene,
-			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
-			final boolean     filter_bg, // remove bg tiles (possibly occluded)
-			final double      max_distortion, // maximal neighbor tiles offset as a fraction of tile size (8) 
-			final int []      cluster_index,  // [tilesX*tilesY]
-			final boolean []  border, // border tiles for clusters?
-			final int         discard_frame_edges, // do not use tiles that have pixels closer to the frame margins 
-			final int         keep_frame_tiles, // do not discard pixels for border tiles in reference frame 
-			final boolean     keep_channels,
-			final int         debugLevel){
+			double             mb_tau,      // 0.008; // time constant, sec
+			double             mb_max_gain, // 5.0;   // motion blur maximal gain (if more - move second point more than a pixel
+			double [][]        mb_vectors,  // now [2][ntiles];
+			final double []    scene_xyz, // camera center in world coordinates
+			final double []    scene_atr, // camera orientation relative to world frame
+			final QuadCLT      scene,
+			final QuadCLT      ref_scene, // now - may be null - for testing if scene is rotated ref
+			final boolean      filter_bg, // remove bg tiles (possibly occluded)
+			final double       max_distortion, // maximal neighbor tiles offset as a fraction of tile size (8) 
+			final int []       cluster_index,  // [tilesX*tilesY]
+			final boolean []   border, // border tiles for clusters?
+			final int          discard_frame_edges, // do not use tiles that have pixels closer to the frame margins 
+			final int          keep_frame_tiles, // do not discard pixels for border tiles in reference frame 
+			final boolean      keep_channels,
+			final TpTask[][][] tp_tasks_ret, // if not null, should be [1] - will return tp_tasks_ret[0] = tp_tasks
+			final int          debugLevel){
 		// FIXME: Move to clt_parameters;
 		final double max_overlap =    0.6; 
 		final double min_adisp_cam =  0.2;
@@ -1899,11 +1900,12 @@ public class QuadCLT extends QuadCLTCPU {
 		if (tp_tasks[0].length == 0) {
 			if (debugLevel > -1) {
 				System.out.println("texturesGPUFromDSI(): no tiles to process");
-				
 			}
 			return null;
 		}
-		
+		if (tp_tasks_ret != null) {
+			tp_tasks_ret[0] = tp_tasks; // return tp_tasks to caller
+		}
 		///		scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 		ImageDtt image_dtt = new ImageDtt(
 				scene.getNumSensors(),

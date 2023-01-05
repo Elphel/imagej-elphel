@@ -176,6 +176,10 @@ public class TpTask {
 	public int getTileX(){
 		return tx;
 	}
+	public int [] getTileXY(){
+		return new int [] {tx,ty};
+	}
+	
 	public int getTask() {
 		return task;
 	}

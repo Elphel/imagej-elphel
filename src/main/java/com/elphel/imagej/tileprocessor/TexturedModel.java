@@ -38,6 +38,7 @@ import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.EyesisCorrections;
+import com.elphel.imagej.gpu.TpTask;
 import com.elphel.imagej.x3d.export.GlTfExport;
 import com.elphel.imagej.x3d.export.TriMesh;
 import com.elphel.imagej.x3d.export.WavefrontExport;
@@ -2999,6 +3000,38 @@ public class TexturedModel {
 		return rslt;
 	}
 	
+	public static double [][][][] getPixelOffsets(
+		final TpTask[][][]   tp_tasks_ref, //
+		final boolean [][][] tile_booleans, // to filter?
+		final int         tilesX)
+	{
+		final int num_slices = tile_booleans[0].length;
+		final int num_tiles = tile_booleans[0][0].length;
+		double [][][][] pix_offsets = new double [num_slices][num_tiles][][];
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nslice = ai.getAndIncrement(); nslice < num_slices; nslice = ai.getAndIncrement()) {
+						if ((tp_tasks_ref[nslice]!= null) && (tp_tasks_ref[nslice].length>0) &&  (tp_tasks_ref[nslice][0]!= null)) {
+							for (int ntile = 0; ntile <  tp_tasks_ref[nslice][0].length; ntile++) {
+								TpTask task = tp_tasks_ref[nslice][0][ntile];
+								int tile = task.getTileX()+task.getTileY()*tilesX;
+								pix_offsets[nslice][tile] = task.getDoubleXY();
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+
+		return pix_offsets;
+	}
+	
+	
 	/**
 	 * Select pixels between weak tiles and strong tiles for both has_bg (edge where
 	 * triangular mesh will end) and is_fg tiles extending 4 pixels over weak foreground
@@ -4578,9 +4611,233 @@ public class TexturedModel {
 		}		      
 		ImageDtt.startAndJoin(threads);
 		return;
-	}	
+	}
 	
+	/**
+	 * Generate bitmask of sensors that should be removed from the composite texture. Uses
+	 * image offsets from TileTask array to get shift between textures rendered for different
+	 * disparities. The source (pre-aberration) offsets directly are not used, just difference
+	 * for the same sensors.
+	 * Considering for being occluded all but strong FG tiles
+	 *  
+	 * @param channel_pixel_offsets per-slice, per tile (linescan order), per-sensor x,y offsets.
+	 * @param alpha_pix         boolean "alpha" - true - opaque, false - transparent
+	 * @param slice_disparities per-tile disparities ([slice][tile]).
+	 * @param tile_keep         boolean map of kept tiles (tile_booleans[TILE_KEEP])
+	 * @param tile_fg_strong    boolean map of strong FG tiles (tile_booleans[TILE_IS_FG_STRONG])
+	 * @param tile_stitch       boolean map of stitch tiles (tile_booleans[TILE_STITCH]) - they have duplicates
+	 * @param occlusion_frac    thershold for interpolating occlusion - fraction of BG tile being occluded
+	 *                          to actually occlude
+	 * @param width             image width in pixels 
+	 * @param transform_size    CLT conversion size. Always 8
+	 * @return                  [nslice][pix] bit map of occluded sensors to be removed from sources of the
+	 *                          combined textures. 
+	 */
+	public static int [][] getOccludedMap(
+			final double [][][][] channel_pixel_offsets,
+			final boolean [][]    alpha_pix,
+			final double  [][]    slice_disparities,
+			final boolean [][]    tile_keep,      // do not check occluded strong foreground
+			final boolean [][]    tile_fg_strong, // do not check occluded strong foreground
+			final boolean [][]    tile_stitch,    // do not process these - there are duplicates
+			final double          occlusion_frac, // ratio of opaque pixel overlap to consider occlusion 
+			final int             width,
+			final int             transform_size){
+		final int num_slices = alpha_pix.length;
+		final int img_size =   alpha_pix[0].length;
+		final int height = img_size/width;
+		final int tilesX = width/transform_size;
+		final int tilesY = img_size/width/transform_size;
+		final int tiles =  tilesX * tilesY;
+		final int dbg_tile = 4123;
+		final int dbg_slice = 0;
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int [][] occluded = new int [num_slices][img_size];
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
+							if ((fnslice == dbg_slice) && (tile == dbg_tile )) {
+								System.out.println("getNonOccludedMap().1 nslice="+fnslice+", tile="+tile);
+							}
+							double [][] offs_bg = channel_pixel_offsets[fnslice][tile];
+							if (tile_keep[fnslice][tile] && !tile_fg_strong[fnslice][tile] && !tile_stitch[fnslice][tile]) {
+								for (int ns = 0; ns < num_slices; ns++) {
+									if ((ns != fnslice) &&
+											tile_keep[ns][tile] &&
+											!tile_stitch[fnslice][tile] &&
+											(slice_disparities[ns][tile] > slice_disparities[fnslice][tile])) {
+										double [][] offs_fg = channel_pixel_offsets[ns][tile];
+										double [][] pixel_offs = new double [offs_bg.length][2];
+										for (int nsens = 0; nsens < pixel_offs.length; nsens++) {
+											if (offs_bg[nsens] != null) { // to implement sensor mask later
+												pixel_offs[nsens][0] = offs_bg[nsens][0] - offs_fg[nsens][0];
+												pixel_offs[nsens][1] = offs_bg[nsens][1] - offs_fg[nsens][1];
+											}
+										}
+										int tileX = tile % tilesX; 
+										int tileY = tile / tilesX;
+										for (int dy = 0; dy < transform_size; dy++) {
+											int py0 = tileY * transform_size + dy;
+											for (int dx = 0; dx < transform_size; dx++) {
+												int px0 = tileX * transform_size + dx;
+												int occluded_mask = 0;
+												for (int nsens = 0; nsens < pixel_offs.length; nsens++) if (offs_bg[nsens] != null) {
+													double px = px0 + pixel_offs[nsens][0]; 
+													double py = py0 + pixel_offs[nsens][1];
+													if ((px >= 0) && (px < (width - 1)) && (py >= 0) && (py < (height - 1))) {
+														int ipx = (int) Math.floor(px);
+														int ipy = (int) Math.floor(py);
+														int indx_fg = ipx + ipy*width;
+														boolean occl_any = 
+																alpha_pix[ns][indx_fg] ||
+																alpha_pix[ns][indx_fg + 1] ||
+																alpha_pix[ns][indx_fg + width] ||
+																alpha_pix[ns][indx_fg + width + 1];
+														boolean occl_all = 
+																alpha_pix[ns][indx_fg] &&
+																alpha_pix[ns][indx_fg + 1] &&
+																alpha_pix[ns][indx_fg + width] &&
+																alpha_pix[ns][indx_fg + width + 1];
+														if (occl_all) {
+															occluded_mask |= (1 << nsens);
+														} else {
+															if (occl_any) {
+																double fx =  px - ipx;
+																double fy =  py - ipy;
+																double d = 0;
+																if (alpha_pix[ns][indx_fg])             d += (1 - fx) * (1- fy);
+																if (alpha_pix[ns][indx_fg + 1])         d += (    fx) * (1- fy);
+																if (alpha_pix[ns][indx_fg + width])     d += (1 - fx) * (   fy);
+																if (alpha_pix[ns][indx_fg + width + 1]) d += (    fx) * (   fy);
+																if (d >= occlusion_frac) {
+																	occluded_mask |= (1 << nsens);
+																}
+															}
+														}
+													}
+												} // for (int nsens = 0; nsens < pixel_offs.length; nsens++) {
+												int indx = (((tileY * width + tileX) * transform_size) + dy * width) + dx;
+												occluded[fnslice][indx] |= occluded_mask;
+											}
+										}
+									} // if ((ns != fnslice) && ...
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		// duplicate for stitch tiles
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
+							if (tile_keep[fnslice][tile] && !tile_fg_strong[fnslice][tile] && tile_stitch[fnslice][tile]) {
+								for (int ns = 0; ns < num_slices; ns++) {
+									if ((ns != fnslice) && // other layer with same disparity and non-stitch (probably stitched) 
+											tile_keep[ns][tile] &&
+											!tile_stitch[fnslice][tile] &&
+											(slice_disparities[ns][tile] == slice_disparities[fnslice][tile])) {
+										int tileX = tile % tilesX; 
+										int tileY = tile / tilesX;
+										for (int dy = 0; dy < transform_size; dy++) {
+											int indx0 = (tileY * transform_size + dy) * width + tileX * transform_size;
+											System.arraycopy(
+													occluded[ns],
+													indx0,
+													occluded[fnslice],
+													indx0,
+													transform_size);
+										}
+									}									
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}		
+		return occluded;
+		// for debug - display number of bits from bit_mask
+	}
 	
+	public static double [][] debugOccludedMap(
+			final int     [][]   occluded_map
+			){
+		final int num_slices =  occluded_map.length;
+		final int img_size =    occluded_map[0].length;
+		double [][] dbg_map = new double [num_slices][img_size];
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			for (int pix = 0; pix < img_size; pix++) {
+				if (occluded_map[nslice][pix] != 0) {
+					int n = 0;
+					for (int d = occluded_map[nslice][pix]; d != 0;  d >>= 1) {
+						if ((d & 1) != 0) {
+							n++;
+						}
+					}
+					dbg_map[nslice][pix] = n;
+				}
+			}
+		}		
+		return dbg_map;
+	}
+	
+	public static double [][] combineTexturesWithOcclusions(
+			final double  [][][] sensor_texture,
+			final double  [][]   combo_texture,
+			final int     [][]   occluded_map){
+		final int num_slices =  sensor_texture.length;
+		final int img_size =    combo_texture[0].length;
+		final int num_sensors = sensor_texture[0].length;
+		final double [][] occluded_texture = new double [num_slices][img_size];
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int pix = ai.getAndIncrement(); pix < img_size; pix = ai.getAndIncrement()) {
+							if (occluded_map[fnslice][pix] == 0) {
+								occluded_texture[fnslice][pix] = combo_texture[fnslice][pix];
+							} else {
+								int num_used_sensors = 0;
+								int msk = occluded_map[fnslice][pix];
+								double s = 0.0;
+								for (int nsens = 0; nsens < num_sensors; nsens++ ) {
+									if ((msk & (1 << nsens)) == 0) {
+										s += sensor_texture[fnslice][nsens][pix];
+										num_used_sensors++;
+									}
+								}
+								if (num_used_sensors > 0) {
+									s /= num_used_sensors;
+								} else {
+									s = Double.NaN;
+								}
+								occluded_texture[fnslice][pix] = s;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return occluded_texture;
+	}
 	
 	
 	
@@ -5030,6 +5287,7 @@ public class TexturedModel {
 			final TileCluster[]  tileClusters, // to process blue_sky?
 			final double         max_disparity_lim, //  = 100.0;  // do not allow stray disparities above this
 			final double         min_trim_disparity, //  =  2.0;  // do not try to trim texture outlines with lower disparities
+			final TpTask[][][]   tp_tasks_ref,       // reference tasks for each slice to get offsets			
 			final String         dbg_prefix) {
 		final double var_radius =         1.5; // 3.5;   // for variance filter of the combo disparity
 		final double dir_radius =         1.5;   // averaging inter-sensor variance to view behind obstacles 
@@ -5095,7 +5353,12 @@ public class TexturedModel {
 				max_neib_lev,                      // final int         max_neib_lev,
 				transform_size,                    // final int         transform_size,
 				tilesX);                           // final int         tilesX)
-		
+
+		double [][][][] channel_pixel_offsets = getPixelOffsets(
+				tp_tasks_ref,  //final TpTask[][][]   tp_tasks_ref, //
+				tile_booleans, //final boolean [][][] tile_booleans, // to filter?
+				tilesX);       // final int         tilesX)
+
 		if (dbg_prefix != null) {
 			double [][] dbg_img = new double [tile_booleans[0].length * 5][tile_booleans[0][0].length];
 			String[] dbg_titles = new String [tile_booleans[0].length * 5];
@@ -5216,6 +5479,7 @@ public class TexturedModel {
 				first_trimmed_alpha[i] = unbound_alpha[i].clone();
 			}
 		}
+		// not used:
 		final boolean       dual_pass = false; // true;
 		expandTrimAlpha(
 				trim_pixels,    // final boolean [][]  trim_pix,  // pixels that may be trimmed
@@ -5304,7 +5568,25 @@ public class TexturedModel {
 				width,                    // final int            width,
 				transform_size);          // final int            transform_size)
 
+// Processing BG	
+		final double          occlusion_frac = 0.9;
+		int [][] occluded_map = getOccludedMap(
+				channel_pixel_offsets,            // final double [][][][] channel_pixel_offsets,
+				unbound_alpha,                    // final boolean [][]    alpha_pix,
+				slice_disparities,                // final double  [][]    slice_disparities,
+				tile_booleans[TILE_KEEP],         // final boolean [][]    tile_keep,      // do not check occluded strong foreground
+				tile_booleans[TILE_IS_FG_STRONG], // final boolean [][]    tile_fg_strong, // do not check occluded strong foreground
+				tile_booleans[TILE_STITCH],       // final boolean [][]    tile_stitch,    // do not process these - there are duplicates
+				occlusion_frac,                   // final double          occlusion_frac, // ratio of opaque pixel overlap to consider occlusion 
+				width,                            // final int             width,
+				transform_size);                  // final int             transform_size);
 		
+		final double  [][] dbg_occluded_map = (dbg_prefix == null)? null:debugOccludedMap(occluded_map);
+		
+		final double  [][] occluded_textures = combineTexturesWithOcclusions(
+				sensor_texture,  // final double  [][][] sensor_texture,
+				gcombo_texture,  // final double  [][]   combo_texture,
+				occluded_map);   // final int     [][]   occluded_map);
 		
 		
 		
@@ -5598,6 +5880,11 @@ public class TexturedModel {
 						fix_bg_pix,
 						fix_same_pix,
 						trim_alpha_pix,
+						
+						dbg_occluded_map[nslice],
+						gcombo_texture[nslice],
+						occluded_textures[nslice],
+						
 						dbg_text_edge[nslice], // dbg_text_edge,
 						dbg_text_en[nslice],
 						dbg_fg_prefiltered[nslice], //
@@ -5605,7 +5892,7 @@ public class TexturedModel {
 						dbg_fg_prefiltered_neibs[nslice],
 						gtext_fg_filt[nslice], //dbg_fg_filtered[nslice],
 						gdbg_is_fg[nslice],
-						gcombo_texture[nslice],
+//						gcombo_texture[nslice],
 						out_textures  [nslice], // dirs_avg,
 						dbg_out_textures[nslice],
 						dbg_out[5][nslice],
@@ -5661,6 +5948,10 @@ public class TexturedModel {
 						"FIX_HAS_BG",
 						"FIX_SAME",
 						"TRIM_ALPHA",
+						
+						"OCCLUSIONS_MAP",
+						"COMBO_TEXTURE",
+						"OCCLUDED_TEXTURES",
 						"TEXTURE_EDGE",
 						"TEXTURE_ON",
 						"TEXTURE_TRIMMED",
@@ -5668,7 +5959,7 @@ public class TexturedModel {
 						"TEXTURE_TRIMMED_EDGED",
 						"TEXTURE_FG_FILTERED",
 						"IS_FG",
-						"COMBO_TEXTURE",
+//						"COMBO_TEXTURE",
 						"OUT_TEXTURE_BG",
 						"OUT_TEXTURE_FG",
 						"TILE_ALPHA",
@@ -5697,6 +5988,7 @@ public class TexturedModel {
 						true,
 						dbg_prefix+"-textures-"+nslice,
 						dbg_titles);
+				assert true;
 			}
 			ShowDoubleFloatArrays.showArrays(
 					out_textures,
@@ -5864,6 +6156,7 @@ public class TexturedModel {
 		
 		final double [][][] sensor_textures = new double [num_slices][num_sensors][];
 		final double [][] combo_textures = new double [num_slices][];
+		final TpTask[][][] tp_tasks_ref = new TpTask [num_slices][][];
 		for (int nscene = earliestScene; nscene < scenes.length; nscene++) if ((scenes_sel == null) || scenes_sel[nscene]){
 			String ts = scenes[nscene].getImageName();
 			double []   scene_xyz = OpticalFlow.ZERO3;
@@ -5907,6 +6200,12 @@ public class TexturedModel {
 					System.out.println("nscene="+nscene+", nslice="+nslice+" will run texturesGPUFromDSI() that needs debug >2");
 					System.out.print("");
 				}
+				if ((debugLevel > -1) && (nscene == ref_index)) { // change to "-2" to activate
+					System.out.println("Processing reference scene");
+					System.out.print("");
+				}
+				final TpTask[][][] tp_tasks_ret = ((nscene == ref_index) && (tp_tasks_ref != null))?
+								new TpTask[1][][] : null;
 				double [][][][] slice_texture88 = QuadCLT.texturesNoOverlapGPUFromDSI(
 						clt_parameters,          // CLTParameters     clt_parameters,
 						disparity_ref,           // double []         disparity_ref,
@@ -5927,7 +6226,11 @@ public class TexturedModel {
 						10,                      // final int         discard_frame_edges, // do not use tiles that have pixels closer to the frame margins 
 						1,                       // final int         keep_frame_tiles, // do not discard pixels for border tiles in reference frame 
 						true,                    // keep_channels,           // final boolean     keep_channels,
-						debugLevel);            // final int         debugLevel);
+						tp_tasks_ret,            // final TpTask[][][] tp_tasks_ret, // if not null, should be [1] - will return tp_tasks_ret[0] = tp_tasks
+						debugLevel);             // final int         debugLevel);
+				if (tp_tasks_ret != null) {
+					tp_tasks_ref[nslice] = 	tp_tasks_ret[0];
+				}
 				if (slice_texture88 != null) { // will just accumulate
 					// Use MB vectors for texture weights				
 					final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
@@ -6069,6 +6372,7 @@ public class TexturedModel {
 				tileClusters,              // final TileCluster[]  tileClusters, // to process blue_sky?
 				max_disparity_lim,         // final double max_disparity_lim,  // do not allow stray disparities above this
 				min_trim_disparity,        // final double min_trim_disparity, // do not try to trim texture outlines with lower disparities
+				tp_tasks_ref,              // final TpTask[][][]   tp_tasks_ref,       // reference tasks for each slice to get offsets			
 				ref_scene.getImageName()); // null); // ref_scene.getImageName()); // final String         dbg_prefix);
 		if (debugLevel > -1) {
 			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
