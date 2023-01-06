@@ -5030,6 +5030,7 @@ ImageDtt.startAndJoin(threads);
 			}
 		}
 	}
+	@Deprecated	
 	public void growTiles(
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			boolean [] tiles,
@@ -5043,7 +5044,8 @@ ImageDtt.startAndJoin(threads);
 				this.tilesY);
 	}
 
-
+	// Use TileNeibs
+	@Deprecated
 	public static void growTiles(
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			boolean [] tiles,
@@ -8637,45 +8639,60 @@ ImageDtt.startAndJoin(threads);
 		return -1;
 	}
 
+
 	public static double [] fillNaNs(
-			final double [] data,
-			int       width,
-			final int grow,
-			double    diagonal_weight, // relative to ortho
-			int       num_passes,
-			final int threadsMax)      // maximal number of threads to launch                         
+			final double []  data,
+			final boolean [] prohibit,
+			int              width,
+			final int        grow,
+			double           diagonal_weight, // relative to ortho
+			int              num_passes,
+			final double     max_rchange, //  = 0.01
+			final int        threadsMax)      // maximal number of threads to launch                         
 	{
-		final int scan0 = ( 3* grow) / 2;
 		int height = data.length/width;
 		double wdiag = 0.25 *diagonal_weight / (diagonal_weight + 1.0);
 		double wortho = 0.25 / (diagonal_weight + 1.0);
 		final double [] neibw = {wortho, wdiag, wortho, wdiag, wortho, wdiag, wortho, wdiag}; 
 		final int tiles = width * height;
-		final boolean [] fixed = new boolean [tiles];
+		final boolean [] fixed = new boolean [tiles]; // Original non-NaN, will not be modified
 		int num_fixed = 0;
-		double davg = 0.0;
+		double davg = 0.0; // average of all fixed samples
+		double davg2 = 0.0; // average of all fixed samples
 		for (int i = 0; i < tiles; i++)	{
 			if (!Double.isNaN(data[i])) {
 				fixed[i] = true;
 				num_fixed ++;
-				davg+= data[i];
+				davg += data[i];
+				davg2 += data[i] * data[i];
 			}
 		}
 		if (num_fixed > 0) {
 			davg /= num_fixed;
+			davg2 = Math.sqrt(davg2/num_fixed - davg*davg);
 		} else {
 			return null;
 		}
 		final double fdavg = davg;
+		final double max_change = Math.abs(davg2 * max_rchange);
+
 		final boolean [] grown = fixed.clone();
 		final TileNeibs tn = new TileNeibs(width, height);
-		
+		tn.growSelection(
+				grow, // int              grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				grown, // final boolean [] tiles,
+				prohibit); // null); // final boolean [] prohibit)
+		int last_grown = tn.getLastGrown(); // actual grown (0 <= last_grown <= grow)
+		final int scan0 = last_grown/2 + 2; //  ( 3* grow) / 2;
+
+		/*
 		growTiles(
 				grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				grown,
 				null,
 				width,
 				height);
+		*/
 		int num_active = 0;
 		for (int i = 0; i < tiles; i++) {
 			if (grown[i] && !fixed[i]) num_active++;
@@ -8684,19 +8701,18 @@ ImageDtt.startAndJoin(threads);
 			return data.clone();
 		}
 		final int [] active = new int [num_active];
-		final double [] data_in = data.clone();
-		final double [] data_out = new double [tiles];
-				
+		final double [][] data_io = new double[2][];
+		data_io[0] = data.clone();
 		num_active = 0;
 		for (int i = 0; i < tiles; i++) {
 			if (grown[i] && !fixed[i]) {
 				active [num_active++] = i;
-				data_in[i] = davg; // initial value
+//				data_io[0][i] = davg; // initial value - needed?
 			}
 		}
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
-//		final int numThreads = threads.length;
 		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger ati = new AtomicInteger(0);
 //Set initial values		
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -8715,52 +8731,70 @@ ImageDtt.startAndJoin(threads);
 							}
 						}
 						if (n > 0) {
-							data_in[nt] = s/n;
+							data_io[0][nt] = s/n;
 						} else {
-							data_in[nt] = fdavg;
+							data_io[0][nt] = fdavg;
 						}
 					}
 				}
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
-
+		data_io[1] = data_io[0].clone();
+		
+		
+		final double [] last_change = new double [threads.length];
 		for (int pass = 0; pass < num_passes; pass ++) {
 			ai.set(0);
+			ati.set(0);
+			Arrays.fill(last_change, 0.0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
+						int ti = ati.getAndIncrement();
 						for (int iTile = ai.getAndIncrement(); iTile < active.length; iTile = ai.getAndIncrement()) {
 							int nt = active[iTile];
 							double s = 0.0;
 							double sw = 0.0;
 							for (int dir = 0; dir < 8; dir++) {
 								int nt1 = tn.getNeibIndex(nt, dir);
+								
 								if ((nt1 >=0) && grown[nt1]) {
-									if (fixed[nt1]) {
+									s += data_io[0][nt1] * neibw[dir];
+/*								    if (fixed[nt1]) {
 										s += data[nt1] * neibw[dir];
 									} else {
-										s += data_in[nt1] * neibw[dir];
+										s += data_io[0][nt1] * neibw[dir];
 									}
+*/
 									sw += neibw[dir];
 								}
 							}
 							// sw should never be 0;
 							s /= sw;
-							data_out[nt] = s;
+							data_io[1][nt] = s;
+							last_change[ti] = Math.max(last_change[ti], Math.abs(data_io[1][nt]-data_io[0][nt]));
 						}
 					}
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
-			if (pass < (num_passes - 1)) {
-				System.arraycopy(data_out,0,data_in,0,tiles);
+			double multi_change = 0;
+			for (int i = 0; i < last_change.length; i++) {
+				multi_change = Math.max(multi_change, last_change[i]);
+			}
+			boolean done = (pass >= (num_passes - 1)) || (multi_change < max_change);
+//			System.out.println("fillNaNs(): pass="+pass+" change="+multi_change+" done="+done);
+			if (done) {
+				break;
+			} else { // swap data_io[0] <--> data_io[1]
+				double [] data_tmp = data_io[0];
+				data_io[0] = data_io[1];
+				data_io[1] = data_tmp;
 			}
 		}
-		for (int i = 0; i < tiles; i++) if (fixed[i]) {
-			data_out[i] = data[i];
-		}
-		return data_out;
+//		System.out.println("fillNaNs(): done");;
+		return data_io[1];
 	}
 
 	

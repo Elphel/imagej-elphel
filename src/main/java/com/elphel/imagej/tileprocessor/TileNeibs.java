@@ -53,7 +53,11 @@ public class TileNeibs{
 	}
 	int sizeX;
 	int sizeY;
+	int last_grown; // actual grown until died
 	public int dirs = DIRS;
+	public int getLastGrown() {
+		return last_grown;
+	}
 	public TileNeibs(int size){
 		this.sizeX = size;
 		this.sizeY = size;
@@ -815,6 +819,7 @@ public class TileNeibs{
 		final int sizeXm1 = sizeX - 1;
 		final int sizeYm1 = sizeY - 1;
 		// grow
+		int grow0 = grow; // requested steps
 		boolean hor = true;
 		final int dbg_tile = -82228; // 71992; //312/112 or 61800 for 360/96
 		int num_prev = 1; // as if previous pass was successful
@@ -915,6 +920,7 @@ public class TileNeibs{
 			}
 			num_prev = anew.get();
 		}
+		last_grown = grow0 - grow;
 	}
 	
 	
@@ -940,6 +946,7 @@ public class TileNeibs{
 		}
 		boolean [] src_tiles = tiles.clone(); // just in case
 		// grow
+		int grow0 = grow; // requested steps
 		boolean hor = true;
 		int num_prev = 1; // as if previous pass was successful
 		for (; grow > 0; grow--){
@@ -997,6 +1004,7 @@ public class TileNeibs{
 			}
 			num_prev = num_new;
 		}
+		last_grown = grow0 - grow;
 	}
 
 	public boolean [] boundShape(
