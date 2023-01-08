@@ -4699,7 +4699,7 @@ public class TexturedModel {
 		final int tilesX = width/transform_size;
 		final int tilesY = img_size/width/transform_size;
 		final int tiles =  tilesX * tilesY;
-		final int dbg_tile = 4123;
+		final int dbg_tile = -4123;
 		final int dbg_slice = 0;
 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -5756,70 +5756,63 @@ public class TexturedModel {
 			final double         min_trim_disparity, //  =  2.0;  // do not try to trim texture outlines with lower disparities
 			final TpTask[][][]   tp_tasks_ref,       // reference tasks for each slice to get offsets			
 			final String         dbg_prefix) {
-		final double var_radius =         1.5; // 3.5;   // for variance filter of the combo disparity
-		final double dir_radius =         1.5;   // averaging inter-sensor variance to view behind obstacles 
-		final double try_dir_var =       20.0;   // try directional if the intersensor variance exceeds this value
-		final int    dir_num_start =      7;     // start with this number of consecutive sensors
-		final int    dir_num_restart =    5;     // restart (from best direction) with this number of consecutive sensors
-		final double dir_worsen_rel =     0.15;  // add more sensors until variance grows by this relative
-		final double dir_var_max =       15.0;   // do not add more sensors if the variance would exceed this
-		final double fg_max_inter =       200; // temporary disable 40.0;  // Trim FG tile if inter variance exceeds 
-		final double fg_max_rel =         2.0;   // Trim FG tile if inter variance to same variance exceeds
-		final double min_edge_variance = 20.0;   // minimal FG edge variance (trim outside)       
-		final int    min_neibs =          2; // remove pixel clusters with less neighbors
-		final int    trim_grow =          4; 
-		final int    trim_shrink =        2;
-		final int    trim_edge =          5; // trim FG edges - pixels from edge if tile center has no texture (2 for 1pix with diagonal)
-		final int    trim_edge_center =   2; // required number of texture pixels in the 2x2 tile center to keep edge
-		final int    edge_transparent =   2;
-		final double edge_weight =        0.7;
-
-		final int    max_neib_lev =      clt_parameters.tex_max_neib_lev;      //   2; // 1 - single tiles layer around, 2 - two layers
-		
-		final int    num_slices = sensor_texture.length;
-		final int    transform_size = clt_parameters.transform_size;
-		final int    width = tilesX * transform_size;
-		final int    img_size = sensor_texture[0][0].length;
-		final int    height =   img_size/width;
-
-		final double [][] gcombo_texture = // now always calculate as it has lower noise
-				(combo_texture_in != null) ?
-						combo_texture_in :
-							getComboTexture (sensor_texture);
-//////	double [][][]  dbg_out =  (dbg_prefix != null) ? new double [6][][] : null;
-//		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [5][][] : null;
-
-		// New processing
-		
+		final double var_radius =       1.5; // 3.5;   // for variance filter of the combo disparity
+		final int    max_neib_lev =     clt_parameters.tex_max_neib_lev;      //   2; // 1 - single tiles layer around, 2 - two layers
 		final double        seed_inter =   150; // 120; // 150;
 		final double        seed_same_fz =  6.5; // 13; // seed_inter = 50.0;
 		final double        seed_fom =      2.0; // 1.9; // 1.2;
 		final double        trim_inter_fz = 5.0; // 13.0;
-		
-		
-		
 		final double        trim_fom =      0.5; // 0.8; // 1.3; // 1.8; // 1.2; // 0.8; // 0.4;  // 0.7;
 		// scale down fom for pixels near high-variance VAR_SAME
 		final double        trim_fom_threshold = 120.0; // count only pixels with VAR_SAME > this value 
 		final double        trim_fom_boost = 5;   // boost high-varinace values that exceed threshold  
 		final double        trim_fom_blur = 10.0; // divide trim_fom array by blurred version to reduce over sky sharp edge
-
 		// Sure values to set unconditionally transparent and unconditionally opaque FG
 		final double        seed_fom_sure =     5.0;
 		final double        seed_inter_sure = 150.0; // 13.0;
 		final double        trim_fom_sure =    10; //  2.0; temporary disabling it
-		
 		final double        min_incr =      100; // temporary disable // 5; // 20.0; // 0.5; // only for sky?
-//		final double        thr_same =   16; // 20; // minimal value of vars_same to block propagation
-//		final double        thr_ratio =  2.5; //  3.0; // minimal value of vars_same/vars_inter  to block propagation
-		final int           trim_grow_pix = transform_size * 3;      // 3*transform_size?
+		
 		final int           min_neibs_alpha = 1;  // minimal neighbors to keep alpha
 		final int           grow_alpha = 0; // 2; // grow alpha selection
 		final double        alphaOverlapTolerance = 0.0; // exact match only
 		final int           reduce_has_bg_grow = 2; // 0 - exactly half tile (between strong and weak)
-//		final int           strong_bg_overlap = 1;
-		final double          occlusion_frac = 0.9;
-		final double          occlusion_min_disp = 0.3; // do not calculate occlusions for smaller disparity difference
+		final double        occlusion_frac = 0.9;
+		final double        occlusion_min_disp = 0.3; // do not calculate occlusions for smaller disparity difference
+
+		
+		
+		
+		
+		// Processing BG and FG trim
+		final boolean         en_cut =               true; // enable change FG pixel to transparent from opaque
+		final boolean         en_patch =             true; // enable change FG pixel to opaque from transparent
+		final double          fg_disp_diff =         1.0;  // do not consider obscuring too close BG (1 pix or more?)
+		final int             min_sensors =          4;    // minimal number of sensors visible from the FG pixel
+		final double          weight_neib =          3.0; // 2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
+		final double          weight_bg =            0.9; // 0.8; // 1.0; // 15.0/16; // 1.0;  // weight of BG cost relative to the FG one
+		final double          best_dir_frac =        0.6;  // for BG - use this fraction of all sensors in the best direction
+		final double          cost_min =             1.0;  // minimal absolute value of the total cost to make changes
+		final int             max_trim_iterations = 10;
+		// for fillOcclusionsNaN:
+		final int             num_fill_passes =    100;
+		final double          max_fill_change =      0.1;
+		
+		
+		final int    num_slices =       sensor_texture.length;
+		final int    transform_size =   clt_parameters.transform_size;
+		final int    width = tilesX * transform_size;
+		final int    img_size = sensor_texture[0][0].length;
+		final int    height =   img_size/width;
+		
+		final int    trim_grow_pix = transform_size * 3;      // 3*transform_size?
+		final int    fill_grow =     6*transform_size;
+		
+		
+		final double [][] gcombo_texture = // now always calculate as it has lower noise
+				(combo_texture_in != null) ?
+						combo_texture_in :
+							getComboTexture (sensor_texture);
 
 		
 		boolean [][][] tile_booleans = getTileBooleans(
@@ -5869,7 +5862,6 @@ public class TexturedModel {
 					dbg_prefix+"-tile_booleans",
 					dbg_titles);
 		}
-		
 		
 		boolean [][] has_bg_pix = halfStrong(      // select pixels between weak and strong 
 				tile_booleans[TILE_HAS_BG_WEAK],   // final boolean [][]  weak_tiles,
@@ -5921,9 +5913,7 @@ public class TexturedModel {
 				seed_inter,     // final double        seed_inter, //  =   150;
 				width);         // final int           width)		
 // copy unbound_alpha here for debug		
-//		boolean [][]  unbound_alpha = 
 		
-		//if (dbg_prefix != null) {
 		final boolean [][] trim_seeds = (dbg_prefix != null)? new boolean [num_slices][] : null;
 		if (dbg_prefix != null) {
 			for (int i = 0; i < num_slices; i++) {
@@ -6045,40 +6035,23 @@ public class TexturedModel {
 				width,                    // final int            width,
 				transform_size);          // final int            transform_size)
 
-// Processing BG
-//		final double          occlusion_frac = 0.9;
-//		final double          occlusion_min_disp = 0.3; // do not calculate occlusions for smaller disparity difference
-		
-		final boolean         en_cut =       true; // enable change FG pixel to transparent from opaque
-		final boolean         en_patch =     true; // enable change FG pixel to opaque from transparent
-		final double          fg_disp_diff = 1.0;  // do not consider obscuring too close BG (1 pix or more?)
-		final int             min_sensors =  4;    // minimal number of sensors visible from the FG pixel
-		final double          weight_neib =  3.0; // 2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
-		final double          weight_bg =    0.9; // 0.8; // 1.0; // 15.0/16; // 1.0;  // weight of BG cost relative to the FG one
-//		final double          weight_bg2 =   0.0;  // fraction of BG variance cost (1-weight_bg2) - the BG true one
-		final double          best_dir_frac = 0.6;  // for BG - use this fraction of all sensors in the best direction
-		final double          cost_min =     1.0;  // minimal absolute value of the total cost to make changes
-
-		
-		int max_trim_iterations =               10;
+// Processing BG and FG trim
 		int [][] occluded_map =                 null;
-		double  [][] dbg_occluded_map =         null;
-		double  [][] occluded_textures =        null;
-		double  [][] occluded_filled_textures = null;
-		boolean [][] sure_transparent =         null;
-		boolean [][] sure_opaque =              null;
-		double [][][]   debug_costs = (dbg_prefix != null) ? new double [trim_pixels.length][][] : null; 
-		int [][]        debug_stats = (dbg_prefix != null) ? new int [trim_pixels.length][] : null;
-		boolean [][]    debug_alpha = (dbg_prefix != null) ? new boolean [trim_pixels.length][] : null;
-		
+		double  [][]  dbg_occluded_map =         null;
+		double  [][]  occluded_textures =        null;
+		double  [][]  occluded_filled_textures = null;
+		boolean [][]  sure_transparent =         null;
+		boolean [][]  sure_opaque =              null;
+		double [][][] debug_costs = (dbg_prefix != null) ? new double [trim_pixels.length][][] : null; 
+		int [][]      debug_stats = (dbg_prefix != null) ? new int [trim_pixels.length][] : null;
+		boolean [][]  debug_alpha = (dbg_prefix != null) ? new boolean [trim_pixels.length][] : null;
 		
 		boolean [][] trim_tiles = getTrimTiles(
-				trim_pixels,       //  boolean [][] trim_pix,
+				trim_pixels,       // boolean [][] trim_pix,
 				width,             // final int             width,
 				transform_size);   // final int             transform_size);
 		int updated_tiles = 0;
 		for (int niter = 0; niter < max_trim_iterations; niter++) {
-
 			occluded_map = getOccludedMap(
 					channel_pixel_offsets,            // final double [][][][] channel_pixel_offsets,
 					unbound_alpha,                    // final boolean [][]    alpha_pix,
@@ -6090,23 +6063,19 @@ public class TexturedModel {
 					occlusion_min_disp,               // final double          occlusion_min_disp,
 					width,                            // final int             width,
 					transform_size);                  // final int             transform_size);
-
 			dbg_occluded_map = (dbg_prefix == null)? null:debugOccludedMap(occluded_map);
-
 			occluded_textures = combineTexturesWithOcclusions(
-					sensor_texture,  // final double  [][][] sensor_texture,
-					gcombo_texture,  // final double  [][]   combo_texture,
-					occluded_map);   // final int     [][]   occluded_map);
-
+					sensor_texture,    // final double  [][][] sensor_texture,
+					gcombo_texture,    // final double  [][]   combo_texture,
+					occluded_map);     // final int     [][]   occluded_map);
 			occluded_filled_textures = fillOcclusionsNaN(
-					gcombo_texture,  // final double  [][]   combo_texture,
+					gcombo_texture,    // final double  [][]   combo_texture,
 					occluded_textures, // final double  [][]   combo_occluded_texture,
-					6*transform_size, // final int            grow,
-					100, // final int            num_passes,
-					0.001, // final double         max_change,
-					width); // final int            width)
-
-			// TODO: Break here from the cycle after updating BG
+					fill_grow,         // final int            grow,
+					num_fill_passes,   // final int            num_passes,
+					max_fill_change,   // final double         max_change,
+					width);            // final int            width)
+			// Occluded textures should be calculated after updateFgAlpha(), so skip updateFgAlpha() during last iteration 
 			if (niter < (max_trim_iterations-1)) {
 				sure_transparent = getTrimSeeds(
 						trim_pixels,     // final boolean [][]  trim_pix,  // pixels that may be trimmed
@@ -6132,7 +6101,6 @@ public class TexturedModel {
 						channel_pixel_offsets,      // final double [][][][] channel_pixel_offsets,
 						occluded_filled_textures,   // final double  [][]    textures,
 						unbound_alpha,              // final boolean [][]    alpha_pix,
-//						gcombo_texture,             // final double  [][]    combo_texture,
 						sensor_texture,             // final double  [][][]  sensor_texture,
 						occluded_map,               // final int     [][]    occluded_map,   // bitmap of blocked by FG sensors
 						min_sensors,                // final int             min_sensors,    // minimal number of sensors visible from the FG pixel
@@ -6149,7 +6117,6 @@ public class TexturedModel {
 						// other parameters
 						weight_neib,                // final double          weight_neib,    // weight of same neighbors
 						weight_bg,                  // final double          weight_bg,      // weight of BG cost relative to the FG one
-//						weight_bg2,                 // final double          weight_bg2,     // fraction of BG variance cost (1-weight_bg2) - the BG true one
 						best_dir_frac,              // final double          best_dir_frac,  // for BG - use this fraction of all sensors in the best direction
 						cost_min,                   // final double          cost_min,       // minimal absolute value of the total cost to make changes
 						debug_costs,                // final double [][]     debug_cost,     // if not null, should be double [nslices][] - will return costs/NaN
@@ -6158,6 +6125,10 @@ public class TexturedModel {
 						transform_size);            // final int             transform_size){
 			}
 			if (dbg_prefix != null) {
+				// TODO:
+				// 1. Display alpha mod sequence
+				// 2. occluded_map improvements (similar as in updateFgAlpha) - 
+				// remove some "unreliable" sensors  
 				for (int nslice = 0; nslice < debug_stats.length; nslice++) {
 					System.out.println (String.format("#%02d: %5d added, %5d removed (total %5d) opaque FG pixels",
 							nslice, debug_stats[nslice][0], debug_stats[nslice][1], debug_stats[nslice][0]+debug_stats[nslice][1]));
@@ -6223,50 +6194,10 @@ public class TexturedModel {
 				final double [] fix_bg_pix =               new double [img_size];
 				final double [] fix_same_pix =             new double [img_size];
 				final double [] trim_alpha_pix =           new double [img_size];
-				final double [] grad_abs_over_same =       new double [img_size];
-				final double [] ridges_pix =               new double [img_size];
-				final double [] ridges2_pix =              new double [img_size];
-				final TileNeibs pn =     new TileNeibs(width, img_size/width);
 				for (int i = 0; i <img_size; i++) {
-					grad_abs_over_same[i] = vars[4][nslice][i] / (vars[0][nslice][i]+seed_same_fz);
-				}		
-				final double  min_over1 = 0.0;
-				final double max_rel_slope = 0.05; // ) { // maximal ridge slope relative to the value if >0
-				boolean [] ridges = pn.getRidges(
-						grad_abs_over_same,    // final double  [] value,
-						null,                  // trim_pixels [nslice], // final boolean [] en,
-					    min_over1,             // final double     min_over)
-					    max_rel_slope);        // final double max_rel_slope) // maximal ridge slope relative to the value if >0
-				final double  min_over2 = 0.0;
-				boolean [] ridges2 = pn.getRidges(
-						vars[4][nslice],       // final double  [] value,
-						null,                  // trim_pixels [nslice], // final boolean [] en,
-					    min_over2,             // final double     min_over)
-					    max_rel_slope);        // final double max_rel_slope) // maximal ridge slope relative to the value if >0
-				double [] ridges3_pix =  pn.getRidgeValue(
-						vars[4][nslice],       // final double  [] value,
-						null,                  // final boolean [] en,
-						var_radius);           // final double     var_radius) now 3.5
-				double [] ridges4_pix =  pn.getRidgeValue(
-						grad_abs_over_same,    // final double  [] value,
-						null,                  // final boolean [] en,
-						var_radius);           // final double     var_radius) now 3.5
-				
-				for (int i = 0; i <img_size; i++) {
-					vars_ratio[i] =     vars[0][nslice][i]/(vars[1][nslice][i]+trim_inter_fz);
 					vars_fom[i] =       vars[1][nslice][i]/(vars[0][nslice][i]+seed_same_fz);
 					if (Double.isNaN(vars_ratio[i])) vars_ratio[i] = 0;
 					if (Double.isNaN(vars_fom[i]))   vars_fom[i] = 0;
-					for (int k = 0; k < vars.length; k++) {
-						if (Double.isNaN(vars[k][nslice][i]))   vars[k][nslice][i] = 0;
-					}
-					ridges_pix[i] = 
-							(trim_pixels [nslice][i]? 1.0:0.0) +
-							(ridges              [i]? 2.0:0.0);
-					ridges2_pix[i] = 
-							(trim_pixels [nslice][i]? 1.0:0.0) +
-							(ridges2             [i]? 2.0:0.0);
-					
 					half_pix[i] = 
 							(has_bg_pix [nslice][i]? 1.0:0.0) +
 							(is_fg_pix  [nslice][i]? 2.0:0.0);
@@ -6308,12 +6239,6 @@ public class TexturedModel {
 						vars[2][nslice],
 						vars[3][nslice],
 						vars[4][nslice],
-						grad_abs_over_same,
-						ridges_pix,
-						ridges2_pix,
-						ridges3_pix,
-						ridges4_pix,
-						vars_ratio,
 						trim_fom_pix[nslice], // normalized by blurred
 						
 						fom_dbg[0][nslice],
@@ -6331,7 +6256,6 @@ public class TexturedModel {
 						fix_bg_pix,
 						fix_same_pix,
 						trim_alpha_pix,
-						
 						dbg_occluded_map[nslice],
 						gcombo_texture[nslice],
 						occluded_filled_textures[nslice], // put before occluded_textures to compare with gcombo_texture
@@ -6359,12 +6283,6 @@ public class TexturedModel {
 						"GRAD_X",
 						"GRAD_Y",
 						"GRAD_ABS",
-						"GRAD_NORM",
-						"RIDGES_NORM",
-						"RIDGES_ABS",
-						"RIDGES_ANA_NORM",
-						"RIDGES_ANA_ABS",
-						"TRIM_FOM", // same/(inter+trim_inter_fz)
 						"TRIM_FOM_NORM", // same/(inter+trim_inter_fz) normalized by blurred version
 						"TRIM_FOM_INI", // initial fom
 						"TRIM_FOM_FIN", // final fom
@@ -6381,7 +6299,6 @@ public class TexturedModel {
 						"FIX_HAS_BG",
 						"FIX_SAME",
 						"TRIM_ALPHA",
-						
 						"OCCLUSIONS_MAP",
 						"COMBO_TEXTURE",
 						"OCCLUDED_FILLED_TEXTURES",
