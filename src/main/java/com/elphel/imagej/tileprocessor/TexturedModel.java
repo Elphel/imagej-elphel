@@ -4717,6 +4717,7 @@ public class TexturedModel {
 							if (    tile_keep[fnslice][tile] &&
 									!tile_fg_strong[fnslice][tile] &&
 									!tile_stitch[fnslice][tile]) { // ***
+								
 								double [][] offs_bg = channel_pixel_offsets[fnslice][tile];
 								for (int ns = 0; ns < num_slices; ns++) {
 									if ((ns != fnslice) &&
@@ -4847,7 +4848,8 @@ public class TexturedModel {
 					public void run() {
 						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
 							int tileY = tile / tilesX;
-							int indx = tileY * transform_size * width;
+							int tileX = tile % tilesX;
+							int indx = (tileY * width + tileX) * transform_size;
 							search_pix:
 							for (int dy = 0; dy < transform_size; dy++) {
 								for (int dx = 0; dx < transform_size; dx++) {
@@ -4872,8 +4874,10 @@ public class TexturedModel {
 			final double [][][][] channel_pixel_offsets,
 			final double  [][]    textures,
 			final boolean [][]    alpha_pix,      // will be updated
-			final double  [][]    combo_texture,
+//			final double  [][]    combo_texture,
 			final double  [][][]  sensor_texture,
+			final int     [][]    occluded_map,   // bitmap of blocked by FG sensors
+			final int             min_sensors,    // minimal number of sensors visible from the FG pixel
 			final double  [][]    slice_disparities,
 			final boolean [][]    tile_keep,      // tiles that have at least one pixel 
 			final boolean [][]    tile_stitch,      // tiles that have at least one pixel 
@@ -4885,9 +4889,17 @@ public class TexturedModel {
 			final boolean         en_patch,       // enable change FG pixel to opaque from transparent
 			final double          min_disp_diff,  // do not consider obscuring too close BG (1 pix or more?)
 			// other parameters
-			final double [][]     debug_cost,     // if not null, should be double [nslices][] - will return costs/NaN
+			final double          weight_neib,    // weight of same neighbors
+			final double          weight_bg,      // weight of BG cost relative to the FG one
+//			final double          weight_bg2,     // fraction of BG variance cost (1-weight_bg2) - the BG true one
+			final double          best_dir_frac,  // for BG - use this fraction of all sensors in the best direction
+			final double          cost_min,       // minimal absolute value of the total cost to make changes
+			// debug arrays
+			final double [][][]   debug_costs,    // if not null, should be double [nslices][] - will return costs/NaN
+			final int    [][]     debug_stats,    // if not null, should be int [nslices][] - will return number of added/removed per slice
 			final int             width,
 			final int             transform_size){
+		final int min_sensors_bg = min_sensors; // maybe reduce? *=best_dir_frac?
 		final int num_slices =    alpha_pix.length;
 		final int img_size =      alpha_pix[0].length;
 		final int height =        img_size/width;
@@ -4900,24 +4912,40 @@ public class TexturedModel {
 		final AtomicInteger ai =  new AtomicInteger(0);
 		final AtomicInteger aplus =   new AtomicInteger(0); // number of added opaque pixels
 		final AtomicInteger aminus =  new AtomicInteger(0); // number of removed opaque pixels
-		
-		final boolean [] new_alpha = new boolean[img_size];
+		final TileNeibs pn = new TileNeibs(width,height);
+		int num_modified_pixels = 0;
+		final int dbg_pix = 168170;
+		final boolean [][] new_alpha = new boolean[num_slices][img_size];
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			int fnslice = nslice;
-			System.arraycopy(alpha_pix[fnslice], 0, new_alpha, 0, img_size);
+			System.arraycopy(alpha_pix[fnslice], 0, new_alpha[fnslice], 0, img_size);
+			if (debug_costs != null) {
+				debug_costs[fnslice] = new double [3][img_size]; // {cost, cost_fg, cost_bg}
+				for (int i = 0; i < debug_costs[fnslice].length; i++) {
+					Arrays.fill(debug_costs[fnslice][i], Double.NaN);
+				}
+			}
 			ai.set(0);
 			aplus.set(0);
 			aminus.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
+						double [][][] bg_value = new double [transform_size][transform_size][]; 
+						double [][][] bg_disparity = new double [transform_size][transform_size][]; 
 						for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
 							if ((fnslice == dbg_slice) && (tile == dbg_tile )) {
 								System.out.println("updateFgAlpha().1 nslice="+fnslice+", tile="+tile);
 							}
 							if (     trim_tiles [fnslice][tile] &&
 									!tile_stitch[fnslice][tile]) {
+								int tileX = tile % tilesX; 
+								int tileY = tile / tilesX;
+								int pix0 = (tileY  * width + tileX) * transform_size; 
 								double [][] offs_fg = channel_pixel_offsets[fnslice][tile];
+								int num_sens = offs_fg.length;
+								int best_dir_number = (int) Math.round (best_dir_frac * num_sens);
+								boolean valid_bg = false;
 								for (int ns = 0; ns < num_slices; ns++) {
 									if ((ns != fnslice) &&
 											tile_keep[ns][tile] &&
@@ -4925,22 +4953,23 @@ public class TexturedModel {
 											(slice_disparities[ns][tile] < slice_disparities[fnslice][tile]) &&
 											((slice_disparities[fnslice][tile] - slice_disparities[ns][tile]) > min_disp_diff )) {
 										double [][] offs_bg = channel_pixel_offsets[ns][tile];
-										double [][] pixel_offs = new double [offs_bg.length][2];
-										for (int nsens = 0; nsens < pixel_offs.length; nsens++) {
+										double [][] pixel_offs = new double [num_sens][2];
+										for (int nsens = 0; nsens < num_sens; nsens++) {
 											if (offs_bg[nsens] != null) { // to implement sensor mask later
 												pixel_offs[nsens][0] = offs_fg[nsens][0] - offs_bg[nsens][0];
 												pixel_offs[nsens][1] = offs_fg[nsens][1] - offs_bg[nsens][1];
 											}
 										}
-										int tileX = tile % tilesX; 
-										int tileY = tile / tilesX;
-										int pix0 = (tileY  * width + tileX) * transform_size; 
 										for (int dy = 0; dy < transform_size; dy++) {
 											int py0 = tileY * transform_size + dy;
 											int pix1 = pix0 + dy * width;
 											for (int dx = 0; dx < transform_size; dx++) {
 												int px0 = tileX * transform_size + dx;
 												int pix = pix1 + dx;
+												if (pix==dbg_pix) {
+													System.out.println("updateFgAlpha().1 pix="+pix+", ns="+ns+", dx="+dx+", dy="+dy+
+															", disp_fg="+slice_disparities[fnslice][tile]+", disp_bg="+slice_disparities[ns][tile]);
+												}
 												if (trim_pix[fnslice][pix]) { // assign for all trim_pix 
 													if (!transparent[fnslice][pix] && !opaque[fnslice][pix]) {
 														if ((alpha_pix[fnslice][pix] && en_patch) || (!alpha_pix[fnslice][pix] && en_cut)) {
@@ -4952,28 +4981,38 @@ public class TexturedModel {
 															// consider spread normalize to sigma?
 															// how to normalize BG error
 															// Or do not normalize at all - compare absolute values?
-
+															if (!valid_bg) { // lazy initialization
+																for (int i = 0; i < transform_size; i++) {
+																	Arrays.fill(bg_disparity[i], null);
+																}
+																valid_bg = true;
+															}
+															if (bg_disparity[dy][dx] == null) {
+																bg_disparity[dy][dx] = new double [num_sens];
+																Arrays.fill(bg_disparity[dy][dx], Double.NaN);
+															}
+															if (bg_value[dy][dx] == null) { // do not need to initialize
+																bg_value[dy][dx] = new double [num_sens];
+															}
 															for (int nsens = 0; nsens < pixel_offs.length; nsens++) if (offs_bg[nsens] != null) {
 																// corresponding BG pixels
-																double px = px0 + pixel_offs[nsens][0]; 
-																double py = py0 + pixel_offs[nsens][1];
-																int ipx = (int) Math.round(px); // here just center
-																int ipy = (int) Math.round(py);
-																int pix_bg = ipx + ipy * width;
+																double bgx = px0 + pixel_offs[nsens][0]; 
+																double bgy = py0 + pixel_offs[nsens][1];
+																int ibgx = (int) Math.round(bgx); // here just center
+																int ibgy = (int) Math.round(bgy);
+																int bg_pix = ibgx + ibgy * width;
+																if (alpha_pix[ns][bg_pix] && !Double.isNaN(textures[ns][bg_pix])) {
+																	if (!(bg_disparity[dy][dx][nsens] >= slice_disparities[ns][tile])) { // was NaN -> true
+																		bg_disparity[dy][dx][nsens] = slice_disparities[ns][tile];
+																		bg_value[dy][dx][nsens] = textures[ns][bg_pix];
+																		if (pix==dbg_pix) {
+																			System.out.println(String.format(
+																					"%2d: bg_pix=%6d ibgx=%3d ibgy=%3d bg_value=%8.2f",
+																					nsens, bg_pix, ibgx, ibgy, bg_value[dy][dx][nsens]));
+																		}
+																	}
+																}
 															}
-														}
-													}
-													// process sure transparent/opaque pixels
-												} else { // if (!transparent[fnslice][indx] && !opaque[fnslice][indx]) {
-													if (transparent[fnslice][pix]) {
-														if (alpha_pix[fnslice][pix] && en_cut) {
-															new_alpha[pix] = false;
-															aminus.getAndIncrement();
-														}
-													} else if (opaque[fnslice][pix]) {
-														if (!alpha_pix[fnslice][pix] && en_patch) {
-															new_alpha[pix] = true;
-															aplus.getAndIncrement();
 														}
 													}
 												}
@@ -4981,14 +5020,181 @@ public class TexturedModel {
 										}
 									}
 								} // for (int ns = 0; ns < num_slices; ns++) {
+								// now consider if (!transparent[fnslice][indx] && !opaque[fnslice][indx]),
+								// use bg_value[][][], bg_disparity[][][] to calculate bg weighths,
+								// calculate FG weights (same as VAR_INTER)
+								// add num neibs - 4 weight and make decisions
+								for (int dy = 0; dy < transform_size; dy++) {
+									int pix1 = pix0 + dy * width;
+									for (int dx = 0; dx < transform_size; dx++) {
+										int pix = pix1 + dx;
+										if (pix==dbg_pix) {
+											System.out.println("updateFgAlpha().2 pix="+pix);
+										}
+										if (trim_pix[fnslice][pix]) { // assign for all trim_pix
+											boolean new_transparent = false;
+											boolean new_opaque = false;
+											if (!transparent[fnslice][pix] && !opaque[fnslice][pix]) {
+												if ((alpha_pix[fnslice][pix] && en_patch) || (!alpha_pix[fnslice][pix] && en_cut)) {
+													// calculate number of sensors, visible from this FG pixel
+													int smask = occluded_map[fnslice][pix];
+													int num_fg = 0;
+													double s_fg=0, s2_fg = 0;
+													for (int nsens = 0; nsens < num_sens; nsens++ ) {
+														if ((smask & (1 << nsens)) == 0) {
+															double d = sensor_texture[fnslice][nsens][pix];
+															s_fg += d;
+															s2_fg += d * d;
+															num_fg++;
+														}
+													}
+													
+													int num_bg=0;
+													double s2_bg = 0;
+													for (int nsens = 0; nsens < (best_dir_number-1); nsens++ ) {
+														if (pix==dbg_pix) {
+															System.out.println(String.format(
+																	"%2d: fg_value= %8.2f bg_value=%8.2f diff=%8.2f",
+																	nsens,
+																	sensor_texture[fnslice][nsens][pix],
+																	bg_value[dy][dx][nsens],
+																	sensor_texture[fnslice][nsens][pix] - bg_value[dy][dx][nsens]));
+														}
+														if (((smask & (1 << nsens)) == 0) && (bg_disparity[dy][dx] != null) && !Double.isNaN(bg_disparity[dy][dx][nsens])) {
+															double db = sensor_texture[fnslice][nsens][pix] - bg_value[dy][dx][nsens];
+															s2_bg += db * db;
+															num_bg ++;
+														}
+													}													
+													double best_cost_bg = Double.NaN;
+													for (int i = 0; i < num_sens; i++ ) {
+														int nsens_plus =  (best_dir_number + i - 1) % num_sens;
+														int nsens_minus = i;
+														if (pix==dbg_pix) {
+															System.out.println(String.format(
+																	"%2d: fg_value= %8.2f bg_value=%8.2f diff=%8.2f",
+																	nsens_plus,
+																	sensor_texture[fnslice][nsens_plus][pix],
+																	bg_value[dy][dx][nsens_plus],
+																	sensor_texture[fnslice][nsens_plus][pix] - bg_value[dy][dx][nsens_plus]));
+														}
+														if (((smask & (1 << nsens_plus)) == 0) &&
+																(bg_disparity[dy][dx] != null) &&
+																!Double.isNaN(bg_disparity[dy][dx][nsens_plus])) {
+															double db = sensor_texture[fnslice][nsens_plus][pix] - bg_value[dy][dx][nsens_plus];
+															s2_bg += db * db;
+															num_bg ++;
+														}
+														if (num_bg >= min_sensors_bg) {
+															double avg2_bg = s2_bg/num_bg;
+															double cost_bg= Math.sqrt(avg2_bg);
+															if (!(cost_bg > best_cost_bg)) {
+																best_cost_bg = cost_bg;
+															}
+															if (pix==dbg_pix) {
+																System.out.print(String.format(
+																		"avg2_bg= %8.2f cost_bg=%8.2f -> ",
+																		avg2_bg, cost_bg));
+															}
+														}
+														if (i < (num_sens -1)) {
+															if (((smask & (1 << nsens_minus)) == 0) &&
+																	(bg_disparity[dy][dx] != null) &&
+																	!Double.isNaN(bg_disparity[dy][dx][nsens_minus])) {
+																double db = sensor_texture[fnslice][nsens_minus][pix] - bg_value[dy][dx][nsens_minus];
+																s2_bg -= db * db;
+																num_bg --;
+															}
+														}
+													}
+													// calculate costs
+													// maybe multiple backgrounds? Then combine them all
+													// each sensor - single BG - common array of 16?
+													// cost for FG - average w/o center, possibly tilt
+													// consider spread normalize to sigma?
+													// how to normalize BG error
+													// Or do not normalize at all - compare absolute values?
+													if (num_fg >= min_sensors) {//  (do not touch if less)
+														double avg_fg = s_fg/num_fg;
+														double avg2_fg = s2_fg/num_fg;
+														double cost_fg = Math.sqrt(avg2_fg-avg_fg*avg_fg);
+														double cost_bg = best_cost_bg;
+														// calculate number of opaque neighbors
+														int n_opaque = 0, n_neibs=0;
+														for (int dir = 0; dir < TileNeibs.DIRS; dir++) {
+															int pix_n = pn.getNeibIndex(pix, dir);
+															if (pix_n >=0) {
+																if (alpha_pix[fnslice][pix_n]) {
+																	n_opaque++;
+																}
+															}
+															n_neibs++;
+														}
+														// positive for more opaque, negative - for more transparent
+														double cost_neibs = weight_neib * (n_opaque - 0.5* n_neibs);
+														double cost = Double.NaN;
+														if (Double.isNaN(cost_bg)) {
+															new_opaque = true;
+														} else {
+															// cost > 0 -> opaque, cost < 0 -> transparent 
+															cost = weight_bg*cost_bg - cost_fg + cost_neibs;
+															if (Math.abs(cost) > cost_min) {
+																new_opaque =      cost > 0;
+																new_transparent = cost < 0;
+															}
+														}
+														if (debug_costs != null) {
+															debug_costs[fnslice][0][pix] = cost;
+															debug_costs[fnslice][1][pix] = cost_fg;
+															debug_costs[fnslice][2][pix] = cost_bg;
+															if (pix==dbg_pix) {
+																System.out.println(String.format(
+																		"cost= %8.2f cost_neibs=%8.2f cost_fg=%8.2f cost_bg=%8.2f",
+																		cost, cost_neibs, cost_fg, cost_bg));
+															}
+														}
+														
+													} // if (num_vis >= min_sensors) {
+												}
+											} else { // if (!transparent[fnslice][indx] && !opaque[fnslice][indx]) {
+												if (transparent[fnslice][pix]) {
+													new_transparent = true;
+												} else if (opaque[fnslice][pix]) {
+													new_opaque = true;
+												}
+											} // if (!transparent[fnslice][pix] && !opaque[fnslice][pix])
+											if (new_opaque) {
+												if (!alpha_pix[fnslice][pix] && en_patch) {
+													new_alpha[fnslice][pix] = true;
+													aplus.getAndIncrement();
+												}
+											} else if (new_transparent){
+												if (alpha_pix[fnslice][pix] && en_cut) {
+													new_alpha[fnslice][pix] = false;
+													aminus.getAndIncrement();
+												}
+											}
+										}
+									} // for (int dx = 0; dx < transform_size; dx++) {
+								} // for (int dy = 0; dy < transform_size; dy++)
 							}
 						}
 					}
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
+			if (debug_stats != null) {
+				debug_stats[nslice] = new int[] {aplus.get(), aminus.get()};
+			}
+			num_modified_pixels += aplus.get() + aminus.get();
 		}
-		return aplus.get() + aminus.get();
+		// replace boolean alphas with the new ones.
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			alpha_pix[nslice] = new_alpha[nslice];
+		}
+		// consider using such method without preliminary methods with using
+		// analog (semi-transparent) alpha that finally stick to 0/1
+		return num_modified_pixels;
 	}
 
 	
@@ -5601,9 +5807,7 @@ public class TexturedModel {
 		// Sure values to set unconditionally transparent and unconditionally opaque FG
 		final double        seed_fom_sure =     5.0;
 		final double        seed_inter_sure = 150.0; // 13.0;
-		final double        trim_fom_sure =     2.0;
-		
-		
+		final double        trim_fom_sure =    10; //  2.0; temporary disabling it
 		
 		final double        min_incr =      100; // temporary disable // 5; // 20.0; // 0.5; // only for sky?
 //		final double        thr_same =   16; // 20; // minimal value of vars_same to block propagation
@@ -5845,24 +6049,35 @@ public class TexturedModel {
 //		final double          occlusion_frac = 0.9;
 //		final double          occlusion_min_disp = 0.3; // do not calculate occlusions for smaller disparity difference
 		
-		final boolean         en_cut = true;      // enable change FG pixel to transparent from opaque
-		final boolean         en_patch = true;    // enable change FG pixel to opaque from transparent
-		final double          fg_disp_diff = 1.0; // do not consider obscuring too close BG (1 pix or more?)
-		int max_trim_iterations =               1;
+		final boolean         en_cut =       true; // enable change FG pixel to transparent from opaque
+		final boolean         en_patch =     true; // enable change FG pixel to opaque from transparent
+		final double          fg_disp_diff = 1.0;  // do not consider obscuring too close BG (1 pix or more?)
+		final int             min_sensors =  4;    // minimal number of sensors visible from the FG pixel
+		final double          weight_neib =  2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
+		final double          weight_bg =    0.9; // 0.8; // 1.0; // 15.0/16; // 1.0;  // weight of BG cost relative to the FG one
+//		final double          weight_bg2 =   0.0;  // fraction of BG variance cost (1-weight_bg2) - the BG true one
+		final double          best_dir_frac = 0.6;  // for BG - use this fraction of all sensors in the best direction
+		final double          cost_min =     1.0;  // minimal absolute value of the total cost to make changes
+
+		
+		int max_trim_iterations =               10;
 		int [][] occluded_map =                 null;
 		double  [][] dbg_occluded_map =         null;
 		double  [][] occluded_textures =        null;
 		double  [][] occluded_filled_textures = null;
 		boolean [][] sure_transparent =         null;
 		boolean [][] sure_opaque =              null;
-		double [][] debug_cost = (dbg_prefix != null) ? new double [trim_pixels.length][] : null; 
+		double [][][]   debug_costs = (dbg_prefix != null) ? new double [trim_pixels.length][][] : null; 
+		int [][]        debug_stats = (dbg_prefix != null) ? new int [trim_pixels.length][] : null;
+		boolean [][]    debug_alpha = (dbg_prefix != null) ? new boolean [trim_pixels.length][] : null;
+		
 		
 		boolean [][] trim_tiles = getTrimTiles(
 				trim_pixels,       //  boolean [][] trim_pix,
 				width,             // final int             width,
 				transform_size);   // final int             transform_size);
-
-		for (int niter = 0; niter <max_trim_iterations; niter++) {
+		int updated_tiles = 0;
+		for (int niter = 0; niter < max_trim_iterations; niter++) {
 
 			occluded_map = getOccludedMap(
 					channel_pixel_offsets,            // final double [][][][] channel_pixel_offsets,
@@ -5891,45 +6106,98 @@ public class TexturedModel {
 					0.001, // final double         max_change,
 					width); // final int            width)
 
-			sure_transparent = getTrimSeeds(
-					trim_pixels,     // final boolean [][]  trim_pix,  // pixels that may be trimmed
-					null,            // final boolean [][]  seed_pix_in,  // FG edge, just outside of trim_pix. Will be modified. Or null
-					vars[0],         // final double  [][]  vars_same,
-					vars[1],         // 	final double  [][]  vars_inter,
-					seed_same_fz,    // final double        seed_same_fz, // add to var_same in denominator
-					seed_fom_sure,   // final double        seed_fom,   // minimal value of vars_inter/sqrt(vars_same)
-					seed_inter_sure, // final double        seed_inter, //  =   150;
-					width);          // final int           width)		
+			// TODO: Break here from the cycle after updating BG
+			if (niter < (max_trim_iterations-1)) {
+				sure_transparent = getTrimSeeds(
+						trim_pixels,     // final boolean [][]  trim_pix,  // pixels that may be trimmed
+						null,            // final boolean [][]  seed_pix_in,  // FG edge, just outside of trim_pix. Will be modified. Or null
+						vars[0],         // final double  [][]  vars_same,
+						vars[1],         // 	final double  [][]  vars_inter,
+						seed_same_fz,    // final double        seed_same_fz, // add to var_same in denominator
+						seed_fom_sure,   // final double        seed_fom,   // minimal value of vars_inter/sqrt(vars_same)
+						seed_inter_sure, // final double        seed_inter, //  =   150;
+						width);          // final int           width)		
 
-			sure_opaque = thresholdAnalog(
-					trim_fom_pix,    // final double  [][]  data,
-					trim_fom_sure,   // final double        threshold,
-					true);           // final boolean       greater)
-			
-			int updated_tiles = updateFgAlpha(
-					channel_pixel_offsets,      // final double [][][][] channel_pixel_offsets,
-					occluded_filled_textures,   // final double  [][]    textures,
-					unbound_alpha,              // final boolean [][]    alpha_pix,
-					gcombo_texture,             // final double  [][]    combo_texture,
-					sensor_texture,             // final double  [][][]  sensor_texture,
-					slice_disparities,          // final double  [][]    slice_disparities,
-					tile_booleans[TILE_KEEP],   // final boolean [][]    tile_keep,      // tiles that have at least one pixel 
-					tile_booleans[TILE_STITCH], // final boolean [][]    tile_stitch,      // tiles that have at least one pixel 
-					trim_tiles,                 // final boolean [][]    trim_tiles,     // tiles that have at least one pixel 
-					trim_pixels,                // final boolean [][]    trim_pix,       // pixels that may be trimmed
-					sure_transparent,           // final boolean [][]    transparent,    // definitely transparent
-					sure_opaque,                // final boolean [][]    opaque,         // definitely opaque
-					en_cut,                     // final boolean         en_cut,         // enable change FG pixel to transparent from opaque
-					en_patch,                   // final boolean         en_patch,       // enable change FG pixel to opaque from transparent
-					fg_disp_diff,               // final double          min_disp_diff,  // do not consider obscuring too close BG (1 pix or more?)
-					// other parameters
-					debug_cost,                 // final double [][]     debug_cost,     // if not null, should be double [nslices][] - will return costs/NaN
-					width,                      // final int             width,
-					transform_size);            // final int             transform_size){
+				sure_opaque = thresholdAnalog(
+						trim_fom_pix,    // final double  [][]  data,
+						trim_fom_sure,   // final double        threshold,
+						true);           // final boolean       greater)
+				if (dbg_prefix != null) {
+					for (int i = 0; i < unbound_alpha.length; i++) {
+						debug_alpha[i] = unbound_alpha[i].clone();
+					}
+				}
+
+				updated_tiles = updateFgAlpha(
+						channel_pixel_offsets,      // final double [][][][] channel_pixel_offsets,
+						occluded_filled_textures,   // final double  [][]    textures,
+						unbound_alpha,              // final boolean [][]    alpha_pix,
+//						gcombo_texture,             // final double  [][]    combo_texture,
+						sensor_texture,             // final double  [][][]  sensor_texture,
+						occluded_map,               // final int     [][]    occluded_map,   // bitmap of blocked by FG sensors
+						min_sensors,                // final int             min_sensors,    // minimal number of sensors visible from the FG pixel
+						slice_disparities,          // final double  [][]    slice_disparities,
+						tile_booleans[TILE_KEEP],   // final boolean [][]    tile_keep,      // tiles that have at least one pixel 
+						tile_booleans[TILE_STITCH], // final boolean [][]    tile_stitch,      // tiles that have at least one pixel 
+						trim_tiles,                 // final boolean [][]    trim_tiles,     // tiles that have at least one pixel 
+						trim_pixels,                // final boolean [][]    trim_pix,       // pixels that may be trimmed
+						sure_transparent,           // final boolean [][]    transparent,    // definitely transparent
+						sure_opaque,                // final boolean [][]    opaque,         // definitely opaque
+						en_cut,                     // final boolean         en_cut,         // enable change FG pixel to transparent from opaque
+						en_patch,                   // final boolean         en_patch,       // enable change FG pixel to opaque from transparent
+						fg_disp_diff,               // final double          min_disp_diff,  // do not consider obscuring too close BG (1 pix or more?)
+						// other parameters
+						weight_neib,                // final double          weight_neib,    // weight of same neighbors
+						weight_bg,                  // final double          weight_bg,      // weight of BG cost relative to the FG one
+//						weight_bg2,                 // final double          weight_bg2,     // fraction of BG variance cost (1-weight_bg2) - the BG true one
+						best_dir_frac,              // final double          best_dir_frac,  // for BG - use this fraction of all sensors in the best direction
+						cost_min,                   // final double          cost_min,       // minimal absolute value of the total cost to make changes
+						debug_costs,                // final double [][]     debug_cost,     // if not null, should be double [nslices][] - will return costs/NaN
+						debug_stats,                // final int    [][]     debug_stats,    // if not null, should be int [nslices][] - will return number of added/removed per slice
+						width,                      // final int             width,
+						transform_size);            // final int             transform_size){
+			}
 			if (dbg_prefix != null) {
+				for (int nslice = 0; nslice < debug_stats.length; nslice++) {
+					System.out.println (String.format("#%02d: %5d added, %5d removed (total %5d) opaque FG pixels",
+							nslice, debug_stats[nslice][0], debug_stats[nslice][1], debug_stats[nslice][0]+debug_stats[nslice][1]));
+				}
+				
+				String [] dbg_titles0 = {"sure","before","after", "cost", "cost_fg",
+						"cost_bg", "combo", "occluded-filed", "occluded"};
+				int dbg_len = width * height;
+				int sublen = dbg_titles0.length;
+				String [] dbg_titles = new String [sublen * num_slices];
+				double [][] dbg_img = new double [dbg_titles.length][];
+				for (int nslice = 0; nslice< num_slices; nslice++) {
+					for (int i = 0; i < dbg_titles0.length; i++) {
+						dbg_titles[nslice * sublen + i] = dbg_titles0[i]+"-"+nslice;
+					}
+					dbg_img[nslice * sublen + 0] = new double [dbg_len];
+					dbg_img[nslice * sublen + 1] = new double [dbg_len];
+					dbg_img[nslice * sublen + 2] = new double [dbg_len];
+					for (int i = 0; i < dbg_len; i++) {
+						dbg_img[nslice * sublen + 0][i] =
+								(sure_transparent[nslice][i]? 0 : 1) + (sure_opaque[nslice][i]? 2 : 0); 
+						dbg_img[nslice * sublen + 1][i] = (debug_alpha[nslice][i]? 3 : 0); 
+						dbg_img[nslice * sublen + 2][i] = (unbound_alpha[nslice][i]? 3 : 0); 
+					}
+					dbg_img[nslice * sublen + 3] = debug_costs[nslice][0];
+					dbg_img[nslice * sublen + 4] = debug_costs[nslice][1];
+					dbg_img[nslice * sublen + 5] = debug_costs[nslice][2];
+					dbg_img[nslice * sublen + 6] = gcombo_texture[nslice];
+					dbg_img[nslice * sublen + 7] = occluded_filled_textures[nslice];
+					dbg_img[nslice * sublen + 8] = occluded_textures[nslice];
+				}
+				ShowDoubleFloatArrays.showArrays(
+						dbg_img,
+						width,
+						height,
+						true,
+						dbg_prefix+"-update_fg-"+niter, // +nslice,
+						dbg_titles);
 				System.out.println("updateFgAlpha() -> "+updated_tiles);
 			}
-
 		}
 
 		
