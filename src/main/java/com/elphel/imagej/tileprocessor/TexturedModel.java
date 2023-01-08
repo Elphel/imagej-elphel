@@ -4914,7 +4914,7 @@ public class TexturedModel {
 		final AtomicInteger aminus =  new AtomicInteger(0); // number of removed opaque pixels
 		final TileNeibs pn = new TileNeibs(width,height);
 		int num_modified_pixels = 0;
-		final int dbg_pix = 168170;
+		final int dbg_pix = -168170;
 		final boolean [][] new_alpha = new boolean[num_slices][img_size];
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			int fnslice = nslice;
@@ -5786,8 +5786,8 @@ public class TexturedModel {
 				(combo_texture_in != null) ?
 						combo_texture_in :
 							getComboTexture (sensor_texture);
-		double [][][]  dbg_out =  (dbg_prefix != null) ? new double [6][][] : null;
-		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [5][][] : null;
+//////	double [][][]  dbg_out =  (dbg_prefix != null) ? new double [6][][] : null;
+//		boolean [][][] dbg_bool = (dbg_prefix != null) ? new boolean [5][][] : null;
 
 		// New processing
 		
@@ -6053,7 +6053,7 @@ public class TexturedModel {
 		final boolean         en_patch =     true; // enable change FG pixel to opaque from transparent
 		final double          fg_disp_diff = 1.0;  // do not consider obscuring too close BG (1 pix or more?)
 		final int             min_sensors =  4;    // minimal number of sensors visible from the FG pixel
-		final double          weight_neib =  2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
+		final double          weight_neib =  3.0; // 2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
 		final double          weight_bg =    0.9; // 0.8; // 1.0; // 15.0/16; // 1.0;  // weight of BG cost relative to the FG one
 //		final double          weight_bg2 =   0.0;  // fraction of BG variance cost (1-weight_bg2) - the BG true one
 		final double          best_dir_frac = 0.6;  // for BG - use this fraction of all sensors in the best direction
@@ -6199,170 +6199,20 @@ public class TexturedModel {
 				System.out.println("updateFgAlpha() -> "+updated_tiles);
 			}
 		}
-
 		
-		// Old processing
-// maybe mask unbound_alpha with selected (TILE_KEEP) tiles for debug?
-		
-		final boolean [][][] fg_has_bg = get_fg_has_bg_any(
-				slice_disparities,  // final double [][] slice_disparities,
-	            slice_border_int,   // final int    [][] slice_border_int,
-//	            border_int_max,     // final int         border_int_max,
-				max_disparity_lim,  // final double   	max_disparity_lim,
-				min_trim_disparity, // final double min_trim_disparity,
-				transform_size,     // final int   transform_size,
-				tilesX);            // final int   tilesX)
-		showDebugBordersInt (
-				slice_border_int,  // final int [][] border_int,
-				tilesX,            // final int   tilesX,
-				dbg_prefix);       // String      prefix);
-
-		showDebugDisparities( // nop if dbg_prefix== null
-				slice_disparities, // final double [][] slice_disparities,
-				tilesX,            // final int   tilesX,
-				dbg_prefix);       // String      prefix);
-		showDebugFgBg( // nop if dbg_prefix== null
-				fg_has_bg,         // boolean [][][] fg_has_bg,
-				tilesX,            // final int   tilesX,
-				dbg_prefix);       // String      prefix);
-		final boolean [][] texture_on =  getAllTexturePixels (
-				gcombo_texture,    // final double [][]   combo_texture,
-				fg_has_bg[2],      // final boolean [][]  tile_on,
-				width,             // final int           width,
-				transform_size);   // final int           transform_size)
-		if (dbg_bool != null) dbg_bool[0] = copyTexture(texture_on); // all texture
-		// Get vars_same, vars_inter and in debug mode - also 
-//		final double[][][] vars = getVariances (
-//				sensor_texture, //				final double [][][] sensor_texture,
-//				gcombo_texture, // 				final double [][]   combo_texture,
-//				var_radius, // 				final double        var_radius,
-//				width); // 				final int           width,
-		// get edge pixels
-		final boolean [][] texture_edge = getEdgeTexturePixels(
-				texture_on,      // final boolean [][] texture_on,
-				width,           // final int          width,
-				trim_edge);      // final int          trim_edge)
-		
-		final boolean [][] texture_fg_filt =  filterFgByVariances( // OK if fg_has_bg[0,1] is for non-existing tile
-				gcombo_texture,  // final double  [][] combo_texture,
-				texture_on,      // final boolean [][] texture_on, // if null will rely on NaN in combo_texture
-				vars[0],         // final double  [][] vars_same,
-				vars[1],         // final double  [][] vars_inter,
-				fg_has_bg[0],    // final boolean [][] is_fg_tile, 
-				fg_has_bg[1],    // final boolean [][] has_bg_tile,
-				fg_max_inter,    // final double       fg_max_inter,
-				fg_max_rel,      // final double       fg_max_rel,
-				width,           // final int          width,
-				transform_size); // final int          transform_size);
-		if (dbg_bool != null) dbg_bool[1] = copyTexture(texture_fg_filt); // filter FG by variances
-		
-		trimFgEdgeVariancePixels(
-				texture_fg_filt,   // final boolean [][] texture_en,
-				texture_edge,      // final boolean [][] texture_edge,
-				fg_has_bg[0],      // final boolean [][] is_fg_tile,
-				fg_has_bg[1],      // final boolean [][] has_bg_tile,
-				vars[0],           // final double  [][] variance,
-				min_edge_variance, // final int          min_variance,			
-				width,             // final int          width,
-				transform_size);   //	final int          transform_size);  //				final int          transform_size)
-
-		if (dbg_bool != null) dbg_bool[2] = copyTexture(texture_fg_filt); // filter FG by edge variances
-		
-		// debug-copy texture_fg_filt as it will be modified in the next step
-		
-		trimFgEdgePixels(
-				texture_fg_filt, // final boolean [][] texture_filt, //** Will be modified
-				texture_edge,    // final boolean [][] texture_edge,
-				fg_has_bg[0],    // final boolean [][] is_fg_tile,
-				fg_has_bg[1],    // final boolean [][] has_bg_tile,
-				trim_edge_center,//	final int          trim_edge_center,			
-				width,           // final int          width,
-				transform_size); // final int          transform_size)
-
-		// debug-copy texture_fg_filt as it will be modified in the next step
-		// dbg_texture_fg_pre_filt[nslice] = texture_fg_filt[nslice].clone();
-		if (dbg_bool != null) dbg_bool[3] = copyTexture(texture_fg_filt); // filter by edges
-		filterSelections(
-				texture_fg_filt, // final boolean [][] selections, // ** will be modified
-				min_neibs,       // final int          min_neibs,
-				trim_grow,       // final int          grow,
-				trim_shrink,     // final int          shrink,
-				width);          //	final int          width)
-		if (dbg_bool != null) dbg_bool[4] = copyTexture(texture_fg_filt); // filter by size
-		
-		// TODO: Create BG generation using FG textures and predicting occlusions
-		
-		double  [][] out_textures = processBgOcclusions(
-				sensor_texture,  // final double  [][][] sensor_texture,
-				gcombo_texture,  // final double  [][]   combo_texture,
-				texture_fg_filt, // final boolean [][]   selections,
-				fg_has_bg[0],    // final boolean [][] is_fg_tile,
-				fg_has_bg[1],    // final boolean [][] has_bg_tile,
-				vars[1],         // final double  [][]   vars_inter,
-				dir_radius,      // double               dir_radius,
-				width,           // final int            width,
-				transform_size,  // final int            transform_size,
-				try_dir_var,     // final double         try_dir_var,     // 20.0; // try directional if the intersensor variance exceeds this value
-				dir_num_start,   // final int            dir_num_start,   //  7;   // start with this number of consecutive sensors			
-				dir_num_restart, // final int            dir_num_restart, //  5;   // restart (from best direction) with this number of consecutive sensors
-				dir_var_max,     // final double         dir_var_max,     // 15.0; // do not add more sensors if the variance would exceed this
-				dir_worsen_rel,  // final double         dir_worsen_rel,  //  0.15;// add more sensors until variance grows by this relative
-				dbg_out);        // final double [][][]  dbg_out); // [5][][]
-		// No - need to preserve un-trimmed textures (for UM filter) and generate a separate alpha
-		/*
-		applyTextureSelection(
-				texture_fg_filt, // final boolean [][]   selections,
-				out_textures);   // final double  [][]   combo_texture // will be modified - NaN where not selected
-		*/	
-		
-		double [][] alphas = generateTileAlphas(
-				fg_has_bg[2],    // boolean [][] texture_tiles,
-				width,           // int          width,
-				transform_size); // int          transform_size)
-		
-		if (dbg_out != null) dbg_out[5] = copyTexture(alphas); // alpha after tile borders
-
-		generateFgAlphas(
-				texture_fg_filt, // final boolean [][] texture_en,   // non-transparent texture pixels     
-				alphas,       // final double  [][] alphas,       // or null will be updated
-				edge_transparent, // final int          edge,         // now should be 2 or 1
-				edge_weight, // final double       border_alpha, // alpha along the border 
-				width, // final int          width,
-				transform_size); // final int          transform_size)
-
+		double [][] alphas = new double[num_slices][];
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			// replace old alpha with the new binary one
+			alphas[nslice] = new double [unbound_alpha[nslice].length];
+			for (int i = 0; i < unbound_alpha[nslice].length; i++) {
+				alphas[nslice][i] = unbound_alpha[nslice][i] ? 1.0 : 0.0;
+			}
+		}
 		
 		if (dbg_prefix != null) {
-			final double [][] gtext_fg_filt =              dbgBooleanTexture (texture_fg_filt, -1000, 1000); // texture filtered by fg trim 
-			final double [][] dbg_text_edge =              dbgBooleanTexture (texture_edge, -1000, 1000); 
-			final double [][] dbg_text_en =                dbgBooleanTexture (dbg_bool[0], -1000, 1000);
-			final double [][] dbg_fg_prefiltered =         dbgBooleanTexture (dbg_bool[1], -1000, 1000);
-			final double [][] dbg_text_edge_var =          dbgBooleanTexture (dbg_bool[2], -1000, 1000);
-			final double [][] dbg_fg_prefiltered_neibs =   dbgBooleanTexture (dbg_bool[3], -1000, 1000);
-
-			final double [][] tdbg_is_fg =                 dbgBooleanTexture (fg_has_bg[1], fg_has_bg[0], 0,1,2,3);
-			final double [][] gdbg_is_fg =  new double [tdbg_is_fg.length][width*height];
-			for (int nslice = 0; nslice < num_slices; nslice++) {
-				for (int i = 0; i < gdbg_is_fg[0].length; i++) {
-					int tileX = (i % width)/transform_size;
-					int tileY = (i / width)/transform_size;
-					int tile = tileX + tilesX * tileY;
-					gdbg_is_fg[nslice][i] = tdbg_is_fg[nslice][tile];
-				}
-			}
-			
-			
-			final double [][] dbg_out_textures = new double [num_slices][];
-			for (int nslice = 0; nslice < num_slices; nslice++) {
-				dbg_out_textures[nslice] = out_textures[nslice].clone();
-			}
-			applyTextureSelection(
-					texture_fg_filt,     // final boolean [][]   selections,
-					dbg_out_textures);   // final double  [][]   combo_texture // will be modified - NaN where not selected
-
 			for (int nslice = 0; nslice < num_slices; nslice++) {
 				final double [] vars_ratio =               new double [img_size];
 				final double [] vars_fom =                 new double [img_size]; // inter/sqrt(same)
-				final double [] vars_dir_ratio =           new double [img_size];
 				final double [] half_pix =                 new double [img_size];
 				final double [] stitch_trim_pix =          new double [img_size];
 				final double [] trim_seed_pix =            new double [img_size];
@@ -6405,15 +6255,11 @@ public class TexturedModel {
 				for (int i = 0; i <img_size; i++) {
 					vars_ratio[i] =     vars[0][nslice][i]/(vars[1][nslice][i]+trim_inter_fz);
 					vars_fom[i] =       vars[1][nslice][i]/(vars[0][nslice][i]+seed_same_fz);
-					//vars[0][nslice]
 					if (Double.isNaN(vars_ratio[i])) vars_ratio[i] = 0;
 					if (Double.isNaN(vars_fom[i]))   vars_fom[i] = 0;
 					for (int k = 0; k < vars.length; k++) {
 						if (Double.isNaN(vars[k][nslice][i]))   vars[k][nslice][i] = 0;
 					}
-					
-					vars_dir_ratio[i] = vars[0][nslice][i]/dbg_out[1][nslice][i]; //vars_dir_final;
-//					grad_abs_over_same[i] = vars[4][nslice][i] / (vars[0][nslice][i]+seed_same_fz);
 					ridges_pix[i] = 
 							(trim_pixels [nslice][i]? 1.0:0.0) +
 							(ridges              [i]? 2.0:0.0);
@@ -6475,12 +6321,6 @@ public class TexturedModel {
 						fom_dbg[2][nslice],
 						fom_dbg[3][nslice],
 						vars_fom,
-						dbg_out[0][nslice], // gdbg_vars_dir_initial[nslice],
-						dbg_out[1][nslice], // gdbg_vars_dir_final[nslice],
-						dbg_out[2][nslice], // gdbg_dirs_initial[nslice],
-						dbg_out[3][nslice], // gdbg_dirs_final[nslice],
-						dbg_out[4][nslice], // gdbg_dirs_len[nslice],
-						vars_dir_ratio,
 						half_pix,
 						stitch_trim_pix,
 						trim_seed_pix,
@@ -6496,18 +6336,6 @@ public class TexturedModel {
 						gcombo_texture[nslice],
 						occluded_filled_textures[nslice], // put before occluded_textures to compare with gcombo_texture
 						occluded_textures[nslice],
-						dbg_text_edge[nslice], // dbg_text_edge,
-						dbg_text_en[nslice],
-						dbg_fg_prefiltered[nslice], //
-						dbg_text_edge_var[nslice], //
-						dbg_fg_prefiltered_neibs[nslice],
-						gtext_fg_filt[nslice], //dbg_fg_filtered[nslice],
-						gdbg_is_fg[nslice],
-//						gcombo_texture[nslice],
-						out_textures  [nslice], // dirs_avg,
-						dbg_out_textures[nslice],
-						dbg_out[5][nslice],
-						alphas[nslice],
 						sensor_texture[nslice][ 0],
 						sensor_texture[nslice][ 1],
 						sensor_texture[nslice][ 2],
@@ -6543,12 +6371,6 @@ public class TexturedModel {
 						"TRIM_FOM_THRESH", // var_same_thresholded
 						"TRIM_FOM_THRESH_BLUR", // var_same_thresholded_blured
 						"SEED_FOM", // inter/(same+seed_same_fz)
-						"VAR_DIR_INITIAL",
-						"VAR_DIR_FINAL",
-						"DIR_INITIAL",
-						"DIR_FINAL",
-						"LEN",
-						"DIR_RATIO",
 						"HALF_BG_FG",
 						"STITCH_TRIM",
 						"TRIM_SEED",
@@ -6564,19 +6386,6 @@ public class TexturedModel {
 						"COMBO_TEXTURE",
 						"OCCLUDED_FILLED_TEXTURES",
 						"OCCLUDED_TEXTURES",
-						
-						"TEXTURE_EDGE",
-						"TEXTURE_ON",
-						"TEXTURE_TRIMMED",
-						"TEXTURE_TRIMMED_EDGE_VAR",
-						"TEXTURE_TRIMMED_EDGED",
-						"TEXTURE_FG_FILTERED",
-						"IS_FG",
-//						"COMBO_TEXTURE",
-						"OUT_TEXTURE_BG",
-						"OUT_TEXTURE_FG",
-						"TILE_ALPHA",
-						"TEXTURE_ALPHA",
 						"T00",
 						"T01",
 						"T02",
@@ -6603,8 +6412,9 @@ public class TexturedModel {
 						dbg_titles);
 				assert true;
 			}
+			
 			ShowDoubleFloatArrays.showArrays(
-					out_textures,
+					occluded_filled_textures, // out_textures,
 					width,
 					height,
 					true,
@@ -6617,27 +6427,23 @@ public class TexturedModel {
 					dbg_prefix+"-alphas");
 			
 			double [][] masked_textures = 	combineTextureAlpha(
-					0.5, // final double         alpha_threshold,
-					out_textures, // final double  [][]   textures,
-					alphas); // final double  [][]   alphas
-			
+					0.5,                      // final double         alpha_threshold,
+					occluded_filled_textures, // out_textures, // final double  [][]   textures,
+					alphas);                  // final double  [][]   alphas
 			ShowDoubleFloatArrays.showArrays(
 					masked_textures,
 					width,
 					height,
 					true,
 					dbg_prefix+"-masked_textures");
-			
 		}
 
 		double [][][] textures_alphas = new double [num_slices][][];
-		//unbound_alpha
 		for (int nslice = 0; nslice < num_slices; nslice++) {
-			// replace old alpha with the new binary one
+			alphas[nslice] = new double [unbound_alpha[nslice].length];
 			for (int i = 0; i < unbound_alpha[nslice].length; i++) {
 				alphas[nslice][i] = unbound_alpha[nslice][i] ? 1.0 : 0.0;
 			}
-//			textures_alphas[nslice] = new double [][] {out_textures[nslice], alphas[nslice]};
 			textures_alphas[nslice] = new double [][] {occluded_filled_textures[nslice], alphas[nslice]};
 		}
 		// set slice_disparities to NaN for unselected tiles - it will update tileClusters
