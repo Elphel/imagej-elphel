@@ -406,8 +406,15 @@ public class CLTParameters {
 	public boolean    tex_split_textures =          false;  // (debugLevel > 1000); // false;
 	public int        tex_subdiv_tiles =              4;    // subdivide tiles to smaller triangles
 	public int        tex_sky_below =                10;    // extend sky these tile rows below lowest
-	public boolean    tex_debug_disp_tri =          false;  // !batch_mode && (debugLevel > 0); // TODO: use clt_parameters
+
+	// gd.addMessage     ("Triangular mesh");
+	public boolean    tex_disp_hires_tri =           true;  // Display high resolution mesh
+	public int        tex_dbg_scale_mesh =              4;  // Upscale high resolution mesh from pixel resolution
+	public boolean    tex_dbg_plot_center =          true;  // Plot each triangle center
+	public double     tex_dbg_line_color =            1.0;  // Color for triangle edges
+	public double     tex_dbg_center_color =          3.0;  // Color for triangle centers
 	
+	public boolean    tex_debug_disp_tri =          false;  // !batch_mode && (debugLevel > 0); // TODO: use clt_parameters
 	public int        tex_add_bg_tiles =              0;    // If there is gap between clusters, add extra row of background tiles
 	public boolean    tex_save_full_textures =       true;  // false; // true;
 	public double     tex_alpha_threshold =           0.5;
@@ -462,6 +469,55 @@ public class CLTParameters {
 	public boolean    ex_over_bgnd     = false; // Allow expansion over previously identified background (infinity)
 	public double     ex_min_over      = 1.0;   // When expanding over background, disregard lower disparity
 
+	
+
+	//gd.addtab     ("Lateral resolution enhancement");
+	public double        lre_var_radius =       1.5; // 3.5;   // for variance filter of the combo disparity
+	public double        lre_seed_inter =   150; // 120; // 150;
+	public double        lre_seed_same_fz =  6.5; // 13; // seed_inter = 50.0;
+	public double        lre_seed_fom =      2.0; // 1.9; // 1.2;
+	public double        lre_trim_inter_fz = 5.0; // 13.0;
+	public double        lre_trim_fom =      0.5; // 0.8; // 1.3; // 1.8; // 1.2; // 0.8; // 0.4;  // 0.7;
+	// scale down fom for pixels near high-variance VAR_SAME
+	public double        lre_trim_fom_threshold = 120.0; // count only pixels with VAR_SAME > this value 
+	public double        lre_trim_fom_boost = 5;   // boost high-varinace values that exceed threshold  
+	public double        lre_trim_fom_blur = 10.0; // divide trim_fom array by blurred version to reduce over sky sharp edge
+	// Sure values to set unconditionally transparent and unconditionally opaque FG
+	public double        lre_seed_fom_sure =     5.0;
+	public double        lre_seed_inter_sure = 150.0; // 13.0;
+	public double        lre_trim_fom_sure =    10; //  2.0; temporary disabling it
+	public double        lre_min_incr =      100; // temporary disable // 5; // 20.0; // 0.5; // only for sky?
+
+	public int           lre_min_neibs_alpha = 1;  // minimal neighbors to keep alpha
+	public int           lre_grow_alpha = 0; // 2; // grow alpha selection
+	public double        lre_alphaOverlapTolerance = 0.0; // exact match only
+	public int           lre_reduce_has_bg_grow = 2; // 0 - exactly half tile (between strong and weak)
+	public double        lre_occlusion_frac = 0.9;
+	public double        lre_occlusion_min_disp = 0.3; // do not calculate occlusions for smaller disparity difference
+
+	public boolean       lre_enhance_map =      false; // debugged, but seems worse - disabling
+	public int           lre_min_map_sensors =      3;
+	public double        lre_keep_map_frac =        0.6;  // for BG - use this fraction of all sensors in the best direction
+	public int           lre_num_fill_passes =    100;
+	public double        lre_max_fill_change =      0.1;
+	// Processing BG and FG trim
+	public boolean       lre_en_cut =               true; // enable change FG pixel to transparent from opaque
+	public boolean       lre_en_patch =             true; // enable change FG pixel to opaque from transparent
+	public double        lre_fg_disp_diff =         1.0;  // do not consider obscuring too close BG (1 pix or more?)
+	public int           lre_min_sensors =          4;    // minimal number of sensors visible from the FG pixel
+	public double        lre_weight_neib =          3.0; // 2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
+	public double        lre_weight_bg =            0.9; // 0.8; // 1.0; // 15.0/16; // 1.0;  // weight of BG cost relative to the FG one
+	public double        lre_best_dir_frac =        0.6;  // for BG - use this fraction of all sensors in the best direction
+	public double        lre_cost_min =             1.0;  // minimal absolute value of the total cost to make changes
+	public int           lre_max_trim_iterations = 10;
+	// for fillOcclusionsNaN:
+	public boolean       lre_show_debug =              true; // global
+	public boolean       lre_show_update_alpha_slice = false; //true;
+	public boolean       lre_show_update_alpha_combo = true;
+	public boolean       lre_show_textures_slice =     false; //true;
+	public boolean       lre_show_textures_combo =     false; //true;
+	public boolean       lre_show_textures_tiles =     false; //true;
+	
 	public double     pt_super_trust   = 1.6;   // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
 	public boolean    pt_keep_raw_fg   = true;  // Do not replace raw tiles by the plates, if raw is closer (like poles)
 	public double     pt_scale_pre     = 1.5;   // Scale plates strength before comparing to raw strength
@@ -1047,6 +1103,7 @@ public class CLTParameters {
 	public static String Z_CORR_PREFIX = "z_corr.";
 	public static String INFINITY_DISTANCE_PREFIX = "infinity_distance.";
 	public boolean   batch_run =               false; // turned on only while running in batch mode
+	public boolean   multiseq_run =            false; // turned on only while running in batch multiseq mode
 
 	// Quick fix to pass these parameters
 	public ColorProcParameters                             colorProcParameters;
@@ -1451,8 +1508,14 @@ public class CLTParameters {
 		properties.setProperty(prefix+"tex_split_textures",         this.tex_split_textures+"");     // boolean
 		properties.setProperty(prefix+"tex_subdiv_tiles",           this.tex_subdiv_tiles+"");       // int
 		properties.setProperty(prefix+"tex_sky_below",              this.tex_sky_below+"");          // int
-		properties.setProperty(prefix+"tex_debug_disp_tri",         this.tex_debug_disp_tri+"");     // boolean
 		
+		properties.setProperty(prefix+"tex_disp_hires_tri",         this.tex_disp_hires_tri+""); // boolean
+		properties.setProperty(prefix+"tex_dbg_scale_mesh",         this.tex_dbg_scale_mesh+"");       // int
+		properties.setProperty(prefix+"tex_dbg_plot_center",        this.tex_dbg_plot_center+""); // boolean
+		properties.setProperty(prefix+"tex_dbg_line_color",         this.tex_dbg_line_color+"");    // double
+		properties.setProperty(prefix+"tex_dbg_center_color",       this.tex_dbg_center_color+"");    // double
+		
+		properties.setProperty(prefix+"tex_debug_disp_tri",         this.tex_debug_disp_tri+"");     // boolean
 		properties.setProperty(prefix+"tex_add_bg_tiles",           this.tex_add_bg_tiles+"");       // int
 		properties.setProperty(prefix+"tex_save_full_textures",     this.tex_save_full_textures+""); // boolean
 		properties.setProperty(prefix+"tex_alpha_threshold",        this.tex_alpha_threshold+"");    // double
@@ -1509,6 +1572,55 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ex_over_bgnd",               this.ex_over_bgnd+"");
 		properties.setProperty(prefix+"ex_min_over",                this.ex_min_over +"");
 
+		// gd.addtab     ("Lateral resolution enhancement");
+		properties.setProperty(prefix+"lre_var_radius",             this.lre_var_radius+"");             // double
+		properties.setProperty(prefix+"lre_seed_inter",             this.lre_seed_inter+"");             // double
+		properties.setProperty(prefix+"lre_seed_same_fz",           this.lre_seed_same_fz+"");           // double
+		properties.setProperty(prefix+"lre_seed_fom",               this.lre_seed_fom+"");               // double
+		properties.setProperty(prefix+"lre_trim_inter_fz",          this.lre_trim_inter_fz+"");          // double
+		properties.setProperty(prefix+"lre_trim_fom",               this.lre_trim_fom+"");               // double
+		// scale down FOM for pixels near high-variance VAR_SAME
+		properties.setProperty(prefix+"lre_trim_fom_threshold",     this.lre_trim_fom_threshold+"");     // double
+		properties.setProperty(prefix+"lre_trim_fom_boost",         this.lre_trim_fom_boost+"");         // double
+		properties.setProperty(prefix+"lre_trim_fom_blur",          this.lre_trim_fom_blur+"");          // double
+		// Sure values to set unconditionally transparent and unconditionally opaque FG
+		properties.setProperty(prefix+"lre_seed_fom_sure",          this.lre_seed_fom_sure+"");          // double
+		properties.setProperty(prefix+"lre_seed_inter_sure",        this.lre_seed_inter_sure+"");        // double
+		properties.setProperty(prefix+"lre_trim_fom_sure",          this.lre_trim_fom_sure+"");          // double
+		properties.setProperty(prefix+"lre_min_incr",               this.lre_min_incr+"");               // double
+		//
+		properties.setProperty(prefix+"lre_min_neibs_alpha",        this.lre_min_neibs_alpha+"");        // int     
+		properties.setProperty(prefix+"lre_grow_alpha",             this.lre_grow_alpha+"");             // int     
+		properties.setProperty(prefix+"lre_alphaOverlapTolerance",  this.lre_alphaOverlapTolerance+"");  // double  
+		properties.setProperty(prefix+"lre_reduce_has_bg_grow",     this.lre_reduce_has_bg_grow+"");     // int     
+		properties.setProperty(prefix+"lre_occlusion_frac",         this.lre_occlusion_frac+"");         // double  
+		properties.setProperty(prefix+"lre_occlusion_min_disp",     this.lre_occlusion_min_disp+"");     // double
+		//
+		properties.setProperty(prefix+"lre_enhance_map",            this.lre_enhance_map+"");            // boolean 
+		properties.setProperty(prefix+"lre_min_map_sensors",        this.lre_min_map_sensors+"");        // int     
+		properties.setProperty(prefix+"lre_keep_map_frac",          this.lre_keep_map_frac+"");          // double  
+		// for fillOcclusionsNaN:
+		properties.setProperty(prefix+"lre_num_fill_passes",        this.lre_num_fill_passes+"");        // int     
+		properties.setProperty(prefix+"lre_max_fill_change",        this.lre_max_fill_change+"");        // double  
+		
+		// Processing BG and FG trim
+		properties.setProperty(prefix+"lre_en_cut",                 this.lre_en_cut+"");                 // boolean 
+		properties.setProperty(prefix+"lre_en_patch",               this.lre_en_patch+"");               // boolean 
+		properties.setProperty(prefix+"lre_fg_disp_diff",           this.lre_fg_disp_diff+"");           // double  
+		properties.setProperty(prefix+"lre_min_sensors",            this.lre_min_sensors+"");            // int     
+		properties.setProperty(prefix+"lre_weight_neib",            this.lre_weight_neib+"");            // double  
+		properties.setProperty(prefix+"lre_weight_bg",              this.lre_weight_bg+"");              // double  
+		properties.setProperty(prefix+"lre_best_dir_frac",          this.lre_best_dir_frac+"");          // double  
+		properties.setProperty(prefix+"lre_cost_min",               this.lre_cost_min+"");               // double  
+		properties.setProperty(prefix+"lre_max_trim_iterations",    this.lre_max_trim_iterations+"");    // int     
+		//                                
+		properties.setProperty(prefix+"lre_show_debug",             this.lre_show_debug+"");             // boolean 
+		properties.setProperty(prefix+"lre_show_update_alpha_slice",this.lre_show_update_alpha_slice+"");// boolean 
+		properties.setProperty(prefix+"lre_show_update_alpha_combo",this.lre_show_update_alpha_combo+"");// boolean 
+		properties.setProperty(prefix+"lre_show_textures_slice",    this.lre_show_textures_slice+"");    // boolean 
+		properties.setProperty(prefix+"lre_show_textures_combo",    this.lre_show_textures_combo+"");    // boolean 
+		properties.setProperty(prefix+"lre_show_textures_tiles",    this.lre_show_textures_tiles+"");    // boolean 
+		
 		properties.setProperty(prefix+"pt_super_trust",             this.pt_super_trust +"");
 		properties.setProperty(prefix+"pt_keep_raw_fg",             this.pt_keep_raw_fg+"");
 		properties.setProperty(prefix+"pt_scale_pre",               this.pt_scale_pre +"");
@@ -2374,9 +2486,15 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"tex_max_neib_lev")!=null)     this.tex_max_neib_lev=Integer.parseInt(properties.getProperty(prefix+"tex_max_neib_lev"));		
 		if (properties.getProperty(prefix+"tex_split_textures")!=null)   this.tex_split_textures=Boolean.parseBoolean(properties.getProperty(prefix+"tex_split_textures"));		
 		if (properties.getProperty(prefix+"tex_subdiv_tiles")!=null)     this.tex_subdiv_tiles=Integer.parseInt(properties.getProperty(prefix+"tex_subdiv_tiles"));		
-		if (properties.getProperty(prefix+"tex_sky_below")!=null)        this.tex_sky_below=Integer.parseInt(properties.getProperty(prefix+"tex_sky_below"));		
-		if (properties.getProperty(prefix+"tex_debug_disp_tri")!=null)   this.tex_debug_disp_tri=Boolean.parseBoolean(properties.getProperty(prefix+"tex_debug_disp_tri"));		
+		if (properties.getProperty(prefix+"tex_sky_below")!=null)        this.tex_sky_below=Integer.parseInt(properties.getProperty(prefix+"tex_sky_below"));
 		
+		if (properties.getProperty(prefix+"tex_disp_hires_tri")!=null)   this.tex_disp_hires_tri=Boolean.parseBoolean(properties.getProperty(prefix+"tex_disp_hires_tri"));		
+		if (properties.getProperty(prefix+"tex_dbg_scale_mesh")!=null)   this.tex_dbg_scale_mesh=Integer.parseInt(properties.getProperty(prefix+"tex_dbg_scale_mesh"));		
+		if (properties.getProperty(prefix+"tex_dbg_plot_center")!=null)  this.tex_dbg_plot_center=Boolean.parseBoolean(properties.getProperty(prefix+"tex_dbg_plot_center"));		
+		if (properties.getProperty(prefix+"tex_dbg_line_color")!=null)   this.tex_dbg_line_color=Double.parseDouble(properties.getProperty(prefix+"tex_dbg_line_color"));
+		if (properties.getProperty(prefix+"tex_dbg_center_color")!=null) this.tex_dbg_center_color=Double.parseDouble(properties.getProperty(prefix+"tex_dbg_center_color"));
+		
+		if (properties.getProperty(prefix+"tex_debug_disp_tri")!=null)    this.tex_debug_disp_tri=Boolean.parseBoolean(properties.getProperty(prefix+"tex_debug_disp_tri"));		
 		if (properties.getProperty(prefix+"tex_add_bg_tiles")!=null)      this.tex_add_bg_tiles=Integer.parseInt(properties.getProperty(prefix+"tex_add_bg_tiles"));		
 		if (properties.getProperty(prefix+"tex_save_full_textures")!=null)this.tex_save_full_textures=Boolean.parseBoolean(properties.getProperty(prefix+"tex_save_full_textures"));		
 		if (properties.getProperty(prefix+"tex_alpha_threshold")!=null)   this.tex_alpha_threshold=Double.parseDouble(properties.getProperty(prefix+"tex_alpha_threshold"));
@@ -2432,7 +2550,57 @@ public class CLTParameters {
 
 		if (properties.getProperty(prefix+"ex_over_bgnd")!=null)                  this.ex_over_bgnd=Boolean.parseBoolean(properties.getProperty(prefix+"ex_over_bgnd"));
 		if (properties.getProperty(prefix+"ex_min_over")!=null)                   this.ex_min_over=Double.parseDouble(properties.getProperty(prefix+"ex_min_over"));
+		// gd.addtab     ("Lateral resolution enhancement");                                                                            
+		if (properties.getProperty(prefix+"lre_var_radius")!=null)             this.lre_var_radius=Double.parseDouble(properties.getProperty(prefix+"lre_var_radius"));// double
+		if (properties.getProperty(prefix+"lre_seed_inter")!=null)             this.lre_seed_inter=Double.parseDouble(properties.getProperty(prefix+"lre_seed_inter"));// double
+		if (properties.getProperty(prefix+"lre_seed_same_fz")!=null)           this.lre_seed_same_fz=Double.parseDouble(properties.getProperty(prefix+"lre_seed_same_fz"));// double
+		if (properties.getProperty(prefix+"lre_seed_fom")!=null)               this.lre_seed_fom=Double.parseDouble(properties.getProperty(prefix+"lre_seed_fom"));// double
+		if (properties.getProperty(prefix+"lre_trim_inter_fz")!=null)          this.lre_trim_inter_fz=Double.parseDouble(properties.getProperty(prefix+"lre_trim_inter_fz"));// double
+		if (properties.getProperty(prefix+"lre_trim_fom")!=null)               this.lre_trim_fom=Double.parseDouble(properties.getProperty(prefix+"lre_trim_fom"));// double
+		// scale down FOM for pixels near high-variance VAR_SAME
+		if (properties.getProperty(prefix+"lre_trim_fom_threshold")!=null)     this.lre_trim_fom_threshold=Double.parseDouble(properties.getProperty(prefix+"lre_trim_fom_threshold"));// double
+		if (properties.getProperty(prefix+"lre_trim_fom_boost")!=null)         this.lre_trim_fom_boost=Double.parseDouble(properties.getProperty(prefix+"lre_trim_fom_boost"));// double
+		if (properties.getProperty(prefix+"lre_trim_fom_blur")!=null)          this.lre_trim_fom_blur=Double.parseDouble(properties.getProperty(prefix+"lre_trim_fom_blur"));// double
+		// Sure values to set unconditionally transparent and unconditionally opaque FG
+		if (properties.getProperty(prefix+"lre_seed_fom_sure")!=null)          this.lre_seed_fom_sure=Double.parseDouble(properties.getProperty(prefix+"lre_seed_fom_sure"));// double
+		if (properties.getProperty(prefix+"lre_seed_inter_sure")!=null)        this.lre_seed_inter_sure=Double.parseDouble(properties.getProperty(prefix+"lre_seed_inter_sure"));// double
+		if (properties.getProperty(prefix+"lre_trim_fom_sure")!=null)          this.lre_trim_fom_sure=Double.parseDouble(properties.getProperty(prefix+"lre_trim_fom_sure"));// double
+		if (properties.getProperty(prefix+"lre_min_incr")!=null)               this.lre_min_incr=Double.parseDouble(properties.getProperty(prefix+"lre_min_incr"));// double
+		//
+		if (properties.getProperty(prefix+"lre_min_neibs_alpha")!=null)        this.lre_min_neibs_alpha=Integer.parseInt(properties.getProperty(prefix+"lre_min_neibs_alpha"));// int     
+		if (properties.getProperty(prefix+"lre_grow_alpha")!=null)             this.lre_grow_alpha=Integer.parseInt(properties.getProperty(prefix+"lre_grow_alpha"));// int     
+		if (properties.getProperty(prefix+"lre_alphaOverlapTolerance")!=null)  this.lre_alphaOverlapTolerance=Double.parseDouble(properties.getProperty(prefix+"lre_alphaOverlapTolerance"));// double  
+		if (properties.getProperty(prefix+"lre_reduce_has_bg_grow")!=null)     this.lre_reduce_has_bg_grow=Integer.parseInt(properties.getProperty(prefix+"lre_reduce_has_bg_grow"));// int     
+		if (properties.getProperty(prefix+"lre_occlusion_frac")!=null)         this.lre_occlusion_frac=Double.parseDouble(properties.getProperty(prefix+"lre_occlusion_frac"));// double  
+		if (properties.getProperty(prefix+"lre_occlusion_min_disp")!=null)     this.lre_occlusion_min_disp=Double.parseDouble(properties.getProperty(prefix+"lre_occlusion_min_disp"));// double
+		//
+		if (properties.getProperty(prefix+"lre_enhance_map")!=null)            this.lre_enhance_map=Boolean.parseBoolean(properties.getProperty(prefix+"lre_enhance_map"));// boolean 
+		if (properties.getProperty(prefix+"lre_min_map_sensors")!=null)        this.lre_min_map_sensors=Integer.parseInt(properties.getProperty(prefix+"lre_min_map_sensors"));// int     
+		if (properties.getProperty(prefix+"lre_keep_map_frac")!=null)          this.lre_keep_map_frac=Double.parseDouble(properties.getProperty(prefix+"lre_keep_map_frac"));// double  
+		// for fillOcclusionsNaN:
+		if (properties.getProperty(prefix+"lre_num_fill_passes")!=null)        this.lre_num_fill_passes=Integer.parseInt(properties.getProperty(prefix+"lre_num_fill_passes"));// int     
+		if (properties.getProperty(prefix+"lre_max_fill_change")!=null)        this.lre_max_fill_change=Double.parseDouble(properties.getProperty(prefix+"lre_max_fill_change"));// double  
+		
+		
+		// Processing BG and FG trim
+		if (properties.getProperty(prefix+"lre_en_cut")!=null)                 this.lre_en_cut=Boolean.parseBoolean(properties.getProperty(prefix+"lre_en_cut"));// boolean 
+		if (properties.getProperty(prefix+"lre_en_patch")!=null)               this.lre_en_patch=Boolean.parseBoolean(properties.getProperty(prefix+"lre_en_patch"));// boolean 
+		if (properties.getProperty(prefix+"lre_fg_disp_diff")!=null)           this.lre_fg_disp_diff=Double.parseDouble(properties.getProperty(prefix+"lre_fg_disp_diff"));// double  
+		if (properties.getProperty(prefix+"lre_min_sensors")!=null)            this.lre_min_sensors=Integer.parseInt(properties.getProperty(prefix+"lre_min_sensors"));// int     
+		if (properties.getProperty(prefix+"lre_weight_neib")!=null)            this.lre_weight_neib=Double.parseDouble(properties.getProperty(prefix+"lre_weight_neib"));// double  
+		if (properties.getProperty(prefix+"lre_weight_bg")!=null)              this.lre_weight_bg=Double.parseDouble(properties.getProperty(prefix+"lre_weight_bg"));// double  
+		if (properties.getProperty(prefix+"lre_best_dir_frac")!=null)          this.lre_best_dir_frac=Double.parseDouble(properties.getProperty(prefix+"lre_best_dir_frac"));// double  
+		if (properties.getProperty(prefix+"lre_cost_min")!=null)               this.lre_cost_min=Double.parseDouble(properties.getProperty(prefix+"lre_cost_min"));// double  
+		if (properties.getProperty(prefix+"lre_max_trim_iterations")!=null)    this.lre_max_trim_iterations=Integer.parseInt(properties.getProperty(prefix+"lre_max_trim_iterations"));// int     
+		//                                
+		if (properties.getProperty(prefix+"lre_show_debug")!=null)             this.lre_show_debug=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_debug"));// boolean 
+		if (properties.getProperty(prefix+"lre_show_update_alpha_slice")!=null)this.lre_show_update_alpha_slice=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_update_alpha_slice"));// boolean 
+		if (properties.getProperty(prefix+"lre_show_update_alpha_combo")!=null)this.lre_show_update_alpha_combo=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_update_alpha_combo"));// boolean 
+		if (properties.getProperty(prefix+"lre_show_textures_slice")!=null)    this.lre_show_textures_slice=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_slice"));// boolean 
+		if (properties.getProperty(prefix+"lre_show_textures_combo")!=null)    this.lre_show_textures_combo=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_combo"));// boolean 
+		if (properties.getProperty(prefix+"lre_show_textures_tiles")!=null)    this.lre_show_textures_tiles=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_tiles"));// boolean
 
+		
 		if (properties.getProperty(prefix+"pt_super_trust")!=null)                this.pt_super_trust=Double.parseDouble(properties.getProperty(prefix+"pt_super_trust"));
 		if (properties.getProperty(prefix+"pt_keep_raw_fg")!=null)                this.pt_keep_raw_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pt_keep_raw_fg"));
 		if (properties.getProperty(prefix+"pt_scale_pre")!=null)                  this.pt_scale_pre=Double.parseDouble(properties.getProperty(prefix+"pt_scale_pre"));
@@ -3472,11 +3640,27 @@ public class CLTParameters {
 				"Subdivide tiles to smaller triangles to improve lateral resolution. Best for 1-2-4-8.");
 		gd.addNumericField("Extend sky area",                    this.tex_sky_below, 0,3,"tiles",
 				"if >=0, extend sky these tile rows below lowest and extend sky up, right and left to full image.");
+		
+		gd.addMessage     ("Triangular mesh");
+		gd.addCheckbox ("Display high resolution mesh",          this.tex_disp_hires_tri,
+				"Display high resolution triangular mesh.");
+		gd.addNumericField("Upscale mesh",                       this.tex_dbg_scale_mesh, 0,3,"x",
+				"Upscale high resolution mesh from pixel resolution.");
+		gd.addCheckbox ("Plot triangle centers",                 this.tex_dbg_plot_center,
+				"Plot each triangle center.");
+		gd.addNumericField("Edge color",                         this.tex_dbg_line_color, 5,7,"",
+				"Color value for triangle edges.");
+		gd.addNumericField("Center color",                       this.tex_dbg_center_color, 5,7,"",
+				"Color value for triangle centers.");
+		
 		gd.addCheckbox ("Debug mesh triangles",                  this.tex_debug_disp_tri,
 				"Generate debug images for mesh triangles.");
 		
 		gd.addNumericField("Add background tiles",               this.tex_add_bg_tiles, 0,3,"tiles",
 				"If there is gap between clusters, add extra row of background tiles. Obsolete?");
+		
+		gd.addMessage     ("Textures rendering");
+		
 		gd.addCheckbox ("Save full textures",                    this.tex_save_full_textures,
 				"Will save anyway if !tex_split_textures.");
 		gd.addNumericField("Alpha threshold",                    this.tex_alpha_threshold, 5,7,"",
@@ -3488,7 +3672,6 @@ public class CLTParameters {
 		gd.addNumericField("JPEG quality for textures",          this.tex_jpeg_quality, 0,3,"%",
 				"If <=0 - save as png.");
 		
-		gd.addMessage     ("Textures rendering");
 		gd.addCheckbox ("Apply unsharp mask",                    this.tex_um,
 				"Use unsharp mask filter for texture.");
 		gd.addNumericField("Unsharp mask sigma",                 this.tex_um_sigma, 5,7,"pix",
@@ -3570,7 +3753,101 @@ public class CLTParameters {
 		gd.addCheckbox    ("Allow expansion over previously identified background (infinity)",                       this.ex_over_bgnd);
 		gd.addNumericField("When expanding over background, disregard lower disparity ",                             this.ex_min_over,  3);
 
-		gd.addTab         ("Plates", "Plates filtering when building initial z-map");
+		gd.addTab ("Lateral", "Lateral resolution enhancement");                                                                            
+		gd.addNumericField("Variance radius",                     this.lre_var_radius, 5,7,"", // 1.5; // 3.5;   // for variance filter of the combo disparity
+				"Radius to calcualte pixel variance of the combined (from all sensors) disparity.");
+		gd.addNumericField("Seed inter-sensors",                  this.lre_seed_inter, 5,7,"", // 150; // 120; // 150;
+				"Absolute inter-sensor difference to seed transparent texture.");
+		gd.addNumericField("Seed fat zero of combo variance",     this.lre_seed_same_fz, 5,7,"", // 6.5; // 13; // seed_inter = 50.0;
+				"Add to the denominator (to combined variance) to divide inter-sensor variance.");
+		gd.addNumericField("Seed FOM thereshold",                 this.lre_seed_fom, 5,7,"", // 2.0; // 1.9; // 1.2;
+				"Seed threshold for var_inter/(var_same+var_same_fz) - definitely not a foreground.");
+		gd.addNumericField("Seed fat zero of inter-sensor variance",this.lre_trim_inter_fz, 5,7,"", //5.0; // 13.0;
+				"Add to the denominator (to inter-sensor variance) to divide combo variance.");
+		gd.addNumericField("Trim FOM thereshold",                 this.lre_trim_fom, 5,7,"", // 0.5; // 0.8; // 1.3; // 1.8; // 1.2; // 0.8; // 0.4;  // 0.7;
+				"Trim threshold for var_same/(var_inter+var_inter_fz) - seems to be foreground.");
+		gd.addMessage("Reducing Trim FOM near high-contrast FG over sky by thresholding, bluring and dividing");
+// Scale down FOM for pixels near high-variance VAR_SAME
+		gd.addNumericField("High contrast trim FOMthreshold",     this.lre_trim_fom_threshold, 5,7,"", // 120.0; // count only pixels with VAR_SAME > this value
+				"Detection/correction of very high contrast over cold sky.");
+		gd.addNumericField("Boost high-variance",                 this.lre_trim_fom_boost, 5,7,"", // 5;   // boost high-variance values that exceed threshold
+				"Boost high contrast variance that exceeds threshold.");
+		gd.addNumericField("Trim FOM blur",                       this.lre_trim_fom_blur, 5,7,"", // 10.0; // divide trim_fom array by blurred version to reduce over sky sharp edge
+				"Blur thresholded Trim FOM to reduce FG detecting at large distance and incorrectly expanding FG objects over sky.");
+		
+		gd.addMessage("Sure values to set unconditionally transparent and unconditionally opaque FG");
+		gd.addNumericField("Seed FOM sure (definitely transparent)",this.lre_seed_fom_sure, 5,7,"", // 5.0;
+				"Seed FOM (inter-sensor in numerator) that is definitely transparent, not FG (low contrast areas, not over sky).");
+		gd.addNumericField("Absolute inter-scene sure",           this.lre_seed_inter_sure, 5,7,"", // 150.0; // 13.0;
+				"Absolute inter-scene variance discarding FG (works in high-contrast, objects over sky).");
+		gd.addNumericField("Trim FOM sure (definitely opaque)",   this.lre_trim_fom_sure, 5,7,"", // 10; //  2.0; temporary disabling it
+				"Currently disabled (enabled with 2.0) because with high contrast it extends from the edge over BG.");
+		gd.addMessage("Grow up gradient (not working, disabled by parameter)");
+		gd.addNumericField("Minimal increment to follow gradient",this.lre_min_incr, 5,7,"", //  100; // temporary disable // 5; // 20.0; // 0.5; // only for sky?
+				"Trying to shrink FG on the high-contrast border, where FG spills over BG.");
+		gd.addMessage("Filter alpha pixels (currently not needed) ---");
+		gd.addNumericField("Minimal neighbors to keep alpha",     this.lre_min_neibs_alpha, 0,3,"",  // minimal neighbors to keep alpha
+				"Remove isolated opaque pixels - should have at least this number of opaque neighbors.");
+		gd.addNumericField("Grow opaque",                         this.lre_grow_alpha, 0,3,"", // 0; // 2; // grow alpha selection
+				"Grow opaque, currently disabled (set to 2 to enable).");
+		
+		gd.addMessage("Filter same disparity tiles (cluster overlap/stitch areas), use minimal alpha");
+		gd.addNumericField("Maximal disparity difference",        this.lre_alphaOverlapTolerance, 5,7,"pix",
+				"Disparity difference to treat as same. 0.0 - only the exact mathch");
+		gd.addMessage("'has BG' control");
+		gd.addNumericField("Reduce 'has BG' grow",                this.lre_reduce_has_bg_grow, 0,3,"", // 2; // 0 - exactly half tile (between strong and weak)
+				"Per-pixel 'has BG' is a condition for trimming. Value 0 makes it exactly half-tile between stron abd weem BG.");
+		
+		gd.addMessage("Sensor mask to select which to mix for BG pixel from occlusions by the FG");
+		gd.addNumericField("Opaque occlusion fraction",           this.lre_occlusion_frac, 5,7,"", // lre_occlusion_frac = 0.9;
+				"Fraction of opaque FG pixels (by bilinear interpolation) for the current BG pixel to occlude it.");
+		gd.addNumericField("Minimal disparity difference to occlude",this.lre_occlusion_min_disp, 5,7,"", // 0.3; // do not calculate occlusions for smaller disparity difference
+				"Minimal disparity difference between FG and BG to consider occlusion.");
+		gd.addCheckbox ("Enable sensor mask enhancement (broken).",this.lre_enhance_map, // false; // debugged, but seems worse - disabling
+				"(Enables next 2 parameters) Modify used sensor mask for BG averaging by removing 'unreliable'. Something is broken - result is worse.");
+		gd.addNumericField("Minimal number of sensors",           this.lre_min_map_sensors, 0,3,"", // 3
+				"Minimal number of 'reliable' sensors to average BG texture pixel.");
+		gd.addNumericField("'Reliable' fraction of sensors",      this.lre_keep_map_frac, 5,7,"", // 0.6;  // for BG - use this fraction of all sensors in the best direction
+				"Fraction of all 16 sensors to keep if at least one is removed.");
+		gd.addNumericField("Fill NaN maximal iterations",         this.lre_num_fill_passes, 0,3,"", // 100;
+				"Maximal number of iterations to fill undefined (NaN) texture pixels.");
+		gd.addNumericField("Fill NaN relative change exit",       this.lre_max_fill_change, 5,7,"",//0.1;
+				"Maximal relative pixel change to exit fill NaN iterations cycle.");
+		
+		gd.addMessage("Iterative FG trim and BG recalculation");
+		gd.addCheckbox ("Enable cut FG",                          this.lre_en_cut, // true; // enable change FG pixel to transparent from opaque
+				"Enable changing FG pixel to transparent from opaque.");
+		gd.addCheckbox ("Enable patch FG",                        this.lre_en_patch, // true; // enable change FG pixel to opaque from transparent
+				"Enable changing FG pixel to opaque from transparent.");
+		gd.addNumericField("Closest BG to obscure",               this.lre_fg_disp_diff, 5,7,"pix", // 1.0;  // do not consider obscuring too close BG (1 pix or more?)
+				"Do not consider obscuring too close BG (1 pix or more?).");
+		gd.addNumericField("Min FG sensors",                      this.lre_min_sensors, 0,3,"", // 4;    // minimal number of sensors visible from the FG pixel
+				"Minimal number of sensors visible from the FG pixel (when it is obscured by even closer object).");
+		gd.addNumericField("Weight of number of neighbors",       this.lre_weight_neib, 5,7,"", // 3.0; // 2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
+				"Weight of number of neighbors in overall cost function. Higher values smooth edges.");
+		gd.addNumericField("Weight of BG cost",                   this.lre_weight_bg, 5,7,"",
+				"Weight of BG cost relative to the FG one.");
+		gd.addNumericField("Best direction fraction",             this.lre_best_dir_frac, 5,7,"", // 0.6;  // for BG - use this fraction of all sensors in the best direction
+				"Reduce th BG cost by limiting number of considered sensor (find best consecutive ones) .");
+		gd.addNumericField("Minimal absolute value of the cost",  this.lre_cost_min, 5,7,"", // 1.0;  // minimal absolute value of the total cost to make changes
+				"Minimal absolute value of the total cost to make changes (opaque/transparent).");
+		gd.addNumericField("Number of the FG update iterations",  this.lre_max_trim_iterations, 0,3,"", // 10
+				"Number of iterations to recalculate FG pixels opaque/transparent state.");
+		gd.addMessage("Debug images generation");
+		gd.addCheckbox ("Global debug image enable",              this.lre_show_debug, // true
+				"Global debug image enable (masked by the batch mode state).");
+		gd.addCheckbox ("Show per-slice alpha",                   this.lre_show_update_alpha_slice, // false
+				"Generate per texture slice alpha calculation images.");
+		gd.addCheckbox ("Show single alpha",                      this.lre_show_update_alpha_combo, // true
+				"Show single image with eacch slice alpha modification steps.");
+		gd.addCheckbox ("Show per-slice texture calculation",     this.lre_show_textures_slice,    //  false; 
+				"Show individual per-slice debug images for textures calculation.");
+		gd.addCheckbox ("Show all-slice combined images",             this.lre_show_textures_combo, // false;
+				"Show all-slice combined images for textures calculation.");
+		gd.addCheckbox ("Show tile-resolution images",             this.lre_show_textures_tiles, //  false;
+				"Show all-slices texture debug images with tile resolution (80x64 for Boson 640).");
+		
+		gd.addTab ("Plates", "Plates filtering when building initial z-map");
 		gd.addMessage     ("********* Plates filtering when building initial z-map *********");
 		gd.addNumericField("If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds",           this.pt_super_trust,  3);
 		gd.addCheckbox    ("Do not replace raw tiles by the plates, if raw is closer (like poles)",                  this.pt_keep_raw_fg);
@@ -4571,8 +4848,14 @@ public class CLTParameters {
 		this.tex_split_textures =       gd.getNextBoolean();
 		this.tex_subdiv_tiles =   (int) gd.getNextNumber();
 		this.tex_sky_below =      (int) gd.getNextNumber();
-		this.tex_debug_disp_tri =       gd.getNextBoolean();
 
+		this.tex_disp_hires_tri =       gd.getNextBoolean();
+		this.tex_dbg_scale_mesh = (int) gd.getNextNumber();
+		this.tex_dbg_plot_center =      gd.getNextBoolean();
+		this.tex_dbg_line_color =       gd.getNextNumber();
+		this.tex_dbg_center_color =     gd.getNextNumber();
+		
+		this.tex_debug_disp_tri =       gd.getNextBoolean();
 		this.tex_add_bg_tiles =   (int) gd.getNextNumber();
 		this.tex_save_full_textures =   gd.getNextBoolean();
 		this.tex_alpha_threshold =      gd.getNextNumber();
@@ -4628,6 +4911,56 @@ public class CLTParameters {
 		this.ex_over_bgnd=          gd.getNextBoolean();
 		this.ex_min_over=           gd.getNextNumber();
 
+		// gd.addtab     ("Lateral resolution enhancement");                                                                            
+		
+		this.lre_var_radius=               gd.getNextNumber();  // double
+		this.lre_seed_inter=               gd.getNextNumber();  // double
+		this.lre_seed_same_fz=             gd.getNextNumber();  // double
+		this.lre_seed_fom=                 gd.getNextNumber();  // double
+		this.lre_trim_inter_fz=            gd.getNextNumber();  // double
+		this.lre_trim_fom=                 gd.getNextNumber();  // double
+
+		this.lre_trim_fom_threshold=       gd.getNextNumber();  // double
+		this.lre_trim_fom_boost=           gd.getNextNumber();  // double
+		this.lre_trim_fom_blur=            gd.getNextNumber();  // double
+
+		this.lre_seed_fom_sure=            gd.getNextNumber();  // double
+		this.lre_seed_inter_sure=          gd.getNextNumber();  // double
+		this.lre_trim_fom_sure=            gd.getNextNumber();  // double
+		this.lre_min_incr=                 gd.getNextNumber();  // double
+
+		this.lre_min_neibs_alpha=    (int) gd.getNextNumber();  // int     
+		this.lre_grow_alpha=         (int) gd.getNextNumber();  // int     
+		this.lre_alphaOverlapTolerance=    gd.getNextNumber();  // double  
+		this.lre_reduce_has_bg_grow= (int) gd.getNextNumber();  // int     
+		this.lre_occlusion_frac=           gd.getNextNumber();  // double  
+		this.lre_occlusion_min_disp=       gd.getNextNumber();  // double  
+		this.lre_enhance_map=              gd.getNextBoolean(); // boolean 
+		this.lre_min_map_sensors=    (int) gd.getNextNumber();  // int     
+		this.lre_keep_map_frac=            gd.getNextNumber();  // double  
+		this.lre_num_fill_passes=    (int) gd.getNextNumber();  // int     
+		this.lre_max_fill_change=          gd.getNextNumber();  // double  
+
+
+		this.lre_en_cut=                   gd.getNextBoolean(); // boolean 
+		this.lre_en_patch=                 gd.getNextBoolean(); // boolean 
+		this.lre_fg_disp_diff=             gd.getNextNumber();  // double  
+		this.lre_min_sensors=        (int) gd.getNextNumber();  // int     
+		this.lre_weight_neib=              gd.getNextNumber();  // double  
+		this.lre_weight_bg=                gd.getNextNumber();  // double  
+		this.lre_best_dir_frac=            gd.getNextNumber();  // double  
+		this.lre_cost_min=                 gd.getNextNumber();  // double  
+		this.lre_max_trim_iterations=(int) gd.getNextNumber();  // int     
+
+		this.lre_show_debug=               gd.getNextBoolean(); // boolean 
+		this.lre_show_update_alpha_slice=  gd.getNextBoolean(); // boolean 
+		this.lre_show_update_alpha_combo=  gd.getNextBoolean(); // boolean 
+		this.lre_show_textures_slice=      gd.getNextBoolean(); // boolean 
+		this.lre_show_textures_combo=      gd.getNextBoolean(); // boolean 
+		this.lre_show_textures_tiles=      gd.getNextBoolean(); // boolean       
+		// end of gd.addtab     ("Lateral resolution enhancement");                                                                            
+		
+		
 		this.pt_super_trust=        gd.getNextNumber();
 		this.pt_keep_raw_fg=        gd.getNextBoolean();
 		this.pt_scale_pre=          gd.getNextNumber();

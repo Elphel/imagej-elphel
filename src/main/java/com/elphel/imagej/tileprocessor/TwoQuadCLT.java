@@ -8507,6 +8507,7 @@ if (debugLevel > -100) return true; // temporarily !
 			if (pathFirstLast != null) {
 				num_seq = pathFirstLast.length; 
 			}
+			clt_parameters.multiseq_run = true; // running from the source list - disable debug images
 		}
 		
 		class VideoSet {

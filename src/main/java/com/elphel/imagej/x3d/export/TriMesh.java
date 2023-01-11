@@ -2315,7 +2315,10 @@ public class TriMesh {
 			  double          maxZ,               // far clip (0 - do not clip). Negative - limit by max
 			  boolean         limitZ,
 //			  double [][]     dbg_disp_tri_slice,
-			  int             debug_level
+			  int             debug_level,
+			  boolean         dbg_plot_center, //  = true;
+			  double          dbg_line_color, //  =  1.0;
+			  double          dbg_center_color// = 3.0;
 			  ) throws IOException
 	  {
 //		  boolean         show_triangles = tri_img != null; 
@@ -2460,18 +2463,15 @@ public class TriMesh {
 
 		  }
 		  
-		  final boolean     plot_center = true;
-		  final double      line_color =  1.0;
-		  final double      center_color = 3.0;
 		  if (tri_img != null) {
 			  plotMesh(
 					  tri_img,       // final double []   canvas,
 					  tri_img_width, // final int         width,
 					  texCoord,      // final double [][] tex_coord,
 					  triangles,     // final int [][]    triangles,
-					  plot_center,   // final boolean     plot_center,
-					  line_color,    // final double      line_color,
-					  center_color); // final double      center_color)
+					  dbg_plot_center,   // final boolean     plot_center,
+					  dbg_line_color,    // final double      line_color,
+					  dbg_center_color); // final double      center_color)
 			  if (display_triangles) {
 				  if (d_for_mesh != null) {
 					  ShowDoubleFloatArrays.showArrays(

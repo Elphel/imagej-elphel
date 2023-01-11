@@ -1056,9 +1056,9 @@ public class TexturedModel {
 			final double          disp_adiff, // should already include disp_fof,
 			final double          disp_rdiff,
 			final int             tilesX,
-			final int             debugLevel)
+			int             debugLevel_in)
 	{
-		final int dbg_tile = 3868; // 28+48*80;
+		final int dbg_tile = 2410; // 858; // -3868; // 28+48*80;
 		//		final int       num_layers = disparity_layers.length;
 		final int        tiles =        source_disparity.length;
 		final int        tilesY =       tiles/tilesX;
@@ -1067,6 +1067,32 @@ public class TexturedModel {
 		final boolean [] new_seam =     new boolean [tiles];
 		final double []  disparity =    new double[tiles]; // current cluster disparities
 		final double []  max_neib =     new double[tiles]; // maximal disparity of neibs
+		if (!Double.isNaN(source_disparity[dbg_tile])) {
+			System.out.println("buildTileCluster(): source_disparity["+dbg_tile+"] is not NaN");
+			debugLevel_in = 2;
+		}
+		final int debugLevel = debugLevel_in; 
+		if (debugLevel > 1) {
+			String [] dbg_titles = {"Disparity","Seams"};
+			double [] dbg_seams = new double [tiles];
+			
+			for (int i = 0; i < tiles; i++) {
+				dbg_seams[i] = 10*seams[i];
+			}
+			
+			double [][] dbg_img = {
+					source_disparity,
+					dbg_seams};
+			ShowDoubleFloatArrays.showArrays(
+					dbg_img,
+					tilesX,
+					tilesY,
+					true,
+					"disparity-seams-"+String.format("%02d", cluster_list.size()),
+					dbg_titles);
+		}		
+		
+		
 //		final boolean [] disp_mod = new boolean[tiles]; // disparity modified from surce_disparity
 		Arrays.fill(neib_lev, -1);
 		System.arraycopy(source_disparity, 0, disparity, 0, tiles);
@@ -1086,6 +1112,9 @@ public class TexturedModel {
 				public void run() {
 					ArrayList<Integer> loc_this = loc_multi.get(ati.getAndIncrement());
 					for (int tile = ai.getAndIncrement(); tile < tiles; tile = ai.getAndIncrement()) {
+						if (tile == dbg_tile) {
+							System.out.println("buildTileCluster().01: tile="+tile);
+						}
 						double max_n = Double.NaN;
 						for (int dir = 0; dir < 8; dir++) {
 							int tile1 = tn.getNeibIndex(tile, dir);
@@ -1325,7 +1354,7 @@ public class TexturedModel {
 								} else {
 									neib_lev[tile] = (fnlev < max_neib_lev) ? (fnlev + 1) : -1;
 									if (debugLevel > 0) {
-										System.out.println("buildTileCluster() removed orphan tile "+tile+", fnlev="+fnlev);
+										System.out.println("buildTileCluster() removed orphan tile "+tile+", fnlev="+fnlev+ " for cluster "+cluster_list.size());
 									}
 								}
 							}
@@ -1414,7 +1443,7 @@ public class TexturedModel {
 		}		      
 		ImageDtt.startAndJoin(threads);
 		if (num_removed.get() == 0) {
-			System.out.println("buildTileCluster() BUG - no tiles removed from disparity_layers[]");
+			System.out.println("buildTileCluster() BUG - no tiles removed from disparity_layers[] for cluster "+cluster_list.size());
 		}
 		
 // Marking	discontinued max_neib_lev with max_neib_lev+1 for building meshes they should not be connected to max_neib_lev	
@@ -1488,7 +1517,7 @@ public class TexturedModel {
 		int num_sub = pnum_clust[0];
 		if ((debugLevel > -2) && (num_sub > 1)) {
 			System.out.println("buildTileCluster(): splitting textureCluster into "+
-					num_sub + " connected ones");
+					num_sub + " connected ones, current cluster before them is "+cluster_list.size());
 		}
 // neib_lev[tile]
 // disparity
@@ -1887,7 +1916,7 @@ public class TexturedModel {
 			final boolean                            updateStatus,
 			final int                                debugLevel)
 	{
-		final boolean batch_mode =        clt_parameters.batch_run;
+		final boolean batch_mode =        clt_parameters.multiseq_run; // batch_run;
 		final boolean gltf_emissive =     clt_parameters.gltf_emissive;
 		final boolean use_alpha_blend =   clt_parameters.gltf_alpha_blend;
 		final double  tex_disp_adiffo =   clt_parameters.tex_disp_adiffo;       // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
@@ -1908,12 +1937,18 @@ public class TexturedModel {
 		final boolean debug_disp_tri =    clt_parameters.tex_debug_disp_tri;    //   !batch_mode && (debugLevel > 0); // TODO: use clt_parameters
 		
 		// If there is gap between clusters, add extra row of background tiles
-		int     add_bg_tiles =       clt_parameters.tex_add_bg_tiles;           // 0; // 1;
+		int     add_bg_tiles =           clt_parameters.tex_add_bg_tiles;           // 0; // 1;
 		final boolean save_full_textures=clt_parameters.tex_save_full_textures  || !clt_parameters.tex_split_textures; //true; // false; // true;
 		final double  alpha_threshold =  clt_parameters.tex_alpha_threshold;    // 0.5;
 		final boolean renormalize =      clt_parameters.tex_renormalize;        // true; // false - use normalizations from previous scenes to keep consistent colors
 		final boolean no_alpha =        !clt_parameters.tex_alpha;              // true; // also - use jpeg?
 		final int     jpeg_quality =     clt_parameters.tex_jpeg_quality; //95;   // JPEG quality for textures
+		
+		final boolean showTri =          !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles);
+		final boolean disp_hires_tri =    clt_parameters.tex_disp_hires_tri;
+		final int dbg_scale_mesh =        clt_parameters.tex_dbg_scale_mesh; //  4; // <=0 - do not show
+		
+		
 		
 		final int sky_layer = 0; // source disparity layer that contains "blue sky" 
 		
@@ -2135,13 +2170,12 @@ public class TexturedModel {
 		num_clusters++; // was cluster with largest index, became number of clusters
 		final double [][] dbg_tri_disp = debug_disp_tri? (new double [tileClusters.length][width*height]): null;
 		final double [][] dbg_tri_tri =  debug_disp_tri? (new double [tileClusters.length][width*height]): null;
-		boolean showTri = !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles);
-		int dbg_scale_mesh = 4; // <=0 - do not show
+		
 		int dbg_scaled_width =  tp.getTilesX() * transform_size * dbg_scale_mesh; 
 		int dbg_scaled_height = tp.getTilesY() * transform_size * dbg_scale_mesh;
 		boolean debug_alpha = false;
 		double [][] dbg_mesh_imgs = null;
-		if (dbg_scale_mesh > 0) {
+		if ((dbg_scale_mesh > 0) && disp_hires_tri) {
 			debug_alpha =   true;
 			dbg_mesh_imgs = new double[tileClusters.length][dbg_scaled_width * dbg_scaled_height];
 			// maybe fill with NaN?
@@ -2276,8 +2310,12 @@ public class TexturedModel {
 							    clt_parameters.maxZtoXY,       // double          maxZtoXY,       // 10.0. <=0 - do not use
 							    clt_parameters.maxZ,
 							    clt_parameters.limitZ,
-//							    dbg_disp_tri_slice,            //   double [][]     dbg_disp_tri_slice,
-								debugLevel + 1);               //   int             debug_level) > 0
+//							    dbg_disp_tri_slice,           //   double [][]     dbg_disp_tri_slice,
+								debugLevel + 1,               //   int             debug_level) > 0
+								clt_parameters.tex_dbg_plot_center,              //   boolean         dbg_plot_center, //  = true;
+								clt_parameters.tex_dbg_line_color,               //   double          dbg_line_color, //  =  1.0;
+								clt_parameters.tex_dbg_center_color);    //  double          dbg_center_color// = 3.0;
+								
 					}
 					//dbg_disp_tri_slice
 				} catch (IOException e) {
@@ -4580,7 +4618,7 @@ public class TexturedModel {
 			tile_disparity[nslice] = tileClusters[nslice].getDisparity(); 
 		}
 		final double min_disparity = 2.0;
-		final int dbg_tile=2122; // : 42/26 // 1872: 32/23
+		final int dbg_tile=-2122; // : 42/26 // 1872: 32/23
 		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -5197,11 +5235,222 @@ public class TexturedModel {
 		return num_modified_pixels;
 	}
 
+	public static int [][] enhanceOccludedMap(
+			final int [][] occluded_map_in,
+			final double   keep_frac,
+			final int      min_sensors,
+			final int      num_sens,
+			final int      dbg_indx){
+		// TODO: for 16 sensors it will be faster to create int[65536] and recode by table
+		boolean create_table = occluded_map_in == null;
+		final int [][] occluded_map = create_table? new int [1][1 << num_sens] : occluded_map_in;
+		if (create_table) {
+			for (int i = 0; i < occluded_map[0].length; i++) {
+				occluded_map[0][i] = i;
+			}
+		}
+		final int num_slices = occluded_map.length;
+		final int img_size = occluded_map[0].length;
+		final int keep_sens = (int) Math.round(num_sens * keep_frac);
+		final int [][] map_enh = new int [num_slices][img_size];
+		final int mask = (1 << num_sens) -1; // will not work for >=31
+		final int dbg_val = dbg_indx; //1018;
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int pix = ai.getAndIncrement(); pix < img_size; pix = ai.getAndIncrement()) {
+							if (pix ==  dbg_val) {
+								System.out.println("enhanceOccludedMap(): pix="+pix);
+							}
+							if ((occluded_map[fnslice][pix] == 0) || (occluded_map[fnslice][pix] & mask) == mask ){
+								map_enh[fnslice][pix] = occluded_map[fnslice][pix];		
+							} else {
+								int msk = occluded_map[fnslice][pix]; // bit = 0 - exists
+								int []  sp0 = new int[num_sens],
+										sm0 = new int[num_sens],
+										spx = new int[num_sens],
+										spx2= new int[num_sens],
+										smx = new int[num_sens],
+										smx2= new int[num_sens];
+								for (int i = 0; i < num_sens; i++) {
+									boolean sens_on =  (msk & (1 << i)) == 0;
+									if (i < keep_sens) {
+										if (sens_on) {
+											sp0[0]++;
+											spx[0] += i;
+											spx2[0] +=i * i;
+										}
+									} else {
+										if (!sens_on) {
+											sm0[0]++;
+											smx[0] +=  i;
+											smx2[0] += i * i;
+										}
+									}
+								}
+								int best_num_used = sp0[0];
+								for (int i = 1; i < num_sens; i++) {
+									sp0[i] =  sp0[i-1];
+									spx[i] =  spx[i-1];
+									spx2[i] = spx2[i-1];
+									sm0[i] =  sm0[i-1];
+									smx[i] =  smx[i-1];
+									smx2[i] = smx2[i-1];
+									if ((msk & (1 << (i - 1))) == 0) {
+										sp0[i]--;
+										int i1 = i -1;
+										spx[i] -= i1;
+										spx2[i] -= i1 * i1;
+									} else { // for minus count missing sensors
+										sm0[i]++;
+										int i1 = i + num_sens -1;
+										smx[i] += i1;
+										smx2[i] += i1*i1;
+									}
+									if ((msk & (1 << ((i + keep_sens- 1) % num_sens))) == 0) {
+										int i1 = i + keep_sens- 1 ;
+										sp0[i]++;
+										spx[i] += i1;
+										spx2[i] += i1*i1;
+									} else {
+										int i1 = i + keep_sens- 1 ;
+										sm0[i]--;
+										smx[i] -= i1;
+										smx2[i] -= i1*i1;
+									}
+									if (sp0[i] > best_num_used) {
+										best_num_used = sp0[i]; 
+									}
+								}
+								if (best_num_used <  min_sensors) {
+									map_enh[fnslice][pix] = mask; // all sensors disabled
+								} else {
+									boolean [] candidates = new boolean [num_sens];
+									double [] pointed2 = new double [num_sens];
+									int num_prev_candidates = 0;
+									double best_pointed2 = Double.NaN;
+									int best_index = -1;
+									// find (may be multiple) best number of used sensors
+									for (int i = 0; i < num_sens; i++) {
+										if (sp0[i] == best_num_used) {
+											candidates[i] = true;
+											num_prev_candidates ++;
+											double avg =  (1.0 * spx[i]) / sp0[i];
+											double avg2 = (1.0 * spx2[i]) / sp0[i];
+											double center = i + 0.5 * (keep_sens- 1);
+											double offset = (avg - center);
+											double l2 = avg2 - avg*avg + offset * offset;
+											if (!(l2 > best_pointed2)) {
+												best_pointed2 = l2;
+												best_index = i;
+											}
+											pointed2[i] = l2;
+										}
+									}
+									double best_pointed2m = Double.NaN;
+									if (num_prev_candidates > 1) {
+										for (int i = 0; i < num_sens; i++) if (candidates[i]) {
+											if (pointed2[i] > best_pointed2) {
+												candidates[i] = false;
+												num_prev_candidates --;
+											} else {
+												double avg =  (1.0 *smx[i]) / sm0[i]; // can not be zero
+												double avg2 = (1.0 * smx2[i]) / sm0[i];
+												double center = i + keep_sens + 0.5 * (num_sens- keep_sens- 1); // remaining
+												double offset = (avg - center);
+												double l2 = avg2 - avg*avg + offset * offset;
+												if (!(l2 > best_pointed2m)) {
+													best_pointed2m = l2;
+													best_index = i;
+												}
+												pointed2[i] = l2;
+											}
+										}
+									}
+									if (num_prev_candidates > 1) {
+										for (int i = 0; i < num_sens; i++) if (candidates[i]) {
+											if (pointed2[i] > best_pointed2m) {
+												candidates[i] = false;
+												num_prev_candidates --;
+											} else {
+												best_index = i;
+											}
+										}									
+									}
+									for (int i = 0; i < (num_sens- keep_sens); i++) {
+										int i1 = (best_index + i + keep_sens) % num_sens;
+										msk |= 1 << i1;
+									}
+									map_enh[fnslice][pix] = msk;
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		
+		String sin = ""; // ++++++++--------";
+		while(testDirectionMap (
+				sin, // String sin,
+				map_enh[0])); //int [] map)
+		
+		return map_enh;
+	}
 	
+	public static int [][] enhanceOccludedMap(
+			final int [][] occluded_map,
+			final int []   map){
+		final int num_slices = occluded_map.length;
+		final int img_size = occluded_map[0].length;
+		final int [][] map_enh = new int [num_slices][img_size];
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int nslice = 0; nslice < num_slices; nslice++) {
+			final int fnslice = nslice;
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int pix = ai.getAndIncrement(); pix < img_size; pix = ai.getAndIncrement()) {
+						map_enh[fnslice][pix] = map[occluded_map[fnslice][pix]];
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return map_enh;
+	}
+	
+	public static boolean testDirectionMap (
+			String sin,
+			int [] map) {
+		if (sin.isEmpty()) {
+			return false;
+		}
+		int [] d = new int[2];
+		for (int i = sin.length()-1; i >= 0; i--) {
+			d[0] = (d[0] << 1) + ((sin.charAt(i) == '+')? 0:1); // 1 - occluded
+		}
+		d[1] = map[d[0]];
+		for (int n = 0; n < d.length; n++) {
+			for (int i = 15; i >=0; i--) {
+				System.out.print((((d[n] >> i) & 1) == 0) ? " +":" -" );
+			}
+			System.out.println();
+		}
+		return true;
+	}
 	
 	public static double [][] debugOccludedMap(
-			final int     [][]   occluded_map
-			){
+			final int     [][]   occluded_map){
 		final int num_slices =  occluded_map.length;
 		final int img_size =    occluded_map[0].length;
 		double [][] dbg_map = new double [num_slices][img_size];
@@ -5220,6 +5469,9 @@ public class TexturedModel {
 		}		
 		return dbg_map;
 	}
+	
+
+	
 	
 	public static double [][] combineTexturesWithOcclusions(
 			final double  [][][] sensor_texture,
@@ -5755,9 +6007,11 @@ public class TexturedModel {
 			final double         max_disparity_lim, //  = 100.0;  // do not allow stray disparities above this
 			final double         min_trim_disparity, //  =  2.0;  // do not try to trim texture outlines with lower disparities
 			final TpTask[][][]   tp_tasks_ref,       // reference tasks for each slice to get offsets			
-			final String         dbg_prefix) {
-		final double var_radius =       1.5; // 3.5;   // for variance filter of the combo disparity
+			final String         dbg_prefix_in) {
+//		clt_parameters.batch_run		
 		final int    max_neib_lev =     clt_parameters.tex_max_neib_lev;      //   2; // 1 - single tiles layer around, 2 - two layers
+		/*
+		final double var_radius =       1.5; // 3.5;   // for variance filter of the combo disparity
 		final double        seed_inter =   150; // 120; // 150;
 		final double        seed_same_fz =  6.5; // 13; // seed_inter = 50.0;
 		final double        seed_fom =      2.0; // 1.9; // 1.2;
@@ -5775,13 +6029,17 @@ public class TexturedModel {
 		
 		final int           min_neibs_alpha = 1;  // minimal neighbors to keep alpha
 		final int           grow_alpha = 0; // 2; // grow alpha selection
+		
 		final double        alphaOverlapTolerance = 0.0; // exact match only
 		final int           reduce_has_bg_grow = 2; // 0 - exactly half tile (between strong and weak)
 		final double        occlusion_frac = 0.9;
 		final double        occlusion_min_disp = 0.3; // do not calculate occlusions for smaller disparity difference
-
-		
-		
+		final boolean         enhance_map =      false; // debugged, but seems worse - disabling
+		final int             min_map_sensors =      3;
+		final double          keep_map_frac =        0.6;  // for BG - use this fraction of all sensors in the best direction
+		// for fillOcclusionsNaN:
+		final int             num_fill_passes =    100;
+		final double          max_fill_change =      0.1;
 		
 		
 		// Processing BG and FG trim
@@ -5794,10 +6052,62 @@ public class TexturedModel {
 		final double          best_dir_frac =        0.6;  // for BG - use this fraction of all sensors in the best direction
 		final double          cost_min =             1.0;  // minimal absolute value of the total cost to make changes
 		final int             max_trim_iterations = 10;
-		// for fillOcclusionsNaN:
-		final int             num_fill_passes =    100;
-		final double          max_fill_change =      0.1;
+		// debug images
+		final boolean         show_debug =              true;
+		final boolean         show_update_alpha_slice = false; //true;
+		final boolean         show_update_alpha_combo = true;
+		final boolean         show_textures_slice =     false; //true;
+		final boolean         show_textures_combo =     false; //true;
+		final boolean         show_textures_tiles =     false; //true;
+
+		 */
 		
+		final double        var_radius =      clt_parameters.lre_var_radius;       //    1.5; // 3.5;   // for variance filter of the combo disparity
+		final double        seed_inter =      clt_parameters.lre_seed_inter;       //  150; // 120; // 150;
+		final double        seed_same_fz =    clt_parameters.lre_seed_same_fz;     //  6.5; // 13; // seed_inter = 50.0;
+		final double        seed_fom =        clt_parameters.lre_seed_fom;         //  2.0; // 1.9; // 1.2;
+		final double        trim_inter_fz =   clt_parameters.lre_trim_inter_fz;    //   5.0; // 13.0;
+		final double        trim_fom =        clt_parameters.lre_trim_fom;         //  0.5; // 0.8; // 1.3; // 1.8; // 1.2; // 0.8; // 0.4;  // 0.7;
+		// scale down fom for pixels near high-variance VAR_SAME
+		final double        trim_fom_threshold = clt_parameters.lre_trim_fom_threshold; //  120.0; // count only pixels with VAR_SAME > this value 
+		final double        trim_fom_boost =  clt_parameters.lre_trim_fom_boost;   //  5;   // boost high-varinace values that exceed threshold  
+		final double        trim_fom_blur =   clt_parameters.lre_trim_fom_blur;    //  10.0; // divide trim_fom array by blurred version to reduce over sky sharp edge
+		// Sure values to set unconditionally transparent and unconditionally opaque FG
+		final double        seed_fom_sure =   clt_parameters.lre_seed_fom_sure;    //     5.0;
+		final double        seed_inter_sure = clt_parameters.lre_seed_inter_sure;  //  150.0; // 13.0;
+		final double        trim_fom_sure =   clt_parameters.lre_trim_fom_sure;    //  10; //  2.0; temporary disabling it
+		final double        min_incr =        clt_parameters.lre_min_incr;         //  100; // temporary disable // 5; // 20.0; // 0.5; // only for sky?
+		final int           min_neibs_alpha = clt_parameters.lre_min_neibs_alpha;  //  1;  // minimal neighbors to keep alpha
+		final int           grow_alpha =      clt_parameters.lre_grow_alpha;       //  0; // 2; // grow alpha selection
+		final double        alphaOverlapTolerance = clt_parameters.lre_alphaOverlapTolerance; //   0.0; // exact match only
+		final int           reduce_has_bg_grow =    clt_parameters.lre_reduce_has_bg_grow;    //   2; // 0 - exactly half tile (between strong and weak)
+		final double        occlusion_frac =        clt_parameters.lre_occlusion_frac;        //   0.9;
+		final double        occlusion_min_disp =    clt_parameters.lre_occlusion_min_disp;    //   0.3; // do not calculate occlusions for smaller disparity difference
+		final boolean       enhance_map =           clt_parameters.lre_enhance_map;           //   false; // debugged, but seems worse - disabling
+		final int           min_map_sensors =       clt_parameters.lre_min_map_sensors;       //        3;
+		final double        keep_map_frac =         clt_parameters.lre_keep_map_frac;         //      0.6;  // for BG - use this fraction of all sensors in the best direction
+		// for fillOcclusionsNaN:
+		final int           num_fill_passes =       clt_parameters.lre_num_fill_passes;       //    100;
+		final double        max_fill_change =       clt_parameters.lre_max_fill_change;       //      0.1;
+		// Processing BG and FG trim
+		final boolean         en_cut =        clt_parameters.lre_en_cut;        //  true; // enable change FG pixel to transparent from opaque
+		final boolean         en_patch =      clt_parameters.lre_en_patch;      //  true; // enable change FG pixel to opaque from transparent
+		final double          fg_disp_diff =  clt_parameters.lre_fg_disp_diff;  // 1.0;  // do not consider obscuring too close BG (1 pix or more?)
+		final int             min_sensors =   clt_parameters.lre_min_sensors;   // 4;    // minimal number of sensors visible from the FG pixel
+		final double          weight_neib =   clt_parameters.lre_weight_neib;   // 3.0; // 2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
+		final double          weight_bg =     clt_parameters.lre_weight_bg;     // 0.9; // 0.8; // 1.0; // 15.0/16; // 1.0;  // weight of BG cost relative to the FG one
+		final double          best_dir_frac = clt_parameters.lre_best_dir_frac; // 0.6;  // for BG - use this fraction of all sensors in the best direction
+		final double          cost_min =      clt_parameters.lre_cost_min;      // 1.0;  // minimal absolute value of the total cost to make changes
+		final int             max_trim_iterations = clt_parameters.lre_max_trim_iterations; //  10;
+		// debug images
+		final boolean         show_debug =              clt_parameters.lre_show_debug && !clt_parameters.multiseq_run;              //  true;
+		final boolean         show_update_alpha_slice = clt_parameters.lre_show_update_alpha_slice; //  false; //true;
+		final boolean         show_update_alpha_combo = clt_parameters.lre_show_update_alpha_combo; //  true;
+		final boolean         show_textures_slice =     clt_parameters.lre_show_textures_slice;     //  false; //true;
+		final boolean         show_textures_combo =     clt_parameters.lre_show_textures_combo;     //  false; //true;
+		final boolean         show_textures_tiles =     clt_parameters.lre_show_textures_tiles;     //  false; //true;
+		
+		final String         dbg_prefix = show_debug ? dbg_prefix_in : null;
 		
 		final int    num_slices =       sensor_texture.length;
 		final int    transform_size =   clt_parameters.transform_size;
@@ -5829,7 +6139,7 @@ public class TexturedModel {
 				tile_booleans, //final boolean [][][] tile_booleans, // to filter?
 				tilesX);       // final int         tilesX)
 
-		if (dbg_prefix != null) {
+		if ((dbg_prefix != null) && show_textures_tiles) {
 			double [][] dbg_img = new double [tile_booleans[0].length * 5][tile_booleans[0][0].length];
 			String[] dbg_titles = new String [tile_booleans[0].length * 5];
 			for (int nslice = 0; nslice < tile_booleans[0].length; nslice++) {
@@ -6036,20 +6346,44 @@ public class TexturedModel {
 				transform_size);          // final int            transform_size)
 
 // Processing BG and FG trim
-		int [][] occluded_map =                 null;
+		int [][] occluded_map =                  null;
+		int [][] occluded_map_enh =              null;
 		double  [][]  dbg_occluded_map =         null;
 		double  [][]  occluded_textures =        null;
 		double  [][]  occluded_filled_textures = null;
 		boolean [][]  sure_transparent =         null;
 		boolean [][]  sure_opaque =              null;
-		double [][][] debug_costs = (dbg_prefix != null) ? new double [trim_pixels.length][][] : null; 
-		int [][]      debug_stats = (dbg_prefix != null) ? new int [trim_pixels.length][] : null;
-		boolean [][]  debug_alpha = (dbg_prefix != null) ? new boolean [trim_pixels.length][] : null;
+		double [][][] debug_costs = ((dbg_prefix != null) && show_update_alpha_slice)? new double [trim_pixels.length][][] : null; 
+		int [][]      debug_stats =  (dbg_prefix != null)? new int [trim_pixels.length][] : null;
+		boolean [][]  debug_alpha = ((dbg_prefix != null) && show_update_alpha_slice )? new boolean [trim_pixels.length][] : null;
+		boolean [][][] dbg_alpha_mods = ((dbg_prefix != null) && show_update_alpha_combo)? new boolean [max_trim_iterations][num_slices][] : null;
+		
+		if (debug_alpha != null) {
+			for (int i = 0; i < unbound_alpha.length; i++) {
+				debug_alpha[i] = unbound_alpha[i].clone();
+			}
+		}
+
+		if (dbg_alpha_mods != null) {
+			for (int i = 0; i < unbound_alpha.length; i++) {
+				dbg_alpha_mods[0][i] = unbound_alpha[i].clone();
+			}
+		}
 		
 		boolean [][] trim_tiles = getTrimTiles(
 				trim_pixels,       // boolean [][] trim_pix,
 				width,             // final int             width,
 				transform_size);   // final int             transform_size);
+		int [] occlusionLookUp = null;
+		if (enhance_map) {
+			final int      dbg_indx = 256;
+			occlusionLookUp =  enhanceOccludedMap(
+					null,              // final int [][] occluded_map_in,
+					keep_map_frac,     // final double   keep_frac,
+					min_map_sensors,   // final int      min_sensors,
+					sensor_texture[0].length,  // final int      num_sens)
+					dbg_indx)[0]; // final int      dbg_indx
+		}
 		int updated_tiles = 0;
 		for (int niter = 0; niter < max_trim_iterations; niter++) {
 			occluded_map = getOccludedMap(
@@ -6063,11 +6397,17 @@ public class TexturedModel {
 					occlusion_min_disp,               // final double          occlusion_min_disp,
 					width,                            // final int             width,
 					transform_size);                  // final int             transform_size);
-			dbg_occluded_map = (dbg_prefix == null)? null:debugOccludedMap(occluded_map);
+			occluded_map_enh = occluded_map;
+			if (occlusionLookUp != null) {
+				occluded_map_enh = enhanceOccludedMap(
+						occluded_map,     // final int [][] occluded_map,
+						occlusionLookUp); //final int []   map)
+			}
+			dbg_occluded_map = ((dbg_prefix == null) && show_update_alpha_slice)? null:debugOccludedMap(occluded_map_enh); // occluded_map);
 			occluded_textures = combineTexturesWithOcclusions(
 					sensor_texture,    // final double  [][][] sensor_texture,
 					gcombo_texture,    // final double  [][]   combo_texture,
-					occluded_map);     // final int     [][]   occluded_map);
+					occluded_map_enh); // occluded_map);     // final int     [][]   occluded_map);
 			occluded_filled_textures = fillOcclusionsNaN(
 					gcombo_texture,    // final double  [][]   combo_texture,
 					occluded_textures, // final double  [][]   combo_occluded_texture,
@@ -6091,7 +6431,7 @@ public class TexturedModel {
 						trim_fom_pix,    // final double  [][]  data,
 						trim_fom_sure,   // final double        threshold,
 						true);           // final boolean       greater)
-				if (dbg_prefix != null) {
+				if (debug_alpha != null) {
 					for (int i = 0; i < unbound_alpha.length; i++) {
 						debug_alpha[i] = unbound_alpha[i].clone();
 					}
@@ -6102,7 +6442,7 @@ public class TexturedModel {
 						occluded_filled_textures,   // final double  [][]    textures,
 						unbound_alpha,              // final boolean [][]    alpha_pix,
 						sensor_texture,             // final double  [][][]  sensor_texture,
-						occluded_map,               // final int     [][]    occluded_map,   // bitmap of blocked by FG sensors
+						occluded_map,// occluded_map_enh  // final int     [][]    occluded_map,   // bitmap of blocked by FG sensors
 						min_sensors,                // final int             min_sensors,    // minimal number of sensors visible from the FG pixel
 						slice_disparities,          // final double  [][]    slice_disparities,
 						tile_booleans[TILE_KEEP],   // final boolean [][]    tile_keep,      // tiles that have at least one pixel 
@@ -6123,8 +6463,14 @@ public class TexturedModel {
 						debug_stats,                // final int    [][]     debug_stats,    // if not null, should be int [nslices][] - will return number of added/removed per slice
 						width,                      // final int             width,
 						transform_size);            // final int             transform_size){
+				if (dbg_alpha_mods != null) {
+					for (int i = 0; i < unbound_alpha.length; i++) {
+						dbg_alpha_mods[niter+1][i] = unbound_alpha[i].clone();
+					}
+				}
 			}
-			if (dbg_prefix != null) {
+
+			if ((dbg_prefix != null) && show_update_alpha_slice) {
 				// TODO:
 				// 1. Display alpha mod sequence
 				// 2. occluded_map improvements (similar as in updateFgAlpha) - 
@@ -6171,6 +6517,30 @@ public class TexturedModel {
 			}
 		}
 		
+		if (dbg_alpha_mods != null) {
+			// TODO:
+			// 1. Display alpha mod sequence
+			String [] dbg_titles = new String [num_slices * max_trim_iterations];
+			int dbg_len = width * height;
+			double [][] dbg_img = new double [dbg_titles.length][dbg_len];
+			for (int nslice = 0; nslice < num_slices; nslice++) {
+				for (int niter = 0; niter < max_trim_iterations; niter++) {
+					int slice_indx = nslice * max_trim_iterations + niter; 
+					dbg_titles[slice_indx] = "alpha-"+nslice+":"+niter;
+					for (int i = 0; i < dbg_len; i++) {
+						dbg_img[slice_indx][i] = (dbg_alpha_mods[niter][nslice][i]? 1 : 0); 
+					}
+				}
+			}
+			ShowDoubleFloatArrays.showArrays(
+					dbg_img,
+					width,
+					height,
+					true,
+					dbg_prefix+"-update_fg-alpha", // +nslice,
+					dbg_titles);
+		}
+		
 		double [][] alphas = new double[num_slices][];
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			// replace old alpha with the new binary one
@@ -6180,7 +6550,7 @@ public class TexturedModel {
 			}
 		}
 		
-		if (dbg_prefix != null) {
+		if ((dbg_prefix != null) && show_textures_slice) {
 			for (int nslice = 0; nslice < num_slices; nslice++) {
 				final double [] vars_ratio =               new double [img_size];
 				final double [] vars_fom =                 new double [img_size]; // inter/sqrt(same)
@@ -6329,7 +6699,8 @@ public class TexturedModel {
 						dbg_titles);
 				assert true;
 			}
-			
+		}
+		if ((dbg_prefix != null) && show_textures_combo) {
 			ShowDoubleFloatArrays.showArrays(
 					occluded_filled_textures, // out_textures,
 					width,
@@ -6368,10 +6739,12 @@ public class TexturedModel {
 				slice_disparities,         // final double  [][] slice_disparities,
 				tile_booleans[TILE_KEEP]); //final boolean [][] keep_tiles)
 		String dbg_prefix1 = (dbg_prefix==null)? null: (dbg_prefix+"-masked");
+		if ((dbg_prefix1!=null) && show_textures_tiles) {
 		showDebugDisparities( // nop if dbg_prefix== null
 				slice_disparities, // final double [][] slice_disparities,
 				tilesX,            // final int   tilesX,
 				dbg_prefix1);       // String      prefix);
+		}
 		return textures_alphas; // What about colors? 
 	}
 	
