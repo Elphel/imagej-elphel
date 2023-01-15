@@ -8671,7 +8671,9 @@ ImageDtt.startAndJoin(threads);
 			davg /= num_fixed;
 			davg2 = Math.sqrt(davg2/num_fixed - davg*davg);
 		} else {
-			return null;
+			double [] all_nan = new double [data.length];
+			Arrays.fill(all_nan, Double.NaN);
+ 			return all_nan;
 		}
 		final double fdavg = davg;
 		final double max_change = Math.abs(davg2 * max_rchange);
