@@ -3172,7 +3172,7 @@ public class CLTParameters {
 		gd.addNumericField("Lazy eye cluster size",                                                             this.tileStep,                  0, 6, "tiles",
 				"Process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters");
 		gd.addNumericField("Consolidate multiple clusterts around given for low-contrast infinity",             this.super_radius,              0, 6, "clusters",
-				"e.g. for clouds in tghe sky  0 - none, 1 - 3x3, 2 - 5x5");
+				"e.g. for clouds in the sky  0 - none, 1 - 3x3, 2 - 5x5");
 		gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",                            this.iclt_mask,                 0);
 		gd.addNumericField("Tile X to extract (0..163)",                                                        this.tileX,                     0);
 		gd.addNumericField("Tile Y to extract (0..122)",                                                        this.tileY,                     0);
@@ -3628,7 +3628,7 @@ public class CLTParameters {
 		gd.addNumericField("Maximal motion blur to reduce weight",this.tex_mb, 5,7,"pix",
 				"Reduce texture weight if motion blur exceeds this (as square of MB length).");
 		
-		gd.addNumericField("Max disparity for meshe generation", this.tex_max_disparity_lim, 5,7,"pix",
+		gd.addNumericField("Max disparity for mesh generation",  this.tex_max_disparity_lim, 5,7,"pix",
 				"Do not allow stray disparities above this.");
 		gd.addNumericField("Minimal disparity for FG trimming",  this.tex_min_trim_disparity, 5,7,"pix",
 				"Do not try to trim texture outlines with lower disparities.");

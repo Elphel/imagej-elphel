@@ -4878,7 +4878,7 @@ public class OpticalFlow {
 		
 		// generates 3-d modes, colors, stereos, tiffs/videos
 		
-		if (generate_mapped || reuse_video) {
+		if (generate_mapped || reuse_video) { // modifies combo_dsn_final ?
 			int tilesX =  quadCLTs[ref_index].getTileProcessor().getTilesX();
 	        int tilesY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
 	        double [] disparity_fg =  null;
@@ -4895,7 +4895,7 @@ public class OpticalFlow {
 	        				0, // int         num_slices, // (0 - all)
 	        				null); // int []      wh);
 	        	}
-	        	double [][] dls = {
+	        	double [][] dls = { 
 	        			combo_dsn_final[COMBO_DSN_INDX_DISP],
 	        			combo_dsn_final[COMBO_DSN_INDX_LMA],
 	        			combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
@@ -5328,7 +5328,7 @@ public class OpticalFlow {
 		
 		// debugging 3D model
 
-		if (export3d) {
+		if (export3d) { //combo_dsn_final had strength 1.0e-4 where it should not? Reset it?
 			boolean ok_3d = TexturedModel.output3d( // quadCLTs have same image name, and everything else
 					clt_parameters,      // CLTParameters                            clt_parameters,
 					colorProcParameters, // ColorProcParameters                      colorProcParameters,
@@ -10472,7 +10472,8 @@ public class OpticalFlow {
 				sigma);               // double      sigma);
 		dbg_img[11] = disp.clone();
 		double [][] ds = {disp,     dls[2]};
-		if (blue_sky != null) { // Temporary, dix - pass blue_sky to fillDisparityStrength()
+		if (blue_sky != null) { // Temporary, fix - pass blue_sky to fillDisparityStrength()
+			ds[1] = ds[1].clone();
 			for (int i = 0; i < clean_lma.length; i++) if (blue_sky[i]){
 				ds[0][i] = 0.0;
 				ds[1][i] = 0.0001;

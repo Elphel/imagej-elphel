@@ -392,6 +392,11 @@ public class TileNeibs{
 		return -1; // should not happen
 	}
 	
+	/**
+	 * Invert selection in a single or multithreaded environment.
+	 * @param tiles array to invert
+	 * @return inverted array
+	 */
 	public static boolean [] invertSelection(
 			final boolean [] tiles) {
 		final boolean [] itiles = new boolean [tiles.length];
@@ -399,6 +404,12 @@ public class TileNeibs{
 		return itiles;
 	}
 
+	/**
+	 * Invert selection in a single or multithreaded environment. May be in-place if tiles and itiles
+	 * are the same array.
+	 * @param tiles  input array to be inverted
+	 * @param itiles output array of the same size as the input one. May be the same as tiles
+	 */
 	public static void invertSelection(
 			final boolean [] tiles,
 			final boolean [] itiles
@@ -423,6 +434,12 @@ public class TileNeibs{
 		}
 	}
 
+	/**
+	 * And boolean array to another boolean array in a single or multithreaded environment.
+	 * dst_tiles &= src_tiles
+	 * @param src_tiles array to AND to another one
+	 * @param dst_tiles array to be modified by AND-ing with the first one
+	 */
 	public static void andSelection(
 			final boolean [] src_tiles,
 			final boolean [] dst_tiles
@@ -448,10 +465,16 @@ public class TileNeibs{
 	}
 	
 	
-	
+	/**
+	 * Shrink boolean array (single or multithreaded depending on is
+	 * it called from the main thread or not) 
+	 * @param shrink    see definitons for growSelection()
+	 * @param tiles     selection array (should be [sizeX * sizeY])
+	 * @param prohibit  optional (may be null) array of prohibited tiles (for both originating and destination)
+	 */
 	public void shrinkSelection(
-			int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-			final boolean [] tiles,
+			final int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+			final boolean [] tiles,  
 			final boolean [] prohibit)
 	{
 		final boolean [] itiles = invertSelection(tiles);
@@ -463,6 +486,14 @@ public class TileNeibs{
 	}
 
 	
+	/**
+	 * Select outmost pixels of the selection (single or multithreaded depending on is
+	 * it called from the main thread or not)
+	 * @param shrink    see definitons for growSelection()
+	 * @param tiles     selection array (should be [sizeX * sizeY])
+	 * @param prohibit  optional (may be null) array of prohibited tiles
+	 * @return tile selection of the outmost tiles of the input tiles
+	 */
 	public boolean [] getEdgeSelection(
 			int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			boolean [] tiles,
@@ -807,6 +838,14 @@ public class TileNeibs{
 		}
 	}
 
+	/**
+	 * Grow pixel selection in multiple threads.
+	 * @param grow     amount of growth: 1 - 1 pixel in ortho (up/down, right/left) directions,
+	 *                 2 - ortho+diagonal, 3 - 2 steps in ortho, etc.
+	 * @param tiles    boolean array to grow (should be [sizeX * sizeY])
+	 * @param prohibit optional array (may be null) that prohibits growth (for both originating and
+	 *                 destination tiles). 
+	 */
 	public void growSelectionMulti( // multithreaded version
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			final boolean [] tiles,
@@ -925,12 +964,26 @@ public class TileNeibs{
 	
 	
 	
-	
+	/**
+	 * Find out if the current thread is main.
+	 * @return true for the main thread, false - for others
+	 */
 	public static boolean isMainThread() {
 		return Thread.currentThread().getName().equals("main");
 	}
 	
 
+	
+	/**
+	 * Grow pixel selection in either a single thread (if the method is called from one of
+	 * concurrent threads (already used by multiple callers) or in multiple threads if the
+	 * current thread is "main"
+	 * @param grow     amount of growth: 1 - 1 pixel in ortho (up/down, right/left) directions,
+	 *                 2 - ortho+diagonal, 3 - 2 steps in ortho, etc.
+	 * @param tiles    boolean array to grow (should be [sizeX * sizeY])
+	 * @param prohibit optional array (may be null) that prohibits growth (for both originating and
+	 *                 destination tiles). 
+	 */
 	public void growSelection(
 			int              grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			final boolean [] tiles,

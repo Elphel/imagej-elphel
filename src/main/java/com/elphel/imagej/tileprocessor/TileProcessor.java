@@ -8591,10 +8591,6 @@ ImageDtt.startAndJoin(threads);
 	}
 
 
-
-
-
-
 	public double [] convolveTiles(
 			double [] tiles,
 			double [][] kernel_in) // should be odd * odd, with non-zero sum (result will be normalized
@@ -8639,7 +8635,23 @@ ImageDtt.startAndJoin(threads);
 		return -1;
 	}
 
+	
 
+	/**
+	 * Fill NaN values in 2D array from neighbors using Laplassian==0
+	 * @param data            data array (in line-scan order) with NaN values to be filled,
+	 *                        non-NaN values will not be modified. 
+	 * @param prohibit        optional (may be null) boolean array of the same size specifying
+	 *                        prohibited pixels.
+	 * @param width           data width (height = data.length/width) 
+	 * @param grow            limit area to process by expanding defined pixel area.
+	 * @param diagonal_weight weight of 4 diagonal neighbors relative to 4 ortho ones.
+	 * @param num_passes      maximal number of iterations.
+	 * @param max_rchange     max relative (to data RMS) step change to exit iterations.
+	 * @param threadsMax      maximal number of concurrent threads to launch. 
+	 * @return                data array made of input data with replaced NaN limited by
+	 *                        optional prohibit array and amount of growth. 
+	 */
 	public static double [] fillNaNs(
 			final double []  data,
 			final boolean [] prohibit,
@@ -8657,8 +8669,8 @@ ImageDtt.startAndJoin(threads);
 		final int tiles = width * height;
 		final boolean [] fixed = new boolean [tiles]; // Original non-NaN, will not be modified
 		int num_fixed = 0;
-		double davg = 0.0; // average of all fixed samples
-		double davg2 = 0.0; // average of all fixed samples
+		double davg =   0.0; // average of all fixed samples
+		double davg2 =  0.0; // average of all fixed samples
 		for (int i = 0; i < tiles; i++)	{
 			if (!Double.isNaN(data[i])) {
 				fixed[i] = true;
@@ -8687,14 +8699,6 @@ ImageDtt.startAndJoin(threads);
 		int last_grown = tn.getLastGrown(); // actual grown (0 <= last_grown <= grow)
 		final int scan0 = last_grown/2 + 2; //  ( 3* grow) / 2;
 
-		/*
-		growTiles(
-				grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-				grown,
-				null,
-				width,
-				height);
-		*/
 		int num_active = 0;
 		for (int i = 0; i < tiles; i++) {
 			if (grown[i] && !fixed[i]) num_active++;
@@ -8709,7 +8713,6 @@ ImageDtt.startAndJoin(threads);
 		for (int i = 0; i < tiles; i++) {
 			if (grown[i] && !fixed[i]) {
 				active [num_active++] = i;
-//				data_io[0][i] = davg; // initial value - needed?
 			}
 		}
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);

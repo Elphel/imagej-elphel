@@ -1653,7 +1653,7 @@ public class TexturedModel {
 		final int     jpeg_quality =     clt_parameters.tex_jpeg_quality; //95;   // JPEG quality for textures
 		
 		final boolean showTri =          !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles);
-		final boolean disp_hires_tri =    clt_parameters.tex_disp_hires_tri;
+		final boolean disp_hires_tri =   !batch_mode && clt_parameters.tex_disp_hires_tri;
 		final int dbg_scale_mesh =        clt_parameters.tex_dbg_scale_mesh; //  4; // <=0 - do not show
 		
 		
@@ -1678,6 +1678,11 @@ public class TexturedModel {
 		final int width = tilesX * transform_size;
 		final int height = tp.getTilesY() * transform_size;
 		// get multi-scene disparity map for FG and BG and filter it
+		if (combo_dsn_final != null) {
+			System.out.println("output3d(): combo_dsn_final is not null - setting it to null");
+			System.out.println("As there was a problem with (wrong?) blue sky setting strength to 0.0001");
+			combo_dsn_final = null;
+		}
 		if (combo_dsn_final == null) {
 			combo_dsn_final =scenes[ref_index].readDoubleArrayFromModelDirectory(
 					"-INTER-INTRA-LMA", // String      suffix,
@@ -2000,9 +2005,8 @@ public class TexturedModel {
 								tp.getTilesY(),         // int             tilesY,
 								ref_scene.getGeometryCorrection(), // GeometryCorrection geometryCorrection,
 								clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-								dbg_mesh_imgs[nslice],  //   double []       tri_img,   //
+								((dbg_mesh_imgs != null) ? dbg_mesh_imgs[nslice]:null),  //   double []       tri_img,   //
 								dbg_scaled_width,       // int             tri_img_width,
-//								showTri,                // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
 								// FIXME: make a separate parameter:
 								infinity_disparity,            //  0.25 * clt_parameters.bgnd_range,  // 0.3
 								clt_parameters.grow_disp_max,  // other_range, // 2.0 'other_range - difference from the specified (*_CM)
@@ -2010,7 +2014,6 @@ public class TexturedModel {
 							    clt_parameters.maxZtoXY,       // double          maxZtoXY,       // 10.0. <=0 - do not use
 							    clt_parameters.maxZ,
 							    clt_parameters.limitZ,
-//							    dbg_disp_tri_slice,           //   double [][]     dbg_disp_tri_slice,
 								debugLevel + 1,               //   int             debug_level) > 0
 								clt_parameters.tex_dbg_plot_center,              //   boolean         dbg_plot_center, //  = true;
 								clt_parameters.tex_dbg_line_color,               //   double          dbg_line_color, //  =  1.0;

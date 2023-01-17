@@ -2094,12 +2094,10 @@ public class TriMesh {
 		}
 		return -1;
 	}
-
+// used in old code - change to the new one?
 	  public static void generateClusterX3d( 
 			  boolean         full_texture, // true - full size image, false - bounds only
 			  int             subdivide_mesh, // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
-//			  boolean []      alpha,     // boolean alpha - true - opaque, false - transparent. Full/bounds
-			                             // matching selection
 			  X3dOutput       x3dOutput, // output x3d if not null
 			  WavefrontExport wfOutput,  // output WSavefront if not null
 			  ArrayList<TriMesh> tri_meshes,
@@ -2125,7 +2123,6 @@ public class TriMesh {
 			  int             debug_level
 			  ) throws IOException
 	  {
-//		  int debug_level = 1;
 		  if (bounds == null) {
 			  return; // not used in lwir
 		  }
@@ -2314,22 +2311,18 @@ public class TriMesh {
 			  double          maxZtoXY,           // 10.0. <=0 - do not use
 			  double          maxZ,               // far clip (0 - do not clip). Negative - limit by max
 			  boolean         limitZ,
-//			  double [][]     dbg_disp_tri_slice,
 			  int             debug_level,
 			  boolean         dbg_plot_center, //  = true;
 			  double          dbg_line_color, //  =  1.0;
 			  double          dbg_center_color// = 3.0;
 			  ) throws IOException
 	  {
-//		  boolean         show_triangles = tri_img != null; 
 		  if (bounds == null) {
 			  return; // not used in lwir
 		  }
 		  boolean display_triangles = debug_level > 0;
 		  boolean display_src = debug_level > 1;
 		  boolean display_for_mesh = debug_level > 1;
-		  
-		  
 		  
 		  if (display_src) {
 			  double [][] dbg_img = new double [3][selected.length];
@@ -2378,12 +2371,6 @@ public class TriMesh {
 			  }
 		  }
 		  
-		  /*
-		  int [][] indices =  getCoordIndices( // starting with 0, -1 - not selected // updated 09.18.2022
-				  bounds, 
-				  selected,
-				  tilesX); 
-		  */
 		  int [] pnum_indices = new int[1];
 		  /*
 		   * Enumerate "large" and "small" tiles, where "large" are actual tiles and "small" are

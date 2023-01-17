@@ -142,7 +142,7 @@ public class IntersceneMatchParameters {
 	public  double  cold_scale =                       0.2;  // <=1.0. 1.0 - disables temperature dependence
 	public  double  sky_seed =                         5.0;  // start with product of strength by diff_second below this
 	public  double  lma_seed =                         2.0;  // seed - disparity_lma limit		double sky_lim  =      15.0; // then expand to product of strength by diff_second below this
-	public  int     sky_shrink =                       3;
+	public  int     sky_shrink =                       2;
 	public  int     seed_rows =                        5; // sky should appear in this top rows 
 	public  double  sky_lim =                         15.0; // then expand to product of strength by diff_second below this
 	public  int     sky_expand_extra =                 0; // 1?
