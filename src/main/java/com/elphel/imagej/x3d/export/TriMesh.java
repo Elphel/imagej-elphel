@@ -1489,8 +1489,11 @@ public class TriMesh {
         				if (indices[btiley][btilex] != null) {
         					int subdiv = indices[btiley][btilex].length;
         					double disp = disparity[tile];
-    						if      (disp < min_disparity) disp = min_disparity;
-    						else if (disp > max_disparity) disp = max_disparity;
+    						if      (disp < min_disparity) {
+    							disp = min_disparity;
+    						} else if (disp > max_disparity) {
+    							disp = max_disparity;
+    						}
         					for (int y = 0; y < indices[btiley][btilex].length; y++) {
             					for (int x = 0; x < indices[btiley][btilex][y].length; x++) {
             						// TODO - linear interpolate disparity here

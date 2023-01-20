@@ -1986,9 +1986,13 @@ public class TexturedModel {
 				boolean [] scan_selected = tileClusters[nslice].getSubSelected(sub_i); // limited to cluster bounds
 				int [] scan_border_int =   tileClusters[nslice].getSubBorderInt(sub_i); // limited to cluster bounds
 				int    max_border =        tileClusters[nslice].getBorderIntMax();
-				boolean is_sky = tileClusters[nslice].isSky();
+				boolean is_sky =           tileClusters[nslice].isSky(sub_i);
 				double min_disparity = is_sky? infinity_disparity : min_obj_disparity;
-				
+				if (debugLevel > -2){
+					System.out.println("nslice="+nslice+" cluster #"+cluster_index+ " is_sky="+is_sky+" min_disparity="+min_disparity);
+				}
+
+				// cluster_index
 				// skipping averaging disparity for a whole cluster (needs strength and does not seem to be useful)
 				try {
 					if (alpha == null) {
@@ -2045,7 +2049,7 @@ public class TexturedModel {
 								((dbg_mesh_imgs != null) ? dbg_mesh_imgs[nslice]:null),  //   double []       tri_img,   //
 								dbg_scaled_width,       // int             tri_img_width,
 								// FIXME: make a separate parameter:
-								infinity_disparity,            //min_disparity, // infinity_disparity,            //  0.25 * clt_parameters.bgnd_range,  // 0.3
+								min_disparity, // infinity_disparity,            // min_disparity, // infinity_disparity,            //  0.25 * clt_parameters.bgnd_range,  // 0.3
 								clt_parameters.grow_disp_max,  // other_range, // 2.0 'other_range - difference from the specified (*_CM)
 								clt_parameters.maxDispTriangle,
 							    clt_parameters.maxZtoXY,       // double          maxZtoXY,       // 10.0. <=0 - do not use
@@ -3623,7 +3627,7 @@ public class TexturedModel {
 		int sky_slice = -1;
 		int sky_subindex = -1;
 		for (int i = 0; i < tileClusters.length; i++) {
-			sky_subindex = tileClusters[i].getSkyClusterIndex();
+			sky_subindex = tileClusters[i].getSkyClusterIndex(); // finds first sky only!
 			if (sky_subindex >=0) {
 				sky_slice = i;
 				break;

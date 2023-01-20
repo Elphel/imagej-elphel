@@ -96,8 +96,14 @@ class TileCluster{
 	public boolean isSky() {
 		return is_sky;
 	}
-	
-	public int getSkyClusterIndex() {
+	public boolean isSky(int sub) {
+		if (clust_list == null) {
+			return is_sky;
+		}
+		return clust_list.get(sub).is_sky;
+	}
+
+	public int getSkyClusterIndex() { // currently (need to fix) there can be multiple sky clusters !
 		if (clust_list == null) {
 			return -2;
 		}
