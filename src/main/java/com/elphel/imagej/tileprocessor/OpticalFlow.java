@@ -3751,8 +3751,8 @@ public class OpticalFlow {
 		ds_photo[OpticalFlow.COMBO_DSN_INDX_STRENGTH] =    dsi[TwoQuadCLT.DSI_STRENGTH_AUX];
 		ds_photo[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY] =    dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX];
 			
-		boolean photo_each_debug = !batch_mode; // false; // true; // false;
-		boolean photo_each_debug2 = !batch_mode; // false; // true; // false;
+		boolean photo_each_debug = !batch_mode && clt_parameters.photo_each_debug; // false; // true; // false;
+		boolean photo_each_debug2 = !batch_mode && clt_parameters.photo_each_debug; // false; // true; // false;
 		
 		for (int nrecalib = 0; nrecalib < photo_num_full; nrecalib++) { // maybe need to correct just offsets?
 			int poly_order = photo_order;
@@ -3899,10 +3899,15 @@ public class OpticalFlow {
  		double cold_scale =          clt_parameters.imp.cold_scale;
  		double sky_seed =            clt_parameters.imp.sky_seed;
  		double lma_seed =            clt_parameters.imp.lma_seed;
+		double seed_temp =           clt_parameters.imp.seed_temp;
  		int    sky_shrink =          clt_parameters.imp.sky_shrink;
  		int    sky_bottleneck =      clt_parameters.imp.sky_bottleneck;
+ 		int    sky_reexpand_extra =  clt_parameters.imp.sky_reexpand_extra;
  		int    seed_rows =           clt_parameters.imp.seed_rows;
+ 		double max_disparity =       clt_parameters.imp.max_disparity;
+ 		double max_disparity_strength=clt_parameters.imp.max_disparity_strength;
  		double sky_lim =             clt_parameters.imp.sky_lim;
+		double lim_temp =            clt_parameters.imp.lim_temp;
  		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
  		double min_strength =        clt_parameters.imp.min_strength;
  		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
@@ -3912,6 +3917,8 @@ public class OpticalFlow {
 		double disp_boost_diff  =    clt_parameters.imp.disp_boost_diff; // 0.35;
 		int    disp_boost_neibs  =   clt_parameters.imp.disp_boost_neibs; // 2;
 		double disp_boost_amount  =  clt_parameters.imp.disp_boost_amount; // 2.0;
+		QuadCLT   dbg_scene = clt_parameters.imp.save_debug_images? quadCLT_ref: null; // use to save debug images if not null
+
 		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
 		quadCLT_ref.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
 				clt_parameters,
@@ -3980,13 +3987,18 @@ public class OpticalFlow {
 			System.out.println("(Re)using photometric calibration from this sequence reference "+quadCLT_ref.getPhotometricScene());
 			quadCLT_ref.setQuadClt(); // just in case ?
 		}
-		quadCLT_ref.setBlueSky  (
+		quadCLT_ref.setBlueSky  ( // initial BS from single scene
+				max_disparity,
+				max_disparity_strength,
 				sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
 				lma_seed,
+				seed_temp,     //double seed_temp, //         0.5;  // seed colder that this point between min and max temp						
 				sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+				lim_temp, //						double lim_temp, //          0.5;  // sky colder that this point between min and max temp						
 				sky_shrink,         // int    sky_shrink, //  =       4;
 				sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
 				sky_bottleneck,     //int    sky_bottleneck, // 
+				sky_reexpand_extra,   //int    sky_reexpand_extra,  // 9; re-expand after bottleneck in addition to how it was shrank
 				cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 				cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 				hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -4004,6 +4016,7 @@ public class OpticalFlow {
 				dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
 				dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], // double [] spread,
 				dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
+				dbg_scene,          // QuadCLT   dbg_scene,    // use to save debug images if not null
 				batch_mode? -1: 1); /// debugLevel);        // int debugLevel)
 		if (ran_photo_each) {
 //			quadCLT_ref.setBlueSky(null); // Reset blue sky - is it needed?
@@ -4067,16 +4080,23 @@ public class OpticalFlow {
 			final int           debugLevel) {
 		boolean  photo_each =        clt_parameters.photo_each; //        true;  // perform photogrammetric calibration to equalize pixel values
 		boolean  photo_to_main=      clt_parameters.photo_to_main; // maybe it will not be needed, it will apply this calibration to the next scene sequence
+		boolean sky_recalc =         clt_parameters.imp.sky_recalc; // force blue sky recalculation even if it exists
 		double sky_highest_min =     clt_parameters.imp.sky_highest_min;
 		double cold_frac =           clt_parameters.imp.cold_frac;
 		double hot_frac =            clt_parameters.imp.hot_frac;
 		double cold_scale =          clt_parameters.imp.cold_scale;
+
 		double sky_seed =            clt_parameters.imp.sky_seed;
 		double lma_seed =            clt_parameters.imp.lma_seed;
+		double seed_temp =           clt_parameters.imp.seed_temp;
 		int    sky_shrink =          clt_parameters.imp.sky_shrink;
 		int    sky_bottleneck =      clt_parameters.imp.sky_bottleneck;
+ 		int    sky_reexpand_extra =  clt_parameters.imp.sky_reexpand_extra;
 		int    seed_rows =           clt_parameters.imp.seed_rows;
+ 		double max_disparity =       clt_parameters.imp.max_disparity;
+ 		double max_disparity_strength=clt_parameters.imp.max_disparity_strength;
 		double sky_lim =             clt_parameters.imp.sky_lim;
+		double lim_temp =            clt_parameters.imp.lim_temp;
 		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
 		double min_strength =        clt_parameters.imp.min_strength;
 		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
@@ -4086,7 +4106,8 @@ public class OpticalFlow {
 		double disp_boost_diff  =    clt_parameters.imp.disp_boost_diff; // 0.35;
 		int    disp_boost_neibs  =   clt_parameters.imp.disp_boost_neibs; // 2;
 		double disp_boost_amount  =  clt_parameters.imp.disp_boost_amount; // 2.0;
-		
+		double scale_combo_strength =clt_parameters.imp.scale_combo_strength; //0.4; // reduce strength when it comes from combo, not DSI-MAIN
+		QuadCLT   dbg_scene = clt_parameters.imp.save_debug_images? quadCLT_ref: null; // use to save debug images if not null
 		// if (build_ref_dsi) {
 		// need to read photometric from reference scene -INTERFRAME.corr-xml, and if it exists - set and propagate to main?
 		if (photo_each  && !quadCLT_ref.isPhotometricThis()) {
@@ -4108,22 +4129,55 @@ public class OpticalFlow {
 		// read DSI_MAIN
 		double [][] dsi = quadCLT_ref.readDsiMain();
 		quadCLT_ref.setDSI(dsi); // was not here! (11/26/2022)
+		double [][] combo_dsi = null;
 		if (dsi[TwoQuadCLT.DSI_SPREAD_AUX] == null) {
 			System.out.println("DSI_MAIN file has old format and does not have spread data, will recalculate.");
 		} else {
-//			boolean [] ref_blue_sky = quadCLT_ref.getBlueSky();
+//			boolean used_combo = false;
+			if ((dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX] == null) || sky_recalc) { //
+				// Sets quadCLT_ref.dsi and blue sky (if exists)
+				combo_dsi = quadCLT_ref.restoreComboDSI(true); // result is full length, missing slices are null
+				if (combo_dsi != null) {
+					dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      combo_dsi[COMBO_DSN_INDX_STRENGTH];     // double [] strength,
+					dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA]=  combo_dsi[COMBO_DSN_INDX_LMA]; //double [] disp_lma,
+					dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX] =      combo_dsi[COMBO_DSN_INDX_BLUE_SKY]; // if exist, already set to quadCLT_ref.dsi 
+//					used_combo = true;
+				}
+				/*
+				if (quadCLT_ref.restoreInterDSI(true) > 0) {
+					double [][] combo_dsi = quadCLT_ref.dsi;
+					dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      combo_dsi[COMBO_DSN_INDX_STRENGTH];     // double [] strength,
+					dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA]=  combo_dsi[COMBO_DSN_INDX_LMA]; //double [] disp_lma,
+					dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX] =      combo_dsi[COMBO_DSN_INDX_BLUE_SKY];
+					used_combo = true;
+				}
+				*/
+			}
 			double [] ref_blue_sky = dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX];
-			if (ref_blue_sky == null) {
+			if ((ref_blue_sky == null) || sky_recalc) {
 				if (debugLevel > -3) {
-					System.out.println("Blue Sky does not exist calculating and updating photometrics");
+					System.out.println("Blue Sky does not exist or recalculation is forced. Calculating and updating photometrics");
+				}
+				double [] bs_strength = dsi[TwoQuadCLT.DSI_STRENGTH_AUX].clone();
+				// try getting combo dsi
+				if ((combo_dsi != null) && (scale_combo_strength != 1.0) && dsi[TwoQuadCLT.DSI_STRENGTH_AUX]!= null) {
+					for (int i = 0; i < dsi[TwoQuadCLT.DSI_STRENGTH_AUX].length; i++) {
+						bs_strength[i] *= scale_combo_strength;
+					}
+					//scale_combo_strength
 				}
 				quadCLT_ref.setBlueSky  (
+						max_disparity,
+						max_disparity_strength,
 						sky_seed,                              // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
 						lma_seed,                              //          2.0;  // seed - disparity_lma limit
+						seed_temp,     //double seed_temp, //         0.5;  // seed colder that this point between min and max temp						
 						sky_lim,                               // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+						lim_temp, //						double lim_temp, //          0.5;  // sky colder that this point between min and max temp						
 						sky_shrink,                            // int    sky_shrink, //  =       4;
 						sky_expand_extra,                      // int    sky_expand_extra, //  = 100; // 1?
 						sky_bottleneck,       //int    sky_bottleneck, // 
+						sky_reexpand_extra,   //int    sky_reexpand_extra,  // 9; re-expand after bottleneck in addition to how it was shrank
 						cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 						cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 						hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -4137,24 +4191,33 @@ public class OpticalFlow {
 						disp_boost_diff,       //double disp_boost_diff,   //  = 0.35;
 						disp_boost_neibs,      //int    disp_boost_neibs,  //  = 2;
 						disp_boost_amount,     //double disp_boost_amount, //  = 2.0;
-						dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
+						bs_strength, // dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
 						dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
 						dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], //double [] disp_lma,
 						dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
+						dbg_scene,          // QuadCLT   dbg_scene,    // use to save debug images if not null
 						debugLevel);        // int debugLevel)
 				if (debugLevel > -3) {
 					System.out.println("Calculated missing Blue Sky in "+quadCLT_ref.getImageName()+
 							", re-running photoEach()");
 				}
-/*				
-				boolean [] blue_sky = quadCLT_ref.getBlueSky();
-						if (dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX] == null) {
-							dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX] = new double [blue_sky.length];
-						}
-						for (int i = 0; i < blue_sky.length; i++) {
-							dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX][i] = blue_sky[i]? 1.0:0.0;
-						}
-	*/					
+				// save inter-lma if available
+				if (combo_dsi != null) {
+					if (debugLevel > -3) {
+						System.out.println("Updating Blue Sky for scene "+quadCLT_ref.getImageName());
+					}
+					String rslt_suffix = QuadCLTCPU.DSI_SUFFIXES[clt_parameters.correlate_lma?
+							QuadCLTCPU.INDEX_INTER_LMA:QuadCLTCPU.INDEX_INTER];
+					// combo_dsi read from file always has all slices, missing are null 
+					combo_dsi[COMBO_DSN_INDX_BLUE_SKY] = quadCLT_ref.dsi[TwoQuadCLT.DSI_BLUE_SKY_AUX];      
+					quadCLT_ref.saveDoubleArrayInModelDirectory(
+							rslt_suffix,                  // String      suffix,
+							OpticalFlow.COMBO_DSN_TITLES, // null,          // String []   labels, // or null
+							combo_dsi,                        // dbg_data,         // double [][] data,
+							quadCLT_ref.tp.getTilesX(),   // tilesX,                // int         width,
+							quadCLT_ref.tp.getTilesY());  // int         height)
+				}
+
 				photoEach(
 						clt_parameters,      // CLTParameters                                 clt_parameters,
 						colorProcParameters, // ColorProcParameters                           colorProcParameters,
@@ -4167,11 +4230,12 @@ public class OpticalFlow {
 						threadsMax,          // final int                                     threadsMax,  // int               threadsMax,
 						updateStatus,        // final boolean                                 updateStatus,
 						debugLevel);         // final int                                     debugLevel)			
-				} else {
-					if (debugLevel > -3) {
-						System.out.println("Blue Sky is available, reusing it, no need for updating photometrics");
-					}
+			} else {
+				if (debugLevel > -3) {
+					System.out.println("Blue Sky is available, reusing it, no need for updating photometrics");
 				}
+				quadCLT_ref.setBlueSky(ref_blue_sky); // fixing old case where DSI-MAIN did not have bs while combo - did
+			}
 		}
 	}
 
@@ -4820,10 +4884,11 @@ public class OpticalFlow {
 				System.out.println("**** Running photometric equalization *****");
 			}
 			if (combo_dsn_final == null) { // always re-read?
-				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory( // always re-read?
-						"-INTER-INTRA-LMA", // String      suffix,
-						0, // int         num_slices, // (0 - all)
-						null); // int []      wh);
+///				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory( // always re-read?
+///						"-INTER-INTRA-LMA", // String      suffix,
+///						0, // int         num_slices, // (0 - all)
+///						null); // int []      wh);
+				combo_dsn_final =quadCLTs[ref_index].restoreComboDSI(true); // also sets quadCLTs[ref_index].dsi and blue sky
 			}
 			
 			double [][] combo_dsn_final_filtered = 
@@ -4890,10 +4955,12 @@ public class OpticalFlow {
 	        	disparity_raw = new double [tilesX * tilesY];
 	        	Arrays.fill(disparity_raw,clt_parameters.disparity);
 	        	if (combo_dsn_final == null) {
-	        		combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
-	        				"-INTER-INTRA-LMA", // String      suffix,
-	        				0, // int         num_slices, // (0 - all)
-	        				null); // int []      wh);
+///	        		combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+///	        				"-INTER-INTRA-LMA", // String      suffix,
+///	        				0, // int         num_slices, // (0 - all)
+///	        				null); // int []      wh);
+					combo_dsn_final =quadCLTs[ref_index].restoreComboDSI(true); // also sets quadCLTs[ref_index].dsi and blue sky
+	        		
 	        	}
 	        	double [][] dls = { 
 	        			combo_dsn_final[COMBO_DSN_INDX_DISP],
@@ -5346,10 +5413,12 @@ public class OpticalFlow {
 		
 		if (export_images) {
 			if (combo_dsn_final == null) {
-				combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
-						"-INTER-INTRA-LMA", // String      suffix,
-						0, // int         num_slices, // (0 - all)
-						null); // int []      wh);
+///				combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+///						"-INTER-INTRA-LMA", // String      suffix,
+///						0, // int         num_slices, // (0 - all)
+///						null); // int []      wh);
+				combo_dsn_final =quadCLTs[ref_index].restoreComboDSI(true); // also sets quadCLTs[ref_index].dsi and blue sky
+				
 			}
 			double [][] dls = {
 					combo_dsn_final[COMBO_DSN_INDX_DISP],
@@ -5586,10 +5655,12 @@ public class OpticalFlow {
 		
 		if (export_dsi_image || show_dsi_image) {
 			if (combo_dsn_final == null) {
-				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
-						"-INTER-INTRA-LMA", // String      suffix,
-						0, // int         num_slices, // (0 - all)
-						null); // int []      wh);
+///				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+///						"-INTER-INTRA-LMA", // String      suffix,
+///						0, // int         num_slices, // (0 - all)
+///						null); // int []      wh);
+				combo_dsn_final =quadCLTs[ref_index].restoreComboDSI(true); // also sets quadCLTs[ref_index].dsi and blue sky
+				
 			}
 			
 			// re-load , should create quadCLTs[ref_index].dsi
@@ -5636,10 +5707,12 @@ public class OpticalFlow {
 		
 		if (export_ml_files) { 
 			if (combo_dsn_final == null) { // always re-read?
-				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory( // always re-read?
-						"-INTER-INTRA-LMA", // String      suffix,
-						0, // int         num_slices, // (0 - all)
-						null); // int []      wh);
+///				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory( // always re-read?
+///						"-INTER-INTRA-LMA", // String      suffix,
+///						0, // int         num_slices, // (0 - all)
+///						null); // int []      wh);
+				combo_dsn_final =quadCLTs[ref_index].restoreComboDSI(true); // also sets quadCLTs[ref_index].dsi and blue sky
+				
 			}
 			double [][] combo_dsn_final_filtered = 
 					conditionComboDsnFinal(
@@ -5694,10 +5767,12 @@ public class OpticalFlow {
         int tilesY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
         double [] disparity_raw = new double [tilesX * tilesY];
         Arrays.fill(disparity_raw,clt_parameters.disparity);
-        double [][] combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
-        			"-INTER-INTRA-LMA", // String      suffix,
-        			0, // int         num_slices, // (0 - all)
-        			null); // int []      wh);
+///        double [][] combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+///     			"-INTER-INTRA-LMA", // String      suffix,
+///        			0, // int         num_slices, // (0 - all)
+///        			null); // int []      wh);
+        double [][] combo_dsn_final =quadCLTs[ref_index].restoreComboDSI(true); // also sets quadCLTs[ref_index].dsi and blue sky
+
         double [][] dls = {
         		combo_dsn_final[COMBO_DSN_INDX_DISP],
         		combo_dsn_final[COMBO_DSN_INDX_LMA],
@@ -7342,6 +7417,10 @@ public class OpticalFlow {
 				"-DSI_INTER",
 				true // silent
 				) >=0 ) {
+			
+///		if (ref_scene.restoreInterDSI( // if there is already calculated with interscene - us it
+///					true // silent
+///					) >=0 ) {
 			System.out.println("IntersceneAccumulate(): Using previously calculated interscene DSI (*-DSI_INTER) as initial DSI");
 			combo_dsn[0] = ref_scene.dsi[ref_scene.is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN];
 			combo_dsn[1] = ref_scene.dsi[ref_scene.is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN];
@@ -7720,10 +7799,13 @@ public class OpticalFlow {
 		double [][] combo_dsn =  null;
 		// USE reference scene if no individual DSI are available double [][] dsrbg = scene.getDSRBG(); Probably null for non-reference
 		// make sure to use already integrated if available
-        double [][] combo_dsn0 = scenes[indx_ref].readDoubleArrayFromModelDirectory(
-    			"-INTER-INTRA-LMA", // String      suffix,
-    			0, // int         num_slices, // (0 - all)
-    			null); // int []      wh);
+///        double [][] combo_dsn0 = scenes[indx_ref].readDoubleArrayFromModelDirectory(
+///    			"-INTER-INTRA-LMA", // String      suffix,
+///    			0, // int         num_slices, // (0 - all)
+///    			null); // int []      wh);
+        
+    	double [][] combo_dsn0 =scenes[indx_ref].readComboDSI(true); // scenes[indx_ref].dsi and blue sky are NOT updated         
+        
         if (combo_dsn0 == null) {
         	combo_dsn0 = prepareInitialComboDS( // 3
         			clt_parameters,   // final CLTParameters       clt_parameters,
@@ -7731,6 +7813,13 @@ public class OpticalFlow {
         			indx_ref,         // final int                 indx_ref,
         			debug_level-2);     // final int                 debug_level);
         } else {
+        	// set blue sky from read from file ONLY if no BS was calculated for this instance
+        	if ((combo_dsn0[COMBO_DSN_INDX_BLUE_SKY] != null) && !scenes[indx_ref].hasBlueSky()) {
+        		if (debug_level > -2) {
+        			System.out.println("There was no calculated Blue Sky, but a file had it. Will use the loaded one");
+        			scenes[indx_ref].setBlueSky(combo_dsn0[COMBO_DSN_INDX_BLUE_SKY]);
+        		}
+        	}
         	combo_dsn0 = conditionComboDsnFinal(
 							true,                // boolean        use_conf,       // use configuration parameters, false - use following  
 							clt_parameters,      // CLTParameters  clt_parameters,
@@ -12256,10 +12345,12 @@ public class OpticalFlow {
         int tilesY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
         double [] disparity_raw = new double [tilesX * tilesY];
         Arrays.fill(disparity_raw,clt_parameters.disparity);
-        double [][] combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
-        			"-INTER-INTRA-LMA", // String      suffix,
-        			0, // int         num_slices, // (0 - all)
-        			null); // int []      wh);
+///        double [][] combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+///        			"-INTER-INTRA-LMA", // String      suffix,
+///        			0, // int         num_slices, // (0 - all)
+///        			null); // int []      wh);
+        double [][] combo_dsn_final = quadCLTs[ref_index].restoreComboDSI(true); // also sets quadCLTs[ref_index].dsi and blue sky
+
         double [][] dls = {
         		combo_dsn_final[COMBO_DSN_INDX_DISP],
         		combo_dsn_final[COMBO_DSN_INDX_LMA],

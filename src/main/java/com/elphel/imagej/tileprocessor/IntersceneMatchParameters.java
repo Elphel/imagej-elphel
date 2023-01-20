@@ -136,28 +136,37 @@ public class IntersceneMatchParameters {
 	//------------	
 	
 	// Sky detection/filtering
+	public  boolean sky_recalc =                    false; // force blue sky recalculation even if it exists
 	public  double  sky_highest_min =                -50; // lowest absolute value should not be higher (requires photometric) 
 	public  double  cold_frac =                        0.005; // this and lower will scale fom by  cold_scale
 	public  double  hot_frac =                         0.9;    // this and above will scale fom by 1.0
 	public  double  cold_scale =                       0.2;  // <=1.0. 1.0 - disables temperature dependence
-	public  double  sky_seed =                         5.0;  // start with product of strength by diff_second below this
+	
+	public  double  sky_seed =                         5.0;  // 5.0 start with product of strength by diff_second below this
 	public  double  lma_seed =                         2.0;  // seed - disparity_lma limit		double sky_lim  =      15.0; // then expand to product of strength by diff_second below this
+	public  double  seed_temp =                        0.5;  // seed colder that this point between min and max temp
+	
 	public  int     sky_shrink =                       2;
 	public  int     seed_rows =                        5; // sky should appear in this top rows 
+	public  double  max_disparity =                    0.3;  // maximal strong sky disparity 
+	public  double  max_disparity_strength =           0.2;  // maximal strength of high disparity sky
 	public  double  sky_lim =                         15.0; // then expand to product of strength by diff_second below this
+	public  double  lim_temp =                         0.5;  // sky colder that this point between min and max temp
 	public  int     sky_expand_extra =                 0; // 1?
 	public  int     sky_bottleneck =                   5;
+	public  int     sky_reexpand_extra =               9;//  re-expand after bottleneck in addition to how it was shrank	
 	public  double  min_strength =                     0.08;
 	public  int     lowest_sky_row =                  50; // appears that low - invalid, remove completely
 	public  double  sky_bottom_override =           -300; // maximal average sky value to override lowest_sky_row test
-	public  int     sky_override_shrink =             10; // shrink detected sky before finding hottest tile there
+	public  int     sky_override_shrink =             6; // shrink detected sky before finding hottest tile there
 	
 	// Increase fom if there are enough LMA-defined similar tiles around
 	public  double  disp_boost_min  =                  0.5;
 	public  double  disp_boost_diff  =                 0.35;
 	public  int     disp_boost_neibs  =                2;
 	public  double  disp_boost_amount  =               2.0;
-	
+	public  double  scale_combo_strength  =            0.4; // reduce strength when it comes from combo, not DSI-MAIN
+	public  boolean save_debug_images =               true;  // Save blue sky debug images in model directory
 	
 	// Some "AGC" to adjust how much to discard
 	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
@@ -519,6 +528,8 @@ public class IntersceneMatchParameters {
 		
 		gd.addTab("Sky","Featureless sky areas detection and filtering (LWIR only)");
 		gd.addMessage  ("Temperature-related filtering (requires photometric calibration)");
+		gd.addCheckbox ("Force blue sky recalculation",              this.sky_recalc,
+				"Recalculate blue sky even if it already exists.");
 		gd.addNumericField("High limit of the scene coldest tile",   this.sky_highest_min, 5,7,"",
 				"Sky is normally cold. If the (globally offset) minimal scene absolutre pixel value is above - no sky in the scene (debug images still show it)");
 		gd.addNumericField("Cold level fraction",                    this.cold_frac, 5,7,"",
@@ -533,17 +544,27 @@ public class IntersceneMatchParameters {
 		        "at infinity and 3 above parameters");
 		gd.addNumericField("Seed maximal disparity",                 this.lma_seed, 5,7,"pix",
 				"Seed tiles should not have LMA-found disparity above this");
+		gd.addNumericField("Seed maximal relative temperature",      this.seed_temp, 5,7,"",
+				"Seed tiles should be  colder than this point between min and max scene temperature.");
 		gd.addNumericField("Shrink sky seed",                        this.sky_shrink, 0,3,"",
 				"Shrink sky seed tiles to eliminate too small (false) clusters. One shrinks in hor/vert, 2 - with diagonals, ...");
 		gd.addNumericField("Seed rows",                              this.seed_rows, 0,3,"",
 				"Sky is above and normally should appear in the top image rows. Applies after shrinking.");
 		gd.addMessage  ("Expand seed tiles");
+		gd.addNumericField("Maximal strong sky disparity",           this.max_disparity, 5,7,"",
+				"Maximal disparity of the sky tiles if they are strong enough.");
+		gd.addNumericField("Strength of the high disparity sky",     this.max_disparity_strength, 5,7,"",
+				"Required tile strenghth to be considered strong to test against maximal disparity.");
 		gd.addNumericField("Expand FOM limit",                       this.sky_lim, 5,7,"",
 				"Expand while FOM is below this value (usually to a high-contrast skyline).");
+		gd.addNumericField("Sky maximal relative temperature",      this.lim_temp, 5,7,"",
+				"Sky tiles should be  colder than this point between min and max scene temperature.");
 		gd.addNumericField("Expand extra",                           this.sky_expand_extra, 0,3,"",
 				"Additionally expand sky area after reaching threshold in the previous step.");
 		gd.addNumericField("Bottleneck width",                       this.sky_bottleneck, 0,3,"",
 				"Shrink/reexpand from the seed detected sky to prevent \"leaks\" through narrow gaps in the high-contrast sky limit.");
+		gd.addNumericField("Re-expand extra after bottleneck",       this.sky_reexpand_extra, 0,3,"",
+				"Additionally expand sky area after bottleneck shrink in excess of re-expanding by the same amount as shrank.");
 		gd.addNumericField("Modify strength to be at least this",    this.min_strength, 5,7,"",
 				"Input strength has some with zero values resulting in zero FOM. Make them at least this.");
 		gd.addNumericField("Lowest sky row",                         this.lowest_sky_row, 0,3,"",
@@ -562,9 +583,12 @@ public class IntersceneMatchParameters {
 				"Number of neighbors (of 8) to have small disparity difference to boost FOM.");
 		gd.addNumericField("Boost amount",                           this.disp_boost_amount, 5,7,"x",
 				"Multiply FOM by this value if number of neighbors is exactly minimal. Scale proportional to the total number of neighbors.");
+		gd.addNumericField("Scale if strength is combo, not main",   this.scale_combo_strength, 5,7,"x",
+				"Reduce strength when it comes from combo, not DSI-MAIN.");
+		gd.addCheckbox ("Save debug images",                          this.save_debug_images,
+				"Save debug images for Blue Sky generation in model directory.");
+
 		gd.addTab         ("Inter-Match", "Parameters for full-resolution scene matching");
-		
-		
 		gd.addMessage  ("Interscene match parameters");
 		gd.addNumericField("Image margin",                           this.margin, 0,5,"pix",
 				"Do not use tiles if their centers are closer to the virtual image edge");
@@ -924,17 +948,23 @@ public class IntersceneMatchParameters {
 		this.strong_strength =                gd.getNextNumber();
 		this.weak_strength =                  gd.getNextNumber();
 		
+		this.sky_recalc =               gd.getNextBoolean();
 		this.sky_highest_min =          gd.getNextNumber(); 	
 		this.cold_frac =                gd.getNextNumber();       	
 		this.hot_frac =                 gd.getNextNumber();        	
 		this.cold_scale =               gd.getNextNumber();      	
 		this.sky_seed =                 gd.getNextNumber();        	
-		this.lma_seed =                 gd.getNextNumber();        	
+		this.lma_seed =                 gd.getNextNumber();
+		this.seed_temp =                gd.getNextNumber();
 		this.sky_shrink =         (int) gd.getNextNumber();      	
-		this.seed_rows =          (int) gd.getNextNumber();       	
-		this.sky_lim =                  gd.getNextNumber();         	
+		this.seed_rows =          (int) gd.getNextNumber();
+		this.max_disparity =            gd.getNextNumber();         	
+		this.max_disparity_strength =   gd.getNextNumber();         	
+		this.sky_lim =                  gd.getNextNumber(); 
+		this.lim_temp =                 gd.getNextNumber(); 
 		this.sky_expand_extra =   (int) gd.getNextNumber();	
 		this.sky_bottleneck =     (int) gd.getNextNumber();	
+		this.sky_reexpand_extra = (int) gd.getNextNumber();	
 		this.min_strength =             gd.getNextNumber();    
 		this.lowest_sky_row =     (int) gd.getNextNumber();
 		this.sky_bottom_override =      gd.getNextNumber();    
@@ -944,6 +974,8 @@ public class IntersceneMatchParameters {
 		this.disp_boost_diff =          gd.getNextNumber();    
 		this.disp_boost_neibs =   (int) gd.getNextNumber();
 		this.disp_boost_amount =        gd.getNextNumber();    
+		this.scale_combo_strength =     gd.getNextNumber();
+		this.save_debug_images =        gd.getNextBoolean();
 		
 		this.margin =             (int) gd.getNextNumber();
 		this.sensor_mask_inter=   (int) gd.getNextNumber();
@@ -1206,17 +1238,23 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"strong_strength",               this.strong_strength+"");               // double
 		properties.setProperty(prefix+"weak_strength",                 this.weak_strength+"");                 // double
 
+		properties.setProperty(prefix+"sky_recalc",           this.sky_recalc+"");          // boolean
 		properties.setProperty(prefix+"sky_highest_min",      this.sky_highest_min+"");     // double
 		properties.setProperty(prefix+"cold_frac",            this.cold_frac+"");           // double
 		properties.setProperty(prefix+"hot_frac",             this.hot_frac+"");            // double
 		properties.setProperty(prefix+"cold_scale",           this.cold_scale+"");          // double
 		properties.setProperty(prefix+"sky_seed",             this.sky_seed+"");            // double
 		properties.setProperty(prefix+"lma_seed",             this.lma_seed+"");            // double
+		properties.setProperty(prefix+"seed_temp",            this.seed_temp+"");           // double
 		properties.setProperty(prefix+"sky_shrink",           this.sky_shrink+"");          // int
 		properties.setProperty(prefix+"seed_rows",            this.seed_rows+"");           // int
+		properties.setProperty(prefix+"max_disparity",        this.max_disparity+"");       // double
+		properties.setProperty(prefix+"max_disparity_strength",this.max_disparity_strength+"");// double
 		properties.setProperty(prefix+"sky_lim",              this.sky_lim+"");             // double
+		properties.setProperty(prefix+"lim_temp",             this.lim_temp+"");            // double
 		properties.setProperty(prefix+"sky_expand_extra",     this.sky_expand_extra+"");    // int
 		properties.setProperty(prefix+"sky_bottleneck",       this.sky_bottleneck+"");      // int
+		properties.setProperty(prefix+"sky_reexpand_extra",   this.sky_reexpand_extra+"");  // int
 		properties.setProperty(prefix+"min_strength",         this.min_strength+"");        // double
 		properties.setProperty(prefix+"lowest_sky_row",       this.lowest_sky_row+"");      // int
 		properties.setProperty(prefix+"sky_bottom_override",  this.sky_bottom_override+""); // double
@@ -1226,6 +1264,8 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"disp_boost_diff",      this.disp_boost_diff+"");     // int
 		properties.setProperty(prefix+"disp_boost_neibs",     this.disp_boost_neibs+"");    // double
 		properties.setProperty(prefix+"disp_boost_amount",    this.disp_boost_amount+"");   // double
+		properties.setProperty(prefix+"scale_combo_strength", this.scale_combo_strength+"");   // double
+		properties.setProperty(prefix+"save_debug_images",    this.save_debug_images+"");            // boolean
 		
 		properties.setProperty(prefix+"margin",               this.margin+"");              // int
 		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
@@ -1441,17 +1481,25 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"strong_strength")!=null)               this.strong_strength=Double.parseDouble(properties.getProperty(prefix+"strong_strength"));
 		if (properties.getProperty(prefix+"weak_strength")!=null)                 this.weak_strength=Double.parseDouble(properties.getProperty(prefix+"weak_strength"));
 		
+		if (properties.getProperty(prefix+"sky_recalc")!=null)           this.sky_recalc=Boolean.parseBoolean(properties.getProperty(prefix+"sky_recalc"));		
 		if (properties.getProperty(prefix+"sky_highest_min")!=null)      this.sky_highest_min=Double.parseDouble(properties.getProperty(prefix+"sky_highest_min"));
 		if (properties.getProperty(prefix+"cold_frac")!=null)            this.cold_frac=Double.parseDouble(properties.getProperty(prefix+"cold_frac"));
 		if (properties.getProperty(prefix+"hot_frac")!=null)             this.hot_frac=Double.parseDouble(properties.getProperty(prefix+"hot_frac"));
 		if (properties.getProperty(prefix+"cold_scale")!=null)           this.cold_scale=Double.parseDouble(properties.getProperty(prefix+"cold_scale"));
 		if (properties.getProperty(prefix+"sky_seed")!=null)             this.sky_seed=Double.parseDouble(properties.getProperty(prefix+"sky_seed"));
 		if (properties.getProperty(prefix+"lma_seed")!=null)             this.lma_seed=Double.parseDouble(properties.getProperty(prefix+"lma_seed"));
+		if (properties.getProperty(prefix+"seed_temp")!=null)            this.seed_temp=Double.parseDouble(properties.getProperty(prefix+"seed_temp"));
+
+		
 		if (properties.getProperty(prefix+"sky_shrink")!=null)           this.sky_shrink=Integer.parseInt(properties.getProperty(prefix+"sky_shrink"));
 		if (properties.getProperty(prefix+"seed_rows")!=null)            this.seed_rows=Integer.parseInt(properties.getProperty(prefix+"seed_rows"));
+		if (properties.getProperty(prefix+"max_disparity")!=null)        this.max_disparity=Double.parseDouble(properties.getProperty(prefix+"max_disparity"));
+		if (properties.getProperty(prefix+"max_disparity_strength")!=null)this.max_disparity_strength=Double.parseDouble(properties.getProperty(prefix+"max_disparity_strength"));
 		if (properties.getProperty(prefix+"sky_lim")!=null)              this.sky_lim=Double.parseDouble(properties.getProperty(prefix+"sky_lim"));
+		if (properties.getProperty(prefix+"lim_temp")!=null)             this.lim_temp=Double.parseDouble(properties.getProperty(prefix+"lim_temp"));
 		if (properties.getProperty(prefix+"sky_expand_extra")!=null)     this.sky_expand_extra=Integer.parseInt(properties.getProperty(prefix+"sky_expand_extra"));
 		if (properties.getProperty(prefix+"sky_bottleneck")!=null)       this.sky_bottleneck=Integer.parseInt(properties.getProperty(prefix+"sky_bottleneck"));
+		if (properties.getProperty(prefix+"sky_reexpand_extra")!=null)   this.sky_reexpand_extra=Integer.parseInt(properties.getProperty(prefix+"sky_reexpand_extra"));
 		if (properties.getProperty(prefix+"min_strength")!=null)         this.min_strength=Double.parseDouble(properties.getProperty(prefix+"min_strength"));
 		if (properties.getProperty(prefix+"lowest_sky_row")!=null)       this.lowest_sky_row=Integer.parseInt(properties.getProperty(prefix+"lowest_sky_row"));
 		if (properties.getProperty(prefix+"sky_bottom_override")!=null)  this.sky_bottom_override=Double.parseDouble(properties.getProperty(prefix+"sky_bottom_override"));
@@ -1461,6 +1509,8 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"disp_boost_diff")!=null)      this.disp_boost_diff=Double.parseDouble(properties.getProperty(prefix+"disp_boost_diff"));
 		if (properties.getProperty(prefix+"disp_boost_neibs")!=null)     this.disp_boost_neibs=Integer.parseInt(properties.getProperty(prefix+"disp_boost_neibs"));
 		if (properties.getProperty(prefix+"disp_boost_amount")!=null)    this.disp_boost_amount=Double.parseDouble(properties.getProperty(prefix+"disp_boost_amount"));
+		if (properties.getProperty(prefix+"scale_combo_strength")!=null) this.scale_combo_strength=Double.parseDouble(properties.getProperty(prefix+"scale_combo_strength"));
+		if (properties.getProperty(prefix+"save_debug_images")!=null)    this.save_debug_images=Boolean.parseBoolean(properties.getProperty(prefix+"save_debug_images"));		
 		
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
@@ -1694,17 +1744,23 @@ public class IntersceneMatchParameters {
 		imp.strong_strength               = this.strong_strength;
 		imp.weak_strength                 = this.weak_strength;
 		
+		imp.sky_recalc =            this.sky_recalc;
 		imp.sky_highest_min =       this.sky_highest_min;
 		imp.cold_frac =             this.cold_frac;
 		imp.hot_frac =              this.hot_frac;
 		imp.cold_scale =            this.cold_scale;
 		imp.sky_seed =              this.sky_seed;
 		imp.lma_seed =              this.lma_seed;
+		imp.seed_temp =             this.seed_temp;
 		imp.sky_shrink =            this.sky_shrink;
 		imp.seed_rows =             this.seed_rows;
+		imp.max_disparity =         this.max_disparity;
+		imp.max_disparity_strength= this.max_disparity_strength;
 		imp.sky_lim =               this.sky_lim;
+		imp.lim_temp =              this.lim_temp;
 		imp.sky_expand_extra =      this.sky_expand_extra;
 		imp.sky_bottleneck =        this.sky_bottleneck;
+		imp.sky_reexpand_extra =    this.sky_reexpand_extra;
 		imp.min_strength =          this.min_strength;
 		imp.lowest_sky_row =        this.lowest_sky_row;
 		imp.sky_bottom_override =   this.sky_bottom_override;
@@ -1714,6 +1770,8 @@ public class IntersceneMatchParameters {
 		imp.disp_boost_diff =       this.disp_boost_diff;
 		imp.disp_boost_neibs =      this.disp_boost_neibs;
 		imp.disp_boost_amount =     this.disp_boost_amount;
+		imp.scale_combo_strength =  this.scale_combo_strength;
+		imp.save_debug_images =     this.save_debug_images;
 		
 		imp.margin                = this.margin;
 		imp.sensor_mask_inter     = this.sensor_mask_inter;

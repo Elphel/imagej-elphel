@@ -385,6 +385,7 @@ public class CLTParameters {
 	public double     photo_offs =                 21946;    // weighted average offset target value, if photo_offs_set (and not photo_offs_balance)
 	
 	public boolean    photo_debug =                   false;// Generate images and text
+	public boolean    photo_each_debug =              false;// Debug after Blue Sky
 	
 	public double     tex_disp_adiffo =               0.10; // 0.35; // 0.3;  disparity absolute tolerance to connect in ortho directions 
 	public double     tex_disp_rdiffo =               0.08; // 0.12; // 0.1;  disparity relative tolerance to connect in ortho directions
@@ -448,6 +449,8 @@ public class CLTParameters {
 	public double     maxZ              = 20000;  // maximal distance to far object
 	public boolean    limitZ            = true;   // limit Z, if false - remove triangle
 	public double     infinityDistance  = 10000;  // Distance to generate backdrop (0 - use regular backdrop)
+	public double     min_from_inf =      500;    // farthest non-infinity closer than infinity
+	
 	public int        min_bgnd_tiles    = 10;     // Minimal number of background tiles to generate background
 
 	public boolean    gltf_emissive =     false; // true;   // Use emissive textures
@@ -1487,6 +1490,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"photo_offs_set",             this.photo_offs_set+"");      // int
 		properties.setProperty(prefix+"photo_offs",                 this.photo_offs+"");          // double
 		properties.setProperty(prefix+"photo_debug",                this.photo_debug+"");         // boolean
+		properties.setProperty(prefix+"photo_each_debug",           this.photo_each_debug+"");         // boolean
 		
 		properties.setProperty(prefix+"tex_disp_adiffo",            this.tex_disp_adiffo+"");     // double
 		properties.setProperty(prefix+"tex_disp_rdiffo",            this.tex_disp_rdiffo+"");     // double
@@ -1551,6 +1555,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"limitZ",                     this.limitZ+"");
 		
 		properties.setProperty(prefix+"infinityDistance",           this.infinityDistance +"");
+		properties.setProperty(prefix+"min_from_inf",               this.min_from_inf +"");
 		properties.setProperty(prefix+"min_bgnd_tiles",             this.min_bgnd_tiles+"");
 
 		properties.setProperty(prefix+"gltf_emissive",              this.gltf_emissive+"");
@@ -2467,6 +2472,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"photo_offs_set")!=null)       this.photo_offs_set=Integer.parseInt(properties.getProperty(prefix+"photo_offs_set"));		
 		if (properties.getProperty(prefix+"photo_offs")!=null)           this.photo_offs=Double.parseDouble(properties.getProperty(prefix+"photo_offs"));
 		if (properties.getProperty(prefix+"photo_debug")!=null)          this.photo_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_debug"));		
+		if (properties.getProperty(prefix+"photo_each_debug")!=null)     this.photo_each_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_each_debug"));		
 		
 		if (properties.getProperty(prefix+"tex_disp_adiffo")!=null)      this.tex_disp_adiffo=Double.parseDouble(properties.getProperty(prefix+"tex_disp_adiffo"));
 		if (properties.getProperty(prefix+"tex_disp_rdiffo")!=null)      this.tex_disp_rdiffo=Double.parseDouble(properties.getProperty(prefix+"tex_disp_rdiffo"));
@@ -2530,6 +2536,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"limitZ")!=null)                        this.limitZ=Boolean.parseBoolean(properties.getProperty(prefix+"limitZ"));
 		
 		if (properties.getProperty(prefix+"infinityDistance")!=null)              this.infinityDistance=Double.parseDouble(properties.getProperty(prefix+"infinityDistance"));
+		if (properties.getProperty(prefix+"min_from_inf")!=null)                  this.min_from_inf=Double.parseDouble(properties.getProperty(prefix+"min_from_inf"));
 		if (properties.getProperty(prefix+"min_bgnd_tiles")!=null)                this.min_bgnd_tiles=Integer.parseInt(properties.getProperty(prefix+"min_bgnd_tiles"));
 		
 		if (properties.getProperty(prefix+"gltf_emissive")!=null)                 this.gltf_emissive=Boolean.parseBoolean(properties.getProperty(prefix+"gltf_emissive"));
@@ -3600,7 +3607,9 @@ public class CLTParameters {
 				"Target weighted (by scales) average offset.");
 		gd.addCheckbox ("Debug photometric calibration",             this.photo_debug,
 				"Generate debug images an text output.");
-		
+		gd.addCheckbox ("Debug photometric calibration 'each'",      this.photo_each_debug,
+				"Generate debug images after Blue Sky.");
+//		
 		gd.addTab         ("3D", "3D reconstruction");
 		gd.addMessage     ("Meshes clustering for texture generation");
 		gd.addNumericField("Ortho tolerance absolute",           this.tex_disp_adiffo, 5,7,"pix",
@@ -3726,6 +3735,8 @@ public class CLTParameters {
 		
 		gd.addNumericField("Distance to a backdrop",               this.infinityDistance,8,8,"m",
 				"Distance to generate backdrop (0 - use regular backdrop).");
+		gd.addNumericField("Minimal distance from backdrop",       this.min_from_inf,8,8,"m",
+				"Minimal distance of the fartest object from backdrop to be resolved.");
 		gd.addNumericField("Minimal background tiles",             this.min_bgnd_tiles,   0,4,"",
 				"Minimal number of background tiles to generate background.");
 		
@@ -4827,6 +4838,7 @@ public class CLTParameters {
 		this.photo_offs_set =     (int) gd.getNextNumber();
 		this.photo_offs =               gd.getNextNumber();
 		this.photo_debug =              gd.getNextBoolean();
+		this.photo_each_debug =         gd.getNextBoolean();
 		
 		this.tex_disp_adiffo =          gd.getNextNumber();
 		this.tex_disp_rdiffo =          gd.getNextNumber();
@@ -4891,6 +4903,7 @@ public class CLTParameters {
 		this.limitZ=                gd.getNextBoolean();
 		
 		this.infinityDistance=      gd.getNextNumber();
+		this.min_from_inf=          gd.getNextNumber();
 		this.min_bgnd_tiles=  (int) gd.getNextNumber();
 		
 		this.gltf_emissive=         gd.getNextBoolean();

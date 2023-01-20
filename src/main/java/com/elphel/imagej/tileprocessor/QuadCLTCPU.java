@@ -86,8 +86,8 @@ import loci.formats.FormatException;
 
 public class QuadCLTCPU {
 	public static final String [] DSI_SUFFIXES = {"-INTER-INTRA-LMA","-INTER-INTRA","-DSI_MAIN"};
-	public static int             INDEX_INTER =     0;
-	public static int             INDEX_INTER_LMA = 1;
+	public static int             INDEX_INTER_LMA = 0;
+	public static int             INDEX_INTER =     1;
 	public static int             INDEX_DSI_MAIN =  2;
 	public static final String [] FGBG_TITLES_ADJ = {"disparity","strength"};
 //	public static final String [] FGBG_TITLES = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str"};
@@ -424,6 +424,8 @@ public class QuadCLTCPU {
 	 * Expansion by 1 is horizontal/vertical only, by 2 includes diagonals,
 	 * and so on. 
 	 *  
+	 * @param max_disparity maximal disparity for the sky area
+	 * @param max_disparity_strength maximal strength of the too high disparity to count
 	 * @param sky_seed minimal value of strength*spread to seed sky areas 
 	 * @param disparity_seed maximal disparity to seed sky areas (not needed for expand) 
 	 * @param sky_lim maximal value of strength*spread over which sky area will
@@ -441,12 +443,17 @@ public class QuadCLTCPU {
 	 * @return boolean 1d array of the pixels belonging to the blue sky.
 	 */
 	public static boolean [] getBlueSky  (
+			double max_disparity,
+			double max_disparity_strength,
 			double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
 			double disparity_seed, //          2.0;  // seed - disparity_lma limit
+			double seed_temp, //         0.5;  // seed colder that this point between min and max temp
 			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+			double lim_temp, //          0.5;  // sky colder that this point between min and max temp
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
 			int    sky_bottleneck, //            
+			int    sky_reexpand_extra,  // 9; re-expand after bottleneck in addition to how it was shrank
 			double cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 			double cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 			double hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -467,7 +474,7 @@ public class QuadCLTCPU {
 			double [] spread,
 			double [] disparity,
 			double [] avg_val,
-			
+			QuadCLT   scene,    // use to save debug images if not null
 			int debugLevel) { // >0 to show
 		if ((strength == null) || (spread==null)) {
 			return null;
@@ -559,9 +566,9 @@ public class QuadCLTCPU {
 		
 		
 		String [] dbg_in_titles =    {"fom", "strength", "spread", "disparity", "avg_val", "tscale"};
-		String [] dbg_titles = {"sky", "seed", "max", "shrank","full_shrank","neck_shrank","reexpand"};
+		String [] dbg_titles = {"sky", "seed", "max", "expanded", "shrank","temp_shrank","neck_shrank","reexpand"};
 		
-		double [][] dbg_img = (debugLevel>0) ? new double [dbg_titles.length][strength.length]:null;
+		double [][] dbg_img = ((debugLevel>0) || (scene != null))? new double [dbg_titles.length][strength.length]:null;
 		TileNeibs tn = new TileNeibs(width,strength.length/width);
 
 		boolean [] sky_tiles =      new  boolean [strength.length];
@@ -600,13 +607,26 @@ public class QuadCLTCPU {
 					dbg_in_titles); //	dsrbg_titles);
 
 		}
-		
-		for (int i = 0; i < sky_tiles.length; i++) {
-			prohibit_tiles[i] = (fom[i] >= sky_lim);
-			sky_tiles[i] = (fom[i] < sky_seed) && !(disparity[i] > disparity_seed);
+		if (scene != null) {
+			scene.saveDoubleArrayInModelDirectory(
+					scene.getImageName() + "-sky_input",
+					dbg_in_titles,          // String []   labels, // or null
+					new double[][] {fom, strength, spread, disparity, avg_val, temp_scales}, // double [][] data,
+					width,                  // int         width,
+					fom.length/width);      // int         height)
 		}
 		
-		
+		double max_temp_seed = temp_cold * (1.0 - seed_temp) + temp_hot * seed_temp;
+		double max_temp_lim =  temp_cold * (1.0 - lim_temp) +  temp_hot * lim_temp;
+		for (int i = 0; i < sky_tiles.length; i++) {
+			prohibit_tiles[i] = (fom[i] >= sky_lim) ||
+					((strength[i] >= max_disparity_strength) && (disparity[i] >= max_disparity)) ||
+					(avg_val[i] >= max_temp_lim);
+			sky_tiles[i] = (fom[i] < sky_seed) &&
+					!(disparity[i] > disparity_seed) &&
+					!prohibit_tiles[i] &&
+					(avg_val[i] < max_temp_seed);
+		}
 		
 		//seed_rows
 		if (dbg_img != null) {
@@ -616,7 +636,7 @@ public class QuadCLTCPU {
 			}			
 		}
 		tn.shrinkSelection(
-				sky_shrink,    // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				sky_shrink,    // int        shrink,
 				sky_tiles,     // boolean [] tiles,
 				null);         // boolean [] prohibit)
 		if (seed_rows > 0) {
@@ -625,7 +645,7 @@ public class QuadCLTCPU {
 		boolean [] seed_sky = sky_tiles.clone();
 		if (dbg_img != null) {
 			for (int i = 0; i < sky_tiles.length; i++) {
-				dbg_img[3][i] = sky_tiles[i]? 1 : 0;
+				dbg_img[4][i] = sky_tiles[i]? 1 : 0;
 			}			
 		}
 		
@@ -641,6 +661,12 @@ public class QuadCLTCPU {
 					sky_tiles,         // boolean [] tiles,
 					null);             // boolean [] prohibit)
 		}
+		if (dbg_img != null) {
+			for (int i = 0; i < sky_tiles.length; i++) {
+				dbg_img[3][i] = sky_tiles[i]? 1 : 0;
+			}			
+		}
+
 		//shrink_neck
 		// Remove leaks through small holes
 		if (sky_bottleneck > 0) {
@@ -654,17 +680,17 @@ public class QuadCLTCPU {
 			}
 			sky_tiles = seed_sky.clone();
 			tn.growSelection(
-					4*width , // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-					sky_tiles,         // boolean [] tiles,
-					prohibit_neck);             // boolean [] prohibit)
+					4*width ,       // int        shrink,
+					sky_tiles,      // boolean [] tiles,
+					prohibit_neck); // boolean [] prohibit)
 			tn.growSelection(
-					sky_bottleneck , // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-					sky_tiles,         // boolean [] tiles,
+					sky_bottleneck + sky_reexpand_extra , // int        shrink,
+					sky_tiles,       // boolean [] tiles,
 					prohibit_tiles);             // boolean [] prohibit)
 			if (dbg_img != null) {
 				for (int i = 0; i < sky_tiles.length; i++) {
-					dbg_img[5][i] = prohibit_neck[i]? 0 : 1;
-					dbg_img[6][i] = sky_tiles[i]?     1 : 0;
+					dbg_img[6][i] = prohibit_neck[i]? 0 : 1;
+					dbg_img[7][i] = sky_tiles[i]?     1 : 0;
 				}
 			}
 			
@@ -686,7 +712,7 @@ public class QuadCLTCPU {
 			}
 			if (dbg_img != null) {
 				for (int i = 0; i < sky_tiles.length; i++) {
-					dbg_img[4][i] = shrank_sky[i]? 1 : 0;
+					dbg_img[5][i] = shrank_sky[i]? 1 : 0;
 				}
 			}			
 		}
@@ -695,13 +721,23 @@ public class QuadCLTCPU {
 			for (int i = 0; i < sky_tiles.length; i++) {
 				dbg_img[0][i] = sky_tiles[i]? 1 : 0;
 			}
-			ShowDoubleFloatArrays.showArrays(
-					dbg_img,
-					width,
-					sky_tiles.length/width,
-					true,
-					"sky_selection",
-					dbg_titles); //	dsrbg_titles);
+			if (debugLevel>0) {
+				ShowDoubleFloatArrays.showArrays(
+						dbg_img,
+						width,
+						sky_tiles.length/width,
+						true,
+						"sky_selection",
+						dbg_titles); //	dsrbg_titles);
+			}
+			if (scene != null) {
+				scene.saveDoubleArrayInModelDirectory(
+						scene.getImageName() + "-sky_selection",
+						dbg_titles,          // String []   labels, // or null
+						dbg_img, // double [][] data,
+						width,                  // int         width,
+						fom.length/width);      // int         height)
+			}
 		}
 		
 		
@@ -722,10 +758,7 @@ public class QuadCLTCPU {
 		}
 		return sky_tiles;
 	}
-//	@Deprecated
-//	public boolean [] getBlueSky () {
-//		return this.blue_sky;
-//	}
+
 	public double [] getDoubleBlueSky() {
 		if (this.dsi == null) {
 			return null;
@@ -770,12 +803,17 @@ public class QuadCLTCPU {
 	
 	
 	public void setBlueSky (
+			double max_disparity,
+			double max_disparity_strength,
 			double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
 			double lma_seed, //          2.0;  // seed - disparity_lma limit
-			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+			double seed_temp, //         0.5;  // seed colder that this point between min and max temp
+			double sky_lim, //   =      15.0;  // then expand to product of strength by diff_second below this
+			double lim_temp, //          0.5;  // sky colder that this point between min and max temp
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
-			int    sky_bottleneck,        // 
+			int    sky_bottleneck,
+			int    sky_reexpand_extra,  // 9; re-expand after bottleneck in addition to how it was shrank
 			double cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 			double cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 			double hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -793,16 +831,22 @@ public class QuadCLTCPU {
 			double [] spread,
 			double [] disp_lma,
 			double [] avg_val,
+			QuadCLT   dbg_scene,    // use to save debug images if not null
 			int debugLevel) {
 		int width = tp.getTilesX();
 //		this.blue_sky = getBlueSky  (
 		setBlueSky(getBlueSky  (
-				sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
-				lma_seed, //          2.0;  // seed - disparity_lma limit
-				sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+				max_disparity,
+				max_disparity_strength,
+				sky_seed,   //  =       7.0;  // start with product of strength by diff_second below this
+				lma_seed,   //          2.0;  // seed - disparity_lma limit
+				seed_temp,  //double seed_temp, //         0.5;  // seed colder that this point between min and max temp
+				sky_lim,    //   =      15.0; // then expand to product of strength by diff_second below this
+				lim_temp,   //double lim_temp, //          0.5;  // sky colder that this point between min and max temp
 				sky_shrink, //  =       4;
 				sky_expand_extra, //  = 100; // 1?
 				sky_bottleneck,        // 
+				sky_reexpand_extra,    // int    sky_reexpand_extra,  // 9; re-expand after bottleneck in addition to how it was shrank				
 				cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 				cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 				hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -821,12 +865,17 @@ public class QuadCLTCPU {
 				spread,
 				disp_lma,
 				avg_val,
+				dbg_scene,    // use to save debug images if not null
 				debugLevel));
 	}
 	public void setDSI(	double [][] dsi) {
 		this.dsi = dsi; // make sure available blue sky is not erased
 	}
 
+	/**
+	 * Sets dsi from combo_dsi. Does not reset blue sky if it does not exist
+	 * @param combo_dsi
+	 */
 	public void setDSIFromCombo(
 			double [][] combo_dsi) {
 		this.dsi = new double [TwoQuadCLT.DSI_SLICES.length][]; // will not have DSI_SPREAD_AUX
@@ -836,8 +885,10 @@ public class QuadCLTCPU {
 				combo_dsi[OpticalFlow.COMBO_DSN_INDX_STRENGTH];
 		this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA] =
 				combo_dsi[OpticalFlow.COMBO_DSN_INDX_LMA];
-		this.dsi[is_aux?TwoQuadCLT.DSI_BLUE_SKY_AUX:TwoQuadCLT.DSI_BLUE_SKY_MAIN] =
-				combo_dsi[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY];
+		if ((combo_dsi.length > OpticalFlow.COMBO_DSN_INDX_BLUE_SKY) && (combo_dsi[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY] != null)) {
+			this.dsi[is_aux?TwoQuadCLT.DSI_BLUE_SKY_AUX:TwoQuadCLT.DSI_BLUE_SKY_MAIN] =
+					combo_dsi[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY];
+		}
 	}
 	
 	
@@ -864,6 +915,67 @@ public class QuadCLTCPU {
 		return num_slices >= 0;
 	}
 
+	@Deprecated
+	public int restoreInterDSI(boolean silent) {
+		for (int indx: new int[]{INDEX_INTER_LMA, INDEX_INTER}) {
+			int num_slices = restoreDSI(
+					DSI_SUFFIXES[indx], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+					null, // double [][] dsi, // if null - just check file exists
+					true); // boolean silent);
+			if (num_slices >= 0) {
+				this.dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+				return restoreDSI(
+						DSI_SUFFIXES[indx], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+						dsi,     // double [][] dsi, // if null - just check file exists
+						silent); // boolean silent);
+			}
+		}
+		return 0;
+	}
+	
+	/**
+	 * Tries to read combo DSI, if successful - sets this.dsi and blue sky
+	 * @param silent
+	 * @return combo DSI if read, null if failed to read. Result has full lenghth
+	 *               (OpticalFlow.COMBO_DSN_TITLES.length), missing slices are null
+	 */
+	public double [][] restoreComboDSI (boolean silent) {
+		double [][] combo_dsi = new double [OpticalFlow.COMBO_DSN_TITLES.length][];
+		for (int indx: new int[]{INDEX_INTER_LMA, INDEX_INTER}) {
+			int num_slices = restoreDSI(
+					DSI_SUFFIXES[indx], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+					combo_dsi,          // double [][] dsi, // if null - just check file exists
+					silent);            // boolean silent);
+			if (num_slices >= 0) {
+				System.out.println ("restoreComboDSI(): used "+getX3dDirectory()+ Prefs.getFileSeparator() + image_name + DSI_SUFFIXES[indx] + ".tiff");
+				setDSIFromCombo(combo_dsi); // reformat
+				return combo_dsi;
+			}
+		}
+		return null;
+	}
+
+	public double [][] readComboDSI (boolean silent) {
+		double [][] combo_dsi = new double [OpticalFlow.COMBO_DSN_TITLES.length][];
+		for (int indx: new int[]{INDEX_INTER_LMA, INDEX_INTER}) {
+			int num_slices = restoreDSI(
+					DSI_SUFFIXES[indx], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+					combo_dsi,          // double [][] dsi, // if null - just check file exists
+					silent);            // boolean silent);
+			if (num_slices >= 0) {
+				System.out.println ("readComboDSI(): used "+getX3dDirectory()+ Prefs.getFileSeparator() +
+						image_name + DSI_SUFFIXES[indx] + ".tiff, instance.dsi and blue sky are not updated!");
+				setDSIFromCombo(combo_dsi); // reformat
+				return combo_dsi;
+			}
+		}
+		return null;
+	}
+	
+	
+	
+	
+	
 	public int restoreDSI(
 			String suffix,
 			boolean silent) // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
@@ -933,7 +1045,11 @@ public class QuadCLTCPU {
 			}
 			return -1;
 		}
-		System.out.println("restoreDSI(): got "+imp.getStackSize()+" slices from file: "+file_path);
+		if (dsi == null) {
+			System.out.println("restoreDSI(): has "+imp.getStackSize()+" slices in file: "+file_path);
+		} else {
+			System.out.println("restoreDSI(): got "+imp.getStackSize()+" slices from file: "+file_path);
+		}
 		if (imp.getStackSize() < 2) {
 			if (!silent) {
 				System.out.println ("Failed to read "+file_path);
@@ -1249,6 +1365,7 @@ public class QuadCLTCPU {
 		return rgba;
 	}
 	
+
 	public QuadCLTCPU restoreFromModel( // restores dsi
 			CLTParameters        clt_parameters,
 			ColorProcParameters  colorProcParameters,
@@ -1715,13 +1832,10 @@ public class QuadCLTCPU {
 	}
 
 	
-	
-	
 	public double [][] readDoubleArrayFromModelDirectory(
 			String      suffix,
 			int         num_slices, // (0 - all)
-			int []      wh
-			)
+			int []      wh)
 	{
 //		final int [] image_wh = geometryCorrection.getSensorWH();
 		String x3d_path = getX3dDirectory();

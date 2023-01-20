@@ -572,6 +572,10 @@ public class TexturedModel {
 			final int             tilesX,
 			int             debugLevel_in)
 	{
+		if ((debugLevel_in > -2) && is_sky_cluster) {
+			System.out.println("buildTileCluster(): processing sky clusterm cluster_list.size()="+cluster_list.size());
+		}
+
 		final int dbg_tile = -2410; // 858; // -3868; // 28+48*80;
 		//		final int       num_layers = disparity_layers.length;
 		final int        tiles =        source_disparity.length;
@@ -1417,6 +1421,9 @@ public class TexturedModel {
 			}
 			// next_seed_tile_layer is now {tile, layer}
 			final boolean is_sky_cluster = (next_seed_tile_layer[1] == blue_sky_layer) &&  blue_sky[next_seed_tile_layer[0]];
+			if ((debugLevel > -2) && is_sky_cluster) {
+				System.out.println("clusterizeFgBg(): processing sky clusterm cluster_list.size()="+cluster_list.size());
+			}
 			double [] cluster_initial_disparity = buildInitialCluster(
 					disparity_layers,        // final double [][]     disparity_layers, // should not have same tile disparity on multiple layers
 			        seams_layers,            // final int [][]        seams_layers,
@@ -1655,7 +1662,7 @@ public class TexturedModel {
 		final boolean showTri =          !batch_mode && (debugLevel > -1) && (clt_parameters.show_triangles);
 		final boolean disp_hires_tri =   !batch_mode && clt_parameters.tex_disp_hires_tri;
 		final int dbg_scale_mesh =        clt_parameters.tex_dbg_scale_mesh; //  4; // <=0 - do not show
-		
+///		final double min_non_inf = 0.01; // relative to infinity disparity
 		
 		
 		final int sky_layer = 0; // source disparity layer that contains "blue sky" 
@@ -1668,6 +1675,7 @@ public class TexturedModel {
 			return false; // not used in lwir
 		}
 		double infinity_disparity = 	ref_scene.getGeometryCorrection().getDisparityFromZ(clt_parameters.infinityDistance);
+		double min_obj_disparity = ref_scene.getGeometryCorrection().getDisparityFromZ(clt_parameters.infinityDistance-clt_parameters.min_from_inf);
 		X3dOutput x3dOutput = null;
 		WavefrontExport    wfOutput = null; 
 		ArrayList<TriMesh> tri_meshes = null; 
@@ -1683,17 +1691,17 @@ public class TexturedModel {
 			System.out.println("As there was a problem with (wrong?) blue sky setting strength to 0.0001");
 			combo_dsn_final = null;
 		}
-		if (combo_dsn_final == null) {
-			combo_dsn_final =scenes[ref_index].readDoubleArrayFromModelDirectory(
-					"-INTER-INTRA-LMA", // String      suffix,
-					0,                  // int         num_slices, // (0 - all)
-					null);              // int []      wh);
+		if (combo_dsn_final == null) { // does not set scene.dsi from file !!!
+			combo_dsn_final =scenes[ref_index].restoreComboDSI(true);  // also sets quadCLTs[ref_index].dsi and blue sky
 		}
 		boolean [] sky_tiles =  new boolean[combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY].length];
-		boolean [] sky_invert = new boolean[combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY].length];
+		int num_sky_tiles = 0;
 		for (int i = 0; i < sky_tiles.length; i++) {
 			sky_tiles[i] = combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY][i] > 0.0;
-			sky_invert[i] =  !sky_tiles[i]; // not used
+			num_sky_tiles += sky_tiles[i]? 1: 0; 
+		}
+		if (debugLevel > -2) {
+			System.out.println("output3d(): num_sky_tiles="+num_sky_tiles);
 		}
 		// re-load , should create quadCLTs[ref_index].dsi
 		double [][] dls_fg = {
@@ -1703,18 +1711,19 @@ public class TexturedModel {
 		};
 		
 		// currently conditionInitialDS() zeroes disparity for blue_sky. TODO: allow some FG over blue_sky?
+		// gets Blue Sky from scene.dsi , not from the file!
 		double [][] ds_fg = OpticalFlow.conditionInitialDS(
-				true, // boolean        use_conf,       // use configuration parameters, false - use following  
+				true,                // boolean        use_conf,       // use configuration parameters, false - use following  
 				clt_parameters,      // CLTParameters  clt_parameters,
-				dls_fg,                 // double [][]    dls
-				scenes[ref_index], // QuadCLT        scene,
+				dls_fg,              // double [][]    dls
+				scenes[ref_index],   // QuadCLT        scene,
 				debugLevel);         // int debug_level)
 		double [][] dls_bg = {
 				combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP_BG].clone(),
 				combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_LMA_BG].clone(),
 				combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_STRENGTH_BG].clone()
 		};
-		for (int i = 0; i < sky_tiles.length; i++) if (Double.isNaN(dls_bg[0][i])){
+		for (int i = 0; i < dls_bg[0].length; i++) if (Double.isNaN(dls_bg[0][i])){
 			dls_bg[0][i] = dls_fg[0][i];
 			dls_bg[1][i] = dls_fg[1][i];
 			dls_bg[2][i] = dls_fg[2][i];
@@ -1726,11 +1735,37 @@ public class TexturedModel {
 				scenes[ref_index], // QuadCLT        scene,
 				debugLevel);         // int debug_level)
 		double[][] ds_fg_bg = {ds_fg[0], ds_bg[0].clone()}; 
-		for (int i = 0; i < sky_tiles.length; i++) {
+		for (int i = 0; i < dls_bg[0].length; i++) {
 			if (Math.abs(ds_fg_bg[1][i]-ds_fg_bg[0][i]) < tex_fg_bg) {
 				ds_fg_bg[1][i] = Double.NaN;
 			}
 		}
+		if (debugLevel > -2) {
+			System.out.println("Limiting non-infinity objects' disparity to "+min_obj_disparity+
+					", infinity_disparity = "+infinity_disparity);
+		}
+		for (int nl = 0; nl < ds_fg_bg.length; nl++) {
+			for (int i = 0; i < dls_bg[nl].length; i++) {
+				if ((nl != sky_layer) || !sky_tiles[i]) {
+					if (ds_fg_bg[nl][i] < min_obj_disparity) {
+						ds_fg_bg[nl][i] = min_obj_disparity;
+					}
+				}
+			}
+		}
+		
+		if (debugLevel > -2) { // was > 0
+			String [] dbg_titles = {"FG","BG","BS"};
+			double [][] dbg_img = {ds_fg_bg[0], ds_fg_bg[1],combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_BLUE_SKY]};
+			ShowDoubleFloatArrays.showArrays(
+					dbg_img,
+					tilesX,
+					dbg_img[0].length/tilesX,
+					true,
+					ref_scene.getImageName()+"-disparity_layers",
+					dbg_titles);
+		}
+		
 		// Create data for consolidated textures (multiple texture segments combined in same "passes" 
 		TileCluster [] tileClusters = clusterizeFgBg( // wrong result type, not decided
 				tilesX,            // final int          tilesX,
@@ -1951,7 +1986,9 @@ public class TexturedModel {
 				boolean [] scan_selected = tileClusters[nslice].getSubSelected(sub_i); // limited to cluster bounds
 				int [] scan_border_int =   tileClusters[nslice].getSubBorderInt(sub_i); // limited to cluster bounds
 				int    max_border =        tileClusters[nslice].getBorderIntMax();
-
+				boolean is_sky = tileClusters[nslice].isSky();
+				double min_disparity = is_sky? infinity_disparity : min_obj_disparity;
+				
 				// skipping averaging disparity for a whole cluster (needs strength and does not seem to be useful)
 				try {
 					if (alpha == null) {
@@ -2008,7 +2045,7 @@ public class TexturedModel {
 								((dbg_mesh_imgs != null) ? dbg_mesh_imgs[nslice]:null),  //   double []       tri_img,   //
 								dbg_scaled_width,       // int             tri_img_width,
 								// FIXME: make a separate parameter:
-								infinity_disparity,            //  0.25 * clt_parameters.bgnd_range,  // 0.3
+								infinity_disparity,            //min_disparity, // infinity_disparity,            //  0.25 * clt_parameters.bgnd_range,  // 0.3
 								clt_parameters.grow_disp_max,  // other_range, // 2.0 'other_range - difference from the specified (*_CM)
 								clt_parameters.maxDispTriangle,
 							    clt_parameters.maxZtoXY,       // double          maxZtoXY,       // 10.0. <=0 - do not use
@@ -3663,7 +3700,8 @@ public class TexturedModel {
 					sky_pixels,               // final double [] data,
 					null,                     // final boolean [] prohibit,
 					sky_pixels_bounds.width,  // int       width,
-					3 * Math.min(sky_pixels_bounds.width,sky_pixels_bounds.height) / 2, // 16,           // final int grow,
+//					3 * Math.min(sky_pixels_bounds.width,sky_pixels_bounds.height) / 2, // 16,           // final int grow,
+					2 * Math.max(sky_pixels_bounds.width,sky_pixels_bounds.height), // 16,           // final int grow,
 					0.7,                      // double    diagonal_weight, // relative to ortho
 					100,                      // int       num_passes,
 					0.01,                     // final double     max_rchange, //  = 0.01

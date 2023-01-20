@@ -8687,6 +8687,9 @@ ImageDtt.startAndJoin(threads);
 			Arrays.fill(all_nan, Double.NaN);
  			return all_nan;
 		}
+		if (davg2 == 0) {
+			davg2 = 1; // for sky with disparity ==0
+		}
 		final double fdavg = davg;
 		final double max_change = Math.abs(davg2 * max_rchange);
 

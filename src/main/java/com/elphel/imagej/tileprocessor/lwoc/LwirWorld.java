@@ -209,10 +209,15 @@ public class LwirWorld {
  		double cold_scale =          clt_parameters.imp.cold_scale;
  		double sky_seed =            clt_parameters.imp.sky_seed;
  		double lma_seed =            clt_parameters.imp.lma_seed;
+		double seed_temp =           clt_parameters.imp.seed_temp;
  		int    sky_shrink =          clt_parameters.imp.sky_shrink;
  		int    sky_bottleneck =      clt_parameters.imp.sky_bottleneck;
+ 		int    sky_reexpand_extra =  clt_parameters.imp.sky_reexpand_extra;
  		int    seed_rows =           clt_parameters.imp.seed_rows;
+ 		double max_disparity =       clt_parameters.imp.max_disparity;
+ 		double max_disparity_strength=clt_parameters.imp.max_disparity_strength;
  		double sky_lim =             clt_parameters.imp.sky_lim;
+		double lim_temp =            clt_parameters.imp.lim_temp;
  		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
  		double min_strength =        clt_parameters.imp.min_strength;
  		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
@@ -366,13 +371,19 @@ public class LwirWorld {
 					System.out.println("(Re)using photometric calibration from this sequence reference "+quadCLTs[ref_index].getPhotometricScene());
 					quadCLTs[ref_index].setQuadClt(); // just in case ?
 				}
+				QuadCLT   dbg_scene = clt_parameters.imp.save_debug_images? quadCLTs[ref_index]: null; // use to save debug images if not null
 				quadCLTs[ref_index].setBlueSky  (
+						max_disparity,
+						max_disparity_strength,
 						sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
 						lma_seed,
+						seed_temp,     //double seed_temp, //         0.5;  // seed colder that this point between min and max temp						
 						sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+						lim_temp, //						double lim_temp, //          0.5;  // sky colder that this point between min and max temp		
 						sky_shrink,         // int    sky_shrink, //  =       4;
 						sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
-						sky_bottleneck,     //int    sky_bottleneck, // 
+						sky_bottleneck,     //int    sky_bottleneck, //
+						sky_reexpand_extra,   //int    sky_reexpand_extra,  // 9; re-expand after bottleneck in addition to how it was shrank
 						cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 						cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 						hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -390,6 +401,7 @@ public class LwirWorld {
 						dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
 						dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], // double [] spread,
 						dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
+						dbg_scene,          // QuadCLT   dbg_scene,    // use to save debug images if not null
 						batch_mode? -1: 1); /// debugLevel);        // int debugLevel)
 				if (ran_photo_each) {
 					double []  blue_sky = quadCLTs[ref_index].getDoubleBlueSky();
@@ -464,13 +476,19 @@ public class LwirWorld {
 				if (dsi[TwoQuadCLT.DSI_SPREAD_AUX] == null) {
 					System.out.println("DSI_MAIN file has old format and does not have spread data, will recalculate.");
 				} else {
+					QuadCLT   dbg_scene = clt_parameters.imp.save_debug_images? quadCLTs[ref_index]: null; // use to save debug images if not null
 					quadCLTs[ref_index].setBlueSky  (
+							max_disparity,
+							max_disparity_strength,
 							sky_seed,                              // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
 							lma_seed,                              //          2.0;  // seed - disparity_lma limit
-							sky_lim,                               // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+							seed_temp,     //double seed_temp, //         0.5;  // seed colder that this point between min and max temp						
+							sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+							lim_temp, //						double lim_temp, //          0.5;  // sky colder that this point between min and max temp		
 							sky_shrink,                            // int    sky_shrink, //  =       4;
 							sky_expand_extra,                      // int    sky_expand_extra, //  = 100; // 1?
 							sky_bottleneck,       //int    sky_bottleneck, // 
+							sky_reexpand_extra,   //int    sky_reexpand_extra,  // 9; re-expand after bottleneck in addition to how it was shrank
 							cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
 							cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
 							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
@@ -488,12 +506,12 @@ public class LwirWorld {
 							dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
 							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], //double [] disp_lma,
 							dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
+							dbg_scene,          // QuadCLT   dbg_scene,    // use to save debug images if not null
 							debugLevel);        // int debugLevel)
 				}
 			}
 		} // while (blue_sky == null) 
  /* */
-    	
     	return null;
     }
 }
