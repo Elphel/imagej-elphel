@@ -8635,12 +8635,146 @@ ImageDtt.startAndJoin(threads);
 		return -1;
 	}
 
-	
+	/**
+	 * Helper method for fillNaNs() - scaling down input data to first fill low-res array
+	 * of tiles as initial approximation for filling large NaN areas.
+	 * @param data       data with NaN-s to be replaced
+	 * @param prohibit   optional (may be null) array that discards data pixels from processing 
+	 * @param tile_size  tile size - reciprocal to the scale 
+	 * @param width      input data[] width in pixels (height = data.length/width)
+	 * @param threadsMax maximal number of threads to use
+	 * @return scaled down data[]. Each item (tile) is average of the corresponding data[] pixels
+	 *         or NaN if it has no non-NaN pixels in a tile.       
+	 */
+	public static double [] fillNaNsScaleDown(
+			final double []  data,
+			final boolean [] prohibit,
+			final int        tile_size,
+			int              width,
+			final int        threadsMax) {      // maximal number of threads to launch
+		int height = data.length/width;
+		int tilesX = (width + tile_size - 1) / tile_size; // round up
+		int tilesY = (height + tile_size - 1) / tile_size; // round up
+		double [] data_scaled = new double [tilesX * tilesY];
+		Arrays.fill(data_scaled, Double.NaN);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int tile = ai.getAndIncrement(); tile < data_scaled.length; tile = ai.getAndIncrement()) {
+						int npix = 0;
+						double sum_pix = 0.0;
+						int tileX = tile % tilesX;
+						int tileY = tile / tilesX;
+						int indx0 = (tileX + tileY * width) * tile_size;
+						int lim_dy = Math.min(tile_size, height - tileY * tile_size);
+						int lim_dx = Math.min(tile_size, width -  tileX * tile_size);
+						for (int dy = 0; dy < lim_dy; dy++) {
+							int indx1 = indx0 + dy * width;
+							for (int dx = 0; dx < lim_dx; dx++) {
+								int indx = indx1 + dx;
+								double d = data[indx];
+								if (!Double.isNaN(d) && ((prohibit == null) || !prohibit[indx])) {
+									npix++;
+									sum_pix += d;
+								}
+							}
+						}
+						if (npix > 0) {
+							data_scaled[tile] = sum_pix/npix;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return data_scaled;
+	}
 
+	/**
+	 * Generate a hint for a final replacing NaN with averaging neighbors (Laplassian). Replace all
+	 * NaN in input data[] with the corresponding values from the matching low-res data_scaled[].
+	 * @param data        full resolution input data containing NaN values to be replaced. This array
+	 *                    is MODIFIED by this method
+	 * @param data_scaled low-resolution data with NaN already filled with fillNaNs() for scaled
+	 *                    down data (tiles)
+	 * @param prohibit    optional (may be null) array indicating which data[] pixels to be ignored
+	 * @param tile_size   tile size - reciprocal to the scale down of data_scaled
+	 * @param width       input data[] width in pixels (height = data.length/width)
+	 * @param threadsMax  maximal number of threads to use
+	 */
+	public static void fillNaNsScaleUp(
+			final double []  data, // will be replaced
+			final double []  data_scaled,
+			final boolean [] prohibit,
+			final int        tile_size,
+			int              width,
+			final int        threadsMax) {      // maximal number of threads to launch
+		int tilesX = (width + tile_size - 1) / tile_size; // round up
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int pix = ai.getAndIncrement(); pix < data.length; pix = ai.getAndIncrement()) {
+						if (Double.isNaN(data[pix]) && ((prohibit == null) || !prohibit[pix])) {
+							int px = pix % width;
+							int py = pix / width;
+							int tileX = px / tile_size;
+							int tileY = py / tile_size;
+							data[pix] = data_scaled[tileX + tileY * tilesX];
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return;
+	}
+	
+	
+	public static boolean [] fillNaNsGetFixed(
+			final double []  data,
+			final boolean [] prohibit,
+			final int        threadsMax) {     // maximal number of threads to launch
+		final boolean [] fixed = new boolean [data.length];
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		if (prohibit == null) {
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int pix = ai.getAndIncrement(); pix < data.length; pix = ai.getAndIncrement()) {
+						if (!Double.isNaN(data[pix])) {
+							fixed[pix] = true;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		} else {
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int pix = ai.getAndIncrement(); pix < data.length; pix = ai.getAndIncrement()) {
+							if (!Double.isNaN(data[pix]) && !prohibit[pix]) {
+								fixed[pix] = true;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return fixed;
+	}
+	
 	/**
 	 * Fill NaN values in 2D array from neighbors using Laplassian==0
 	 * @param data            data array (in line-scan order) with NaN values to be filled,
-	 *                        non-NaN values will not be modified. 
+	 *                        non-NaN values will not be modified.
 	 * @param prohibit        optional (may be null) boolean array of the same size specifying
 	 *                        prohibited pixels.
 	 * @param width           data width (height = data.length/width) 
@@ -8662,21 +8796,72 @@ ImageDtt.startAndJoin(threads);
 			final double     max_rchange, //  = 0.01
 			final int        threadsMax)      // maximal number of threads to launch                         
 	{
+		return fillNaNs(
+				data,            // final double []  data,
+				null,            // final double []  data_nan,
+				prohibit,        // final boolean [] prohibit_in,
+		        width,           // int              width,
+				grow,            // final int        grow,
+				diagonal_weight, //double           diagonal_weight, // relative to ortho
+				num_passes,      // int              num_passes,
+				max_rchange,     // final double     max_rchange, //  = 0.01
+				threadsMax);     // final int        threadsMax)
+	}
+
+	/**
+	 * Fill NaN values in 2D array from neighbors using Laplassian==0
+	 * @param data            data array (in line-scan order) with NaN values to be filled,
+	 *                        non-NaN values will not be modified.
+	 * @param data_nan        optional "original" data with NaN values to be replaced. If null,
+	 *                        (single-pass) the data[] array will be used
+	 * @param prohibit_in     optional (may be null) boolean array of the same size specifying
+	 *                        prohibited pixels.
+	 * @param width           data width (height = data.length/width) 
+	 * @param grow            limit area to process by expanding defined pixel area.
+	 * @param diagonal_weight weight of 4 diagonal neighbors relative to 4 ortho ones.
+	 * @param num_passes      maximal number of iterations.
+	 * @param max_rchange     max relative (to data RMS) step change to exit iterations.
+	 * @param threadsMax      maximal number of concurrent threads to launch. 
+	 * @return                data array made of input data with replaced NaN limited by
+	 *                        optional prohibit array and amount of growth. 
+	 */
+	public static double [] fillNaNs(
+			final double []  data,
+			final double []  data_nan, // only modify tiles that are not fixed
+			final boolean [] prohibit,
+			int              width,
+			final int        grow,
+			double           diagonal_weight, // relative to ortho
+			int              num_passes,
+			final double     max_rchange, //  = 0.01
+			final int        threadsMax)      // maximal number of threads to launch                         
+	{
 		int height = data.length/width;
 		double wdiag = 0.25 *diagonal_weight / (diagonal_weight + 1.0);
 		double wortho = 0.25 / (diagonal_weight + 1.0);
 		final double [] neibw = {wortho, wdiag, wortho, wdiag, wortho, wdiag, wortho, wdiag}; 
 		final int tiles = width * height;
-		final boolean [] fixed = new boolean [tiles]; // Original non-NaN, will not be modified
+		final boolean [] fixed = new boolean [tiles];
 		int num_fixed = 0;
 		double davg =   0.0; // average of all fixed samples
 		double davg2 =  0.0; // average of all fixed samples
-		for (int i = 0; i < tiles; i++)	{
-			if (!Double.isNaN(data[i])) {
-				fixed[i] = true;
-				num_fixed ++;
-				davg += data[i];
-				davg2 += data[i] * data[i];
+		if (data_nan == null) {
+			for (int i = 0; i < tiles; i++)	{
+				if (!Double.isNaN(data[i])) {
+					fixed[i] = true;
+					num_fixed ++;
+					davg += data[i];
+					davg2 += data[i] * data[i];
+				}
+			}
+		} else {
+			for (int i = 0; i < tiles; i++)	{
+				if (!Double.isNaN(data[i]) && !Double.isNaN(data_nan[i])) {
+					fixed[i] = true;
+					num_fixed ++;
+					davg += data[i];
+					davg2 += data[i] * data[i];
+				}
 			}
 		}
 		if (num_fixed > 0) {
@@ -8721,36 +8906,38 @@ ImageDtt.startAndJoin(threads);
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger ati = new AtomicInteger(0);
-//Set initial values		
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				public void run() {
-					for (int iTile = ai.getAndIncrement(); iTile < active.length; iTile = ai.getAndIncrement()) {
-						int nt = active[iTile];
-						double s = 0.0;
-						int n = 0;
-						for (int dy = -scan0; dy <= scan0; dy++) {
-							for (int dx = -scan0; dx <= scan0; dx++) {
-								int nt1 = tn.getNeibIndex(nt, dx, dy);
-								if ((nt1 >=0) && fixed[nt1]) {
-									s += data[nt1];
-									n++;
+//Set initial values - only if fixed[] was not provided
+		if (data_nan == null) {
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int iTile = ai.getAndIncrement(); iTile < active.length; iTile = ai.getAndIncrement()) {
+							int nt = active[iTile];
+							double s = 0.0;
+							int n = 0;
+							for (int dy = -scan0; dy <= scan0; dy++) {
+								for (int dx = -scan0; dx <= scan0; dx++) {
+									int nt1 = tn.getNeibIndex(nt, dx, dy);
+									if ((nt1 >=0) && fixed[nt1]) {
+										s += data[nt1];
+										n++;
+									}
 								}
 							}
-						}
-						if (n > 0) {
-							data_io[0][nt] = s/n;
-						} else {
-							data_io[0][nt] = fdavg;
+							if (n > 0) {
+								data_io[0][nt] = s/n;
+							} else {
+								data_io[0][nt] = fdavg;
+							}
 						}
 					}
-				}
-			};
-		}		      
-		ImageDtt.startAndJoin(threads);
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		} else {
+			data_io[0] = data.clone(); // just use original "hint" data
+		}
 		data_io[1] = data_io[0].clone();
-		
-		
 		final double [] last_change = new double [threads.length];
 		for (int pass = 0; pass < num_passes; pass ++) {
 			ai.set(0);
@@ -8769,12 +8956,6 @@ ImageDtt.startAndJoin(threads);
 								
 								if ((nt1 >=0) && grown[nt1]) {
 									s += data_io[0][nt1] * neibw[dir];
-/*								    if (fixed[nt1]) {
-										s += data[nt1] * neibw[dir];
-									} else {
-										s += data_io[0][nt1] * neibw[dir];
-									}
-*/
 									sw += neibw[dir];
 								}
 							}
@@ -8792,7 +8973,9 @@ ImageDtt.startAndJoin(threads);
 				multi_change = Math.max(multi_change, last_change[i]);
 			}
 			boolean done = (pass >= (num_passes - 1)) || (multi_change < max_change);
-//			System.out.println("fillNaNs(): pass="+pass+" change="+multi_change+" done="+done);
+			if (data_nan != null) {
+				System.out.println("fillNaNs(): pass="+pass+" change="+multi_change+" done="+done);
+			}
 			if (done) {
 				break;
 			} else { // swap data_io[0] <--> data_io[1]
@@ -8804,9 +8987,8 @@ ImageDtt.startAndJoin(threads);
 //		System.out.println("fillNaNs(): done");;
 		return data_io[1];
 	}
-
 	
-
+	
 
 	/* Create a Thread[] array as large as the number of processors available.
 	 * From Stephan Preibisch's Multithreading.java class. See:

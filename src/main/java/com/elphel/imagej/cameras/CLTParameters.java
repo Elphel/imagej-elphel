@@ -520,6 +520,7 @@ public class CLTParameters {
 	public boolean       lre_show_textures_slice =     false; //true;
 	public boolean       lre_show_textures_combo =     false; //true;
 	public boolean       lre_show_textures_tiles =     false; //true;
+	public boolean       lre_show_sky_textures =       false; //true;
 	
 	public double     pt_super_trust   = 1.6;   // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
 	public boolean    pt_keep_raw_fg   = true;  // Do not replace raw tiles by the plates, if raw is closer (like poles)
@@ -1626,6 +1627,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"lre_show_textures_combo",    this.lre_show_textures_combo+"");    // boolean 
 		properties.setProperty(prefix+"lre_show_textures_tiles",    this.lre_show_textures_tiles+"");    // boolean 
 		
+		properties.setProperty(prefix+"lre_show_sky_textures",      this.lre_show_sky_textures+"");    // boolean 
+
 		properties.setProperty(prefix+"pt_super_trust",             this.pt_super_trust +"");
 		properties.setProperty(prefix+"pt_keep_raw_fg",             this.pt_keep_raw_fg+"");
 		properties.setProperty(prefix+"pt_scale_pre",               this.pt_scale_pre +"");
@@ -2607,6 +2610,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"lre_show_textures_combo")!=null)    this.lre_show_textures_combo=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_combo"));// boolean 
 		if (properties.getProperty(prefix+"lre_show_textures_tiles")!=null)    this.lre_show_textures_tiles=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_tiles"));// boolean
 
+		if (properties.getProperty(prefix+"lre_show_sky_textures")!=null)      this.lre_show_sky_textures=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_sky_textures"));// boolean
 		
 		if (properties.getProperty(prefix+"pt_super_trust")!=null)                this.pt_super_trust=Double.parseDouble(properties.getProperty(prefix+"pt_super_trust"));
 		if (properties.getProperty(prefix+"pt_keep_raw_fg")!=null)                this.pt_keep_raw_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pt_keep_raw_fg"));
@@ -3853,10 +3857,12 @@ public class CLTParameters {
 				"Show single image with eacch slice alpha modification steps.");
 		gd.addCheckbox ("Show per-slice texture calculation",     this.lre_show_textures_slice,    //  false; 
 				"Show individual per-slice debug images for textures calculation.");
-		gd.addCheckbox ("Show all-slice combined images",             this.lre_show_textures_combo, // false;
+		gd.addCheckbox ("Show all-slice combined images",         this.lre_show_textures_combo, // false;
 				"Show all-slice combined images for textures calculation.");
-		gd.addCheckbox ("Show tile-resolution images",             this.lre_show_textures_tiles, //  false;
+		gd.addCheckbox ("Show tile-resolution images",            this.lre_show_textures_tiles, //  false;
 				"Show all-slices texture debug images with tile resolution (80x64 for Boson 640).");
+		gd.addCheckbox ("Show sky/backdrop texture expanding",    this.lre_show_sky_textures, //  false;
+				"Show how sky/backdrop texture is cut and extrapolated.");
 		
 		gd.addTab ("Plates", "Plates filtering when building initial z-map");
 		gd.addMessage     ("********* Plates filtering when building initial z-map *********");
@@ -4970,9 +4976,10 @@ public class CLTParameters {
 		this.lre_show_update_alpha_combo=  gd.getNextBoolean(); // boolean 
 		this.lre_show_textures_slice=      gd.getNextBoolean(); // boolean 
 		this.lre_show_textures_combo=      gd.getNextBoolean(); // boolean 
-		this.lre_show_textures_tiles=      gd.getNextBoolean(); // boolean       
-		// end of gd.addtab     ("Lateral resolution enhancement");                                                                            
+		this.lre_show_textures_tiles=      gd.getNextBoolean(); // boolean
+		this.lre_show_sky_textures=        gd.getNextBoolean(); // boolean   
 		
+		// end of gd.addtab     ("Lateral resolution enhancement");                                                                            
 		
 		this.pt_super_trust=        gd.getNextNumber();
 		this.pt_keep_raw_fg=        gd.getNextBoolean();
