@@ -398,6 +398,12 @@ public class CLTParameters {
 	public double     tex_disp_rdiffj =               0.08; // maximal relative disparity difference for the "jumps". 
 	
 	public double     tex_fg_bg =                     0.1;  // Minimal FG/BG disparity difference (NaN bg if difference from FG < this)
+	
+	public double     tex_disp_over_sky =             0.1;  // change extended BS (by  tex_max_neib_lev) far tile to BS
+	public double     tex_str_over_sky =              0.7;  // change extended BS (by  tex_max_neib_lev) weak tile to BS  
+	public boolean    tex_require_lma =             true;   // require strong tile to have LMA 
+	
+	
 	public double     tex_distort =                   0.8;  // Maximal texture distortion to accumulate multiple scenes (0 - any)
 	public double     tex_mb =                        1.0;  // Reduce texture weight if motion blur exceeds this (as square of MB length)
 	
@@ -406,6 +412,7 @@ public class CLTParameters {
 	public int        tex_max_neib_lev =              2;    // 1 - single tiles layer around, 2 - two layers
 	public boolean    tex_split_textures =          false;  // (debugLevel > 1000); // false;
 	public int        tex_subdiv_tiles =              4;    // subdivide tiles to smaller triangles
+	public int        tex_sky_extra =                 2;    // additionally grow sky area (in layers) without marking as sky
 	public int        tex_sky_below =                10;    // extend sky these tile rows below lowest
 
 	// gd.addMessage     ("Triangular mesh");
@@ -511,6 +518,15 @@ public class CLTParameters {
 	public double        lre_weight_neib =          3.0; // 2.0; // 1.0;  // weight of same neighbors - add to cost multiplied by num_neib-4
 	public double        lre_weight_bg =            0.9; // 0.8; // 1.0; // 15.0/16; // 1.0;  // weight of BG cost relative to the FG one
 	public double        lre_best_dir_frac =        0.6;  // for BG - use this fraction of all sensors in the best direction
+	
+	//"Trimming by temperature (tone)
+	
+	public boolean       lre_use_min_max =         true;  // when trimming by tone, use min/max of the FG/BG instead of weighted averages 
+	public double        lre_temp_radius =         11.5;  // How far to look around for FG trimming by temperature
+	public int           lre_temp_min =             2;    // Minimal number of each of FG/BG while trimming by temperature
+	public double        lre_temp_weight =         20.0;  // Multiply -1.0..+1.0 range of the current pixel between average BG(-1) and FG(+1)
+	public double        lre_min_use_occl =         1.5;  // Minimal FG/BG difference to use trimming by occlusions. For lower use only temperature/tone
+	public double        lre_temp_disparity =       3.0;  // FG-BG disparity where weight of cost by obscuring equals weight of cost by temp   
 	public double        lre_cost_min =             1.0;  // minimal absolute value of the total cost to make changes
 	public int           lre_max_trim_iterations = 10;
 	// for fillOcclusionsNaN:
@@ -521,6 +537,7 @@ public class CLTParameters {
 	public boolean       lre_show_textures_combo =     false; //true;
 	public boolean       lre_show_textures_tiles =     false; //true;
 	public boolean       lre_show_sky_textures =       false; //true;
+	public int           lre_show_slice_bitmap =   -1; // bitmap of slices for which to show images (lre_show_update_alpha_slice, lre_show_textures_slice)
 	
 	public double     pt_super_trust   = 1.6;   // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
 	public boolean    pt_keep_raw_fg   = true;  // Do not replace raw tiles by the plates, if raw is closer (like poles)
@@ -1504,6 +1521,10 @@ public class CLTParameters {
 		properties.setProperty(prefix+"tex_disp_rdiffj",            this.tex_disp_rdiffj+"");     // double
 		
 		properties.setProperty(prefix+"tex_fg_bg",                  this.tex_fg_bg+"");           // double
+		properties.setProperty(prefix+"tex_disp_over_sky",          this.tex_disp_over_sky+"");   // double
+		properties.setProperty(prefix+"tex_str_over_sky",           this.tex_str_over_sky+"");    // double
+		properties.setProperty(prefix+"tex_require_lma",            this.tex_require_lma+"");     // boolean
+		
 		properties.setProperty(prefix+"tex_distort",                this.tex_distort+"");         // double
 		properties.setProperty(prefix+"tex_mb",                     this.tex_mb+"");              // double
 		
@@ -1512,6 +1533,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"tex_max_neib_lev",           this.tex_max_neib_lev+"");       // int
 		properties.setProperty(prefix+"tex_split_textures",         this.tex_split_textures+"");     // boolean
 		properties.setProperty(prefix+"tex_subdiv_tiles",           this.tex_subdiv_tiles+"");       // int
+		properties.setProperty(prefix+"tex_sky_extra",              this.tex_sky_extra+"");          // int
 		properties.setProperty(prefix+"tex_sky_below",              this.tex_sky_below+"");          // int
 		
 		properties.setProperty(prefix+"tex_disp_hires_tri",         this.tex_disp_hires_tri+""); // boolean
@@ -1616,7 +1638,15 @@ public class CLTParameters {
 		properties.setProperty(prefix+"lre_min_sensors",            this.lre_min_sensors+"");            // int     
 		properties.setProperty(prefix+"lre_weight_neib",            this.lre_weight_neib+"");            // double  
 		properties.setProperty(prefix+"lre_weight_bg",              this.lre_weight_bg+"");              // double  
-		properties.setProperty(prefix+"lre_best_dir_frac",          this.lre_best_dir_frac+"");          // double  
+		properties.setProperty(prefix+"lre_best_dir_frac",          this.lre_best_dir_frac+"");          // double
+		
+		properties.setProperty(prefix+"lre_use_min_max",            this.lre_use_min_max+"");            // boolean 
+		properties.setProperty(prefix+"lre_temp_radius",            this.lre_temp_radius+"");            // double
+		properties.setProperty(prefix+"lre_temp_min",               this.lre_temp_min+"");               // int     
+		properties.setProperty(prefix+"lre_temp_weight",            this.lre_temp_weight+"");            // double
+		properties.setProperty(prefix+"lre_min_use_occl",           this.lre_min_use_occl+"");           // double
+		properties.setProperty(prefix+"lre_temp_disparity",         this.lre_temp_disparity+"");         // double
+		
 		properties.setProperty(prefix+"lre_cost_min",               this.lre_cost_min+"");               // double  
 		properties.setProperty(prefix+"lre_max_trim_iterations",    this.lre_max_trim_iterations+"");    // int     
 		//                                
@@ -1626,8 +1656,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"lre_show_textures_slice",    this.lre_show_textures_slice+"");    // boolean 
 		properties.setProperty(prefix+"lre_show_textures_combo",    this.lre_show_textures_combo+"");    // boolean 
 		properties.setProperty(prefix+"lre_show_textures_tiles",    this.lre_show_textures_tiles+"");    // boolean 
-		
-		properties.setProperty(prefix+"lre_show_sky_textures",      this.lre_show_sky_textures+"");    // boolean 
+		properties.setProperty(prefix+"lre_show_sky_textures",      this.lre_show_sky_textures+"");      // boolean 
+		properties.setProperty(prefix+"lre_show_slice_bitmap",      this.lre_show_slice_bitmap+"");      // int     
 
 		properties.setProperty(prefix+"pt_super_trust",             this.pt_super_trust +"");
 		properties.setProperty(prefix+"pt_keep_raw_fg",             this.pt_keep_raw_fg+"");
@@ -2488,6 +2518,10 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"tex_disp_rdiffj")!=null)      this.tex_disp_rdiffj=Double.parseDouble(properties.getProperty(prefix+"tex_disp_rdiffj"));
 		
 		if (properties.getProperty(prefix+"tex_fg_bg")!=null)            this.tex_fg_bg=Double.parseDouble(properties.getProperty(prefix+"tex_fg_bg"));
+		if (properties.getProperty(prefix+"tex_disp_over_sky")!=null)    this.tex_disp_over_sky=Double.parseDouble(properties.getProperty(prefix+"tex_disp_over_sky"));
+		if (properties.getProperty(prefix+"tex_str_over_sky")!=null)     this.tex_str_over_sky=Double.parseDouble(properties.getProperty(prefix+"tex_str_over_sky"));
+		if (properties.getProperty(prefix+"tex_require_lma")!=null)      this.tex_require_lma=Boolean.parseBoolean(properties.getProperty(prefix+"tex_require_lma"));		
+		
 		if (properties.getProperty(prefix+"tex_distort")!=null)          this.tex_distort=Double.parseDouble(properties.getProperty(prefix+"tex_distort"));
 		if (properties.getProperty(prefix+"tex_mb")!=null)               this.tex_mb=Double.parseDouble(properties.getProperty(prefix+"tex_mb"));
 		if (properties.getProperty(prefix+"tex_max_disparity_lim")!=null)this.tex_max_disparity_lim=Double.parseDouble(properties.getProperty(prefix+"tex_max_disparity_lim"));
@@ -2495,6 +2529,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"tex_max_neib_lev")!=null)     this.tex_max_neib_lev=Integer.parseInt(properties.getProperty(prefix+"tex_max_neib_lev"));		
 		if (properties.getProperty(prefix+"tex_split_textures")!=null)   this.tex_split_textures=Boolean.parseBoolean(properties.getProperty(prefix+"tex_split_textures"));		
 		if (properties.getProperty(prefix+"tex_subdiv_tiles")!=null)     this.tex_subdiv_tiles=Integer.parseInt(properties.getProperty(prefix+"tex_subdiv_tiles"));		
+		if (properties.getProperty(prefix+"tex_sky_extra")!=null)        this.tex_sky_extra=Integer.parseInt(properties.getProperty(prefix+"tex_sky_extra"));
 		if (properties.getProperty(prefix+"tex_sky_below")!=null)        this.tex_sky_below=Integer.parseInt(properties.getProperty(prefix+"tex_sky_below"));
 		
 		if (properties.getProperty(prefix+"tex_disp_hires_tri")!=null)   this.tex_disp_hires_tri=Boolean.parseBoolean(properties.getProperty(prefix+"tex_disp_hires_tri"));		
@@ -2599,7 +2634,15 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"lre_min_sensors")!=null)            this.lre_min_sensors=Integer.parseInt(properties.getProperty(prefix+"lre_min_sensors"));// int     
 		if (properties.getProperty(prefix+"lre_weight_neib")!=null)            this.lre_weight_neib=Double.parseDouble(properties.getProperty(prefix+"lre_weight_neib"));// double  
 		if (properties.getProperty(prefix+"lre_weight_bg")!=null)              this.lre_weight_bg=Double.parseDouble(properties.getProperty(prefix+"lre_weight_bg"));// double  
-		if (properties.getProperty(prefix+"lre_best_dir_frac")!=null)          this.lre_best_dir_frac=Double.parseDouble(properties.getProperty(prefix+"lre_best_dir_frac"));// double  
+		if (properties.getProperty(prefix+"lre_best_dir_frac")!=null)          this.lre_best_dir_frac=Double.parseDouble(properties.getProperty(prefix+"lre_best_dir_frac"));// double
+		
+		if (properties.getProperty(prefix+"lre_use_min_max")!=null)            this.lre_use_min_max=Boolean.parseBoolean(properties.getProperty(prefix+"lre_use_min_max"));// boolean 
+		if (properties.getProperty(prefix+"lre_temp_radius")!=null)            this.lre_temp_radius=Double.parseDouble(properties.getProperty(prefix+"lre_temp_radius"));// double
+		if (properties.getProperty(prefix+"lre_temp_min")!=null)               this.lre_temp_min=Integer.parseInt(properties.getProperty(prefix+"lre_temp_min"));// int     
+		if (properties.getProperty(prefix+"lre_temp_weight")!=null)            this.lre_temp_weight=Double.parseDouble(properties.getProperty(prefix+"lre_temp_weight"));// double
+		if (properties.getProperty(prefix+"lre_min_use_occl")!=null)           this.lre_min_use_occl=Double.parseDouble(properties.getProperty(prefix+"lre_min_use_occl"));// double
+		if (properties.getProperty(prefix+"lre_temp_disparity")!=null)         this.lre_temp_disparity=Double.parseDouble(properties.getProperty(prefix+"lre_temp_disparity"));// double
+		
 		if (properties.getProperty(prefix+"lre_cost_min")!=null)               this.lre_cost_min=Double.parseDouble(properties.getProperty(prefix+"lre_cost_min"));// double  
 		if (properties.getProperty(prefix+"lre_max_trim_iterations")!=null)    this.lre_max_trim_iterations=Integer.parseInt(properties.getProperty(prefix+"lre_max_trim_iterations"));// int     
 		//                                
@@ -2609,8 +2652,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"lre_show_textures_slice")!=null)    this.lre_show_textures_slice=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_slice"));// boolean 
 		if (properties.getProperty(prefix+"lre_show_textures_combo")!=null)    this.lre_show_textures_combo=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_combo"));// boolean 
 		if (properties.getProperty(prefix+"lre_show_textures_tiles")!=null)    this.lre_show_textures_tiles=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_textures_tiles"));// boolean
-
 		if (properties.getProperty(prefix+"lre_show_sky_textures")!=null)      this.lre_show_sky_textures=Boolean.parseBoolean(properties.getProperty(prefix+"lre_show_sky_textures"));// boolean
+		if (properties.getProperty(prefix+"lre_show_slice_bitmap")!=null)      this.lre_show_slice_bitmap=Integer.parseInt(properties.getProperty(prefix+"lre_show_slice_bitmap"));
 		
 		if (properties.getProperty(prefix+"pt_super_trust")!=null)                this.pt_super_trust=Double.parseDouble(properties.getProperty(prefix+"pt_super_trust"));
 		if (properties.getProperty(prefix+"pt_keep_raw_fg")!=null)                this.pt_keep_raw_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pt_keep_raw_fg"));
@@ -3636,6 +3679,15 @@ public class CLTParameters {
 		
 		gd.addNumericField("Minimal FG/BG disparity separation", this.tex_fg_bg, 5,7,"pix",
 				"Minimal FG/BG disparity difference (NaN bg if difference from FG < this).");
+		gd.addMessage     ("Remove far/weak tiles near Blue Sky (within 2 tiles)");
+		gd.addNumericField("Far tiles near sky disparity",       this.tex_disp_over_sky, 5,7,"pix",
+				"Ignore far tiles near BS.");
+		gd.addNumericField("Weak tiles near sky strength",       this.tex_str_over_sky, 5,7,"",
+				"Ignore weak tiles near BS.");
+		gd.addCheckbox ("Require LMA",                           this.tex_require_lma,
+				"Consider tiles w/o LMA as weak near blue sky.");
+		
+		gd.addMessage     ("Reduce weight of distorted and motion blurred textures in multiscene averaging");
 		gd.addNumericField("Multiscene texture distortion",      this.tex_distort, 5,7,"pix",
 				"Maximal texture distortion to accumulate multiple scenes (neighbor tile center offset from the uniform grid. 0 - do not filter");
 		gd.addNumericField("Maximal motion blur to reduce weight",this.tex_mb, 5,7,"pix",
@@ -3651,7 +3703,9 @@ public class CLTParameters {
 				"Split combined texture images. False use multi-cluster full size texture images.");
 		gd.addNumericField("Subdivide tiles to emulate alpha",   this.tex_subdiv_tiles, 0,3,"",
 				"Subdivide tiles to smaller triangles to improve lateral resolution. Best for 1-2-4-8.");
-		gd.addNumericField("Extend sky area",                    this.tex_sky_below, 0,3,"tiles",
+		gd.addNumericField("Extend sky around",                  this.tex_sky_extra, 0,3,"tiles",
+				"additionally grow sky area (in layers) without marking it as sky.");
+		gd.addNumericField("Extend sky area down",               this.tex_sky_below, 0,3,"tiles",
 				"if >=0, extend sky these tile rows below lowest and extend sky up, right and left to full image.");
 		
 		gd.addMessage     ("Triangular mesh");
@@ -3844,10 +3898,28 @@ public class CLTParameters {
 				"Weight of BG cost relative to the FG one.");
 		gd.addNumericField("Best direction fraction",             this.lre_best_dir_frac, 5,7,"", // 0.6;  // for BG - use this fraction of all sensors in the best direction
 				"Reduce th BG cost by limiting number of considered sensor (find best consecutive ones) .");
+		
+		gd.addMessage("Trimming by temperature (tone)");
+		
+		
+		gd.addCheckbox ("Use min/max instead of averages",        this.lre_show_debug, // true
+				"when trimming by tone, use min/max of the FG/BG instead of weighted averages.");
+		gd.addNumericField("Trim by temperature radius",          this.lre_temp_radius, 5,7,"",
+				"How far to look around for FG trimming by temperature.");
+		gd.addNumericField("Min FG and BG neibs within radius",   this.lre_temp_min, 0,3,"", // 10
+				"Minimal number of each of FG/BG while trimming by temperature.");
+		gd.addNumericField("Cost weight of temperature",          this.lre_temp_weight, 5,7,"",
+				"Multiply -1.0..+1.0 range of the current pixel between average BG(-1) and FG(+1).");
+		gd.addNumericField("Minimal occlusions FG/BG difference", this.lre_min_use_occl, 5,7,"pix",
+				"Do not use occlusion costs for small FG/BG separation, only use temperature/tone based one.");
+		gd.addNumericField("FG/BG disparity difference",          this.lre_temp_disparity, 5,7,"pix",
+				"FG-BG disparity (in excess of the previous parameter) where weight of cost by obscuring equals weight of cost by temp. For lower temperature related cost increases.");
+		
 		gd.addNumericField("Minimal absolute value of the cost",  this.lre_cost_min, 5,7,"", // 1.0;  // minimal absolute value of the total cost to make changes
 				"Minimal absolute value of the total cost to make changes (opaque/transparent).");
 		gd.addNumericField("Number of the FG update iterations",  this.lre_max_trim_iterations, 0,3,"", // 10
 				"Number of iterations to recalculate FG pixels opaque/transparent state.");
+
 		gd.addMessage("Debug images generation");
 		gd.addCheckbox ("Global debug image enable",              this.lre_show_debug, // true
 				"Global debug image enable (masked by the batch mode state).");
@@ -3863,6 +3935,8 @@ public class CLTParameters {
 				"Show all-slices texture debug images with tile resolution (80x64 for Boson 640).");
 		gd.addCheckbox ("Show sky/backdrop texture expanding",    this.lre_show_sky_textures, //  false;
 				"Show how sky/backdrop texture is cut and extrapolated.");
+		gd.addNumericField("Show slices bitmap",                  this.lre_show_slice_bitmap, 0,6,"", // 10
+				"Bitmap of slices to show (-1 - all). Applies to per-slice alpha and per-slice textures.");
 		
 		gd.addTab ("Plates", "Plates filtering when building initial z-map");
 		gd.addMessage     ("********* Plates filtering when building initial z-map *********");
@@ -4857,6 +4931,10 @@ public class CLTParameters {
 		this.tex_disp_rdiffj =          gd.getNextNumber();
 		
 		this.tex_fg_bg =                gd.getNextNumber();
+		this.tex_disp_over_sky =        gd.getNextNumber();
+		this.tex_str_over_sky =         gd.getNextNumber();
+		this.tex_require_lma =          gd.getNextBoolean();
+		
 		this.tex_distort =              gd.getNextNumber();
 		this.tex_mb =                   gd.getNextNumber();
 		
@@ -4865,6 +4943,7 @@ public class CLTParameters {
 		this.tex_max_neib_lev =   (int) gd.getNextNumber();
 		this.tex_split_textures =       gd.getNextBoolean();
 		this.tex_subdiv_tiles =   (int) gd.getNextNumber();
+		this.tex_sky_extra =      (int) gd.getNextNumber();
 		this.tex_sky_below =      (int) gd.getNextNumber();
 
 		this.tex_disp_hires_tri =       gd.getNextBoolean();
@@ -4968,6 +5047,15 @@ public class CLTParameters {
 		this.lre_weight_neib=              gd.getNextNumber();  // double  
 		this.lre_weight_bg=                gd.getNextNumber();  // double  
 		this.lre_best_dir_frac=            gd.getNextNumber();  // double  
+		
+		this.lre_use_min_max=              gd.getNextBoolean(); // boolean 
+		this.lre_temp_radius=              gd.getNextNumber();  // double  
+		this.lre_temp_min=           (int) gd.getNextNumber();  // int     
+		this.lre_min_use_occl=             gd.getNextNumber();  // double  
+		this.lre_temp_weight=              gd.getNextNumber();  // double  
+		
+		this.lre_temp_disparity=           gd.getNextNumber();  // double  
+		
 		this.lre_cost_min=                 gd.getNextNumber();  // double  
 		this.lre_max_trim_iterations=(int) gd.getNextNumber();  // int     
 
@@ -4978,6 +5066,7 @@ public class CLTParameters {
 		this.lre_show_textures_combo=      gd.getNextBoolean(); // boolean 
 		this.lre_show_textures_tiles=      gd.getNextBoolean(); // boolean
 		this.lre_show_sky_textures=        gd.getNextBoolean(); // boolean   
+		this.lre_show_slice_bitmap=  (int) gd.getNextNumber();
 		
 		// end of gd.addtab     ("Lateral resolution enhancement");                                                                            
 		

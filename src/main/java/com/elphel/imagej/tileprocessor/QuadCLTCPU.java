@@ -7190,6 +7190,7 @@ public class QuadCLTCPU {
 	  public static void umTextures(
 			  final double [][][] textures, //  [nslices][nchn][i]
 			  final int    width,
+			  final boolean ignore_alpha,
 			  final double um_sigma,
 			  final double um_weight){
 		  if ((textures == null) || (textures.length==0)) {
@@ -7222,7 +7223,7 @@ public class QuadCLTCPU {
 						  for (int i = 0; i < texture.length; i++) {
 							  texture[i] = texture_orig[i] - um_weight * texture[i];
 						  }
-						  if (has_alpha) {
+						  if (has_alpha && !ignore_alpha) {
 							  for (int i = 0; i < texture.length; i++) if (texture_alpha[i] <= 0.0){
 								  texture[i] = 0.0;
 							  }
@@ -7323,6 +7324,7 @@ public class QuadCLTCPU {
 	  }
 	 
 	  public static void applyTexturesNormHist(
+			  final boolean       ignore_alpha,
 			  final double [][][] textures, //  [nslices][nchn][i]
 			  final double []     min_max,
 			  final double []     inv_table)
@@ -7341,7 +7343,7 @@ public class QuadCLTCPU {
 					  threads[ithread] = new Thread() {
 						  public void run() {
 							  for (int npix = ai.getAndIncrement(); npix < texture.length; npix = ai.getAndIncrement()) {
-								  if (!has_alpha || (texture_alpha[npix] > 0.0)) {
+								  if (!Double.isNaN(texture[npix]) && (ignore_alpha || !has_alpha || (texture_alpha[npix] > 0.0))) {
 									  double rel_in = (texture[npix] - min_max[0]) / range;
 									  if (rel_in < 0.0) {
 										  rel_in = 0.0;

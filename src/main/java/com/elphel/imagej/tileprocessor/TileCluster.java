@@ -269,7 +269,7 @@ class TileCluster{
 			return sub_indices;
 		}
 	}
-	public void resetClusterIndex() { // to rebuild cluster index from disparity
+	public void resetClusterIndex() { // to rebuild cluster index from disparity  NOT USED
 		this.cluster_index = null; 
 	}
 	public int [] getClusterIndex() { // (Now not) just a debug feature, no need to optimize?
