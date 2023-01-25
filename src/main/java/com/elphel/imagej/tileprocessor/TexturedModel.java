@@ -2397,7 +2397,7 @@ public class TexturedModel {
 				int    max_border =        tileClusters[nslice].getBorderIntMax();
 				boolean is_sky =           tileClusters[nslice].isSky(sub_i);
 				double min_disparity = is_sky? infinity_disparity : min_obj_disparity;
-				if (debugLevel > -2){
+				if (debugLevel > -1){
 					System.out.println("nslice="+nslice+" cluster #"+cluster_index+ " is_sky="+is_sky+" min_disparity="+min_disparity);
 				}
 
@@ -4821,6 +4821,7 @@ public class TexturedModel {
 			//"Trimming by temperature (tone)
 			final boolean         use_min_max, // when trimming by tone, use min/max of the FG/BG instead of weighted averages
 			final double          temp_radius, //  =   11.5;  // How far to look around for FG trimming by temperature
+			final int             temp_same_radius, // = 2; New opaque/transparent pixel should have same within +/- his radius			
 			final int             temp_min, //  =       2;  // Minimal number of each of FG/BG while trimming by temperature
 			final double          temp_weight, //  =   20.0;  // Multiply -1.0..+1.0 range of the current pixel between average BG(-1) and FG(+1)
 			final double          min_use_occl,// =     1.5;  // Minimal FG/BG difference to use trimming by occlusions. For lower use only
@@ -4840,7 +4841,7 @@ public class TexturedModel {
 		final int tilesY =        img_size/width/transform_size;
 		final int tiles =         tilesX * tilesY;
 		final int dbg_tile =      1820; // -1; // 4123;
-		final int dbg_slice =     3; //0;
+		final int dbg_slice =     -3; //0; Negative - disable
 		
 		final int      iradius = (int) Math.floor(temp_radius); // 1 - 3x3, 2 - 5x5
 		final double [][] rad_weights = new double [2 * iradius + 1][2 * iradius + 1];
@@ -4858,7 +4859,7 @@ public class TexturedModel {
 		final AtomicInteger aminus =  new AtomicInteger(0); // number of removed opaque pixels
 		final TileNeibs pn = new TileNeibs(width,height);
 		int num_modified_pixels = 0;
-		final int dbg_pix = 115680;
+		final int dbg_pix = 1115680;
 		final boolean [][] new_alpha = new boolean[num_slices][img_size];
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			int fnslice = nslice;
@@ -5077,64 +5078,87 @@ public class TexturedModel {
 													double cost_temp = Double.NaN;
 													double ddisp = disparity_fg - disparity_bg; // FG disparity minus largest BG one;
 													if ((iradius > 0) && !Double.isNaN(disparity_bg)) {
-														double sw_bg = 0.0, swd_bg = 0.0, sw_fg = 0.0, swd_fg = 0.0;
-														int num_tfg = 0, num_tbg=0; // number of defined
-														double fg_min = Double.NaN, fg_max = Double.NaN;
-														double bg_min = Double.NaN, bg_max = Double.NaN;
-														for (int tdy = -iradius; tdy <= iradius; tdy++) {
-															// skip center
-															for (int tdx = -iradius; tdx <= iradius; tdx++) if ((tdy != 0) || (tdx != 0)){
-																int tpix = pn.getNeibIndex(pix, tdx, tdy);
-																if ((tpix >= 0) && !Double.isNaN(textures[fnslice][tpix])){
-																	// check it is the same cluster
-																	int ttileX = (tpix % width) / transform_size;
-																	int ttileY = (tpix / width) / transform_size;
-																	if (slice_clusters[fnslice][ttileX + ttileY * tilesX] != this_clust) {
-																		continue;
-																	}
-																	double w = rad_weights[tdy + iradius][tdx + iradius];
-																	double d = textures[fnslice][tpix];
-																	if (alpha_pix[fnslice][tpix]) {
-																		sw_fg += w;
-																		swd_fg += w * d;
-																		num_tfg ++;
-																		if (!(d <= fg_max)) fg_max = d;
-																		if (!(d >= fg_min)) fg_min = d;
-																		
-																	} else {
-																		sw_bg += w;
-																		swd_bg += w * d;
-																		num_tbg ++;
-																		if (!(d <= bg_max)) bg_max = d;
-																		if (!(d >= bg_min)) bg_min = d;
+														boolean ok_to_switch = true;
+														// See if opposite transparency pixel exists near the current one.
+														// If there are none - do not use temp-based cost to prevent inversion
+														// of FG/BG temperature difference. Only add opaque pixels near opaque onws,
+														// transparent - near transparent ones.
+														if (temp_same_radius > 0) {
+															ok_to_switch = false;
+															boolean opaque = alpha_pix[fnslice][pix];
+															search_same:
+															{
+																for (int tdy = -temp_same_radius; tdy <= temp_same_radius; tdy++) {
+																	// skip center
+																	for (int tdx = -temp_same_radius; tdx <= temp_same_radius; tdx++) {
+																		int tpix = pn.getNeibIndex(pix, tdx, tdy);
+																		if ((tpix >= 0) && (alpha_pix[fnslice][tpix] != opaque)){
+																			ok_to_switch = true;
+																			break search_same;
+																		}																		
 																	}
 																}
 															}
-														} // for (int tdy = -iradius; tdy <= iradius; tdy++)
-														if ((num_tfg < temp_min) || (num_tbg < temp_min)) {
-															continue; // too few pixels to calculate
 														}
-														double avg_fg = swd_fg / sw_fg; // weighted average of the foreground neighbors 
-														double avg_bg = swd_bg / sw_bg; // weighted average of the background neighbors
-														if (use_min_max) {
-															if (avg_fg > avg_bg) {
-																avg_fg = fg_max;
-																avg_bg = bg_min;
-															} else {
-																avg_fg = fg_min;
-																avg_bg = bg_max;
+														if (ok_to_switch) {
+															double sw_bg = 0.0, swd_bg = 0.0, sw_fg = 0.0, swd_fg = 0.0;
+															int num_tfg = 0, num_tbg=0; // number of defined
+															double fg_min = Double.NaN, fg_max = Double.NaN;
+															double bg_min = Double.NaN, bg_max = Double.NaN;
+															for (int tdy = -iradius; tdy <= iradius; tdy++) {
+																// skip center
+																for (int tdx = -iradius; tdx <= iradius; tdx++) if ((tdy != 0) || (tdx != 0)){
+																	int tpix = pn.getNeibIndex(pix, tdx, tdy);
+																	if ((tpix >= 0) && !Double.isNaN(textures[fnslice][tpix])){
+																		// check it is the same cluster
+																		int ttileX = (tpix % width) / transform_size;
+																		int ttileY = (tpix / width) / transform_size;
+																		if (slice_clusters[fnslice][ttileX + ttileY * tilesX] != this_clust) {
+																			continue;
+																		}
+																		double w = rad_weights[tdy + iradius][tdx + iradius];
+																		double d = textures[fnslice][tpix];
+																		if (alpha_pix[fnslice][tpix]) {
+																			sw_fg += w;
+																			swd_fg += w * d;
+																			num_tfg ++;
+																			if (!(d <= fg_max)) fg_max = d;
+																			if (!(d >= fg_min)) fg_min = d;
+
+																		} else {
+																			sw_bg += w;
+																			swd_bg += w * d;
+																			num_tbg ++;
+																			if (!(d <= bg_max)) bg_max = d;
+																			if (!(d >= bg_min)) bg_min = d;
+																		}
+																	}
+																}
+															} // for (int tdy = -iradius; tdy <= iradius; tdy++)
+															if ((num_tfg < temp_min) || (num_tbg < temp_min)) {
+																continue; // too few pixels to calculate
 															}
+															double avg_fg = swd_fg / sw_fg; // weighted average of the foreground neighbors 
+															double avg_bg = swd_bg / sw_bg; // weighted average of the background neighbors
+															if (use_min_max) {
+																if (avg_fg > avg_bg) {
+																	avg_fg = fg_max;
+																	avg_bg = bg_min;
+																} else {
+																	avg_fg = fg_min;
+																	avg_bg = bg_max;
+																}
+															}
+															if (avg_bg == avg_fg) {
+																continue; // all the same pixels?
+															}
+															//
+
+
+															cost_temp = 2* (textures[fnslice][pix] - avg_bg)/(avg_fg - avg_bg) - 1; // -1..+1
 														}
-														if (avg_bg == avg_fg) {
-															continue; // all the same pixels?
-														}
-														//
-														
-														
-														cost_temp = 2* (textures[fnslice][pix] - avg_bg)/(avg_fg - avg_bg) - 1; // -1..+1
-													}
-													
-													
+													} // if (ok_to_switch) {
+
 													
 													// calculate costs
 													// maybe multiple backgrounds? Then combine them all
@@ -5705,6 +5729,7 @@ public class TexturedModel {
 		//"Trimming by temperature (tone)
 		final boolean         temp_use_min_max = clt_parameters.lre_use_min_max; //  =         true;  // when trimming by tone, use min/max of the FG/BG instead of weighted averages 
 		final double          temp_radius =   clt_parameters.lre_temp_radius;   // 11.5;  // How far to look around for FG trimming by temperature
+		final int             temp_same_radius = clt_parameters.lre_temp_same_radius; // 2;  // New opaque/transparent pixel should have same within +/- this radius from it (<=0 - disable)
 		final int             temp_min =      clt_parameters.lre_temp_min;      // 2;  // Minimal number of each of FG/BG while trimming by temperature
 		final double          temp_weight =   clt_parameters.lre_temp_weight;   //20.0;  // Multiply -1.0..+1.0 range of the current pixel between average BG(-1) and FG(+1)   
 		final double          min_use_occl=   clt_parameters.lre_min_use_occl; //  1.5;  // Minimal FG/BG difference to use trimming by occlusions. For lower use only   
@@ -6079,6 +6104,7 @@ public class TexturedModel {
 						//"Trimming by temperature (tone)
 						temp_use_min_max,           // final boolean         use_min_max, // when trimming by tone, use min/max of the FG/BG instead of weighted averages
 						temp_radius,                // final double          temp_radius, //  =          5.0;  // How far to look around for FG trimming by temperature
+						temp_same_radius,           // final int             temp_same_radius, // = 2; New opaque/transparent pixel should have same within +/- his radius
 						temp_min,                   // final int             temp_min, //  =               2;  // Minimal number of each of FG/BG while trimming by temperature
 						temp_weight,                // final double          temp_weight, //  =          5.0;  // Multiply -1.0..+1.0 range of the current pixel between average BG(-1) and FG(+1)
 						min_use_occl,               // final double          min_use_occl,// =     1.5;  // Minimal FG/BG difference to use trimming by occlusions. For lower use only
@@ -6830,7 +6856,7 @@ public class TexturedModel {
 					THREADS_MAX); // final int threadsMax)      // maximal number of threads to launch 
 		}
 
-		if (debugLevel > -2) {
+		if (debugLevel > -1) {
 			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
 			String [] dbg_titles = new String[dbg_textures.length];
 			String [] dbg_subtitles = new String [faded_textures[0].length];
@@ -6864,7 +6890,7 @@ public class TexturedModel {
 					tex_um_weight);          // final double um_weight)
 		}
 
-		if (debugLevel > -2) {
+		if (debugLevel > -1) {
 			double [][] dbg_textures = new double [faded_textures.length * faded_textures[0].length][faded_textures[0][0].length];
 			String [] dbg_titles = new String[dbg_textures.length];
 			String [] dbg_subtitles = new String [faded_textures[0].length];

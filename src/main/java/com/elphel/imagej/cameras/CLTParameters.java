@@ -524,6 +524,7 @@ public class CLTParameters {
 	
 	public boolean       lre_use_min_max =         true;  // when trimming by tone, use min/max of the FG/BG instead of weighted averages 
 	public double        lre_temp_radius =         11.5;  // How far to look around for FG trimming by temperature
+	public int           lre_temp_same_radius =     1;    // new opaque/transparent pixel should have same within +/- this radius from it (<=0 - disable)
 	public int           lre_temp_min =             2;    // Minimal number of each of FG/BG while trimming by temperature
 	public double        lre_temp_weight =         20.0;  // Multiply -1.0..+1.0 range of the current pixel between average BG(-1) and FG(+1)
 	public double        lre_min_use_occl =         1.5;  // Minimal FG/BG difference to use trimming by occlusions. For lower use only temperature/tone
@@ -1644,6 +1645,8 @@ public class CLTParameters {
 		
 		properties.setProperty(prefix+"lre_use_min_max",            this.lre_use_min_max+"");            // boolean 
 		properties.setProperty(prefix+"lre_temp_radius",            this.lre_temp_radius+"");            // double
+		properties.setProperty(prefix+"lre_temp_same_radius",       this.lre_temp_same_radius+"");       // int     
+		
 		properties.setProperty(prefix+"lre_temp_min",               this.lre_temp_min+"");               // int     
 		properties.setProperty(prefix+"lre_temp_weight",            this.lre_temp_weight+"");            // double
 		properties.setProperty(prefix+"lre_min_use_occl",           this.lre_min_use_occl+"");           // double
@@ -2641,6 +2644,8 @@ public class CLTParameters {
 		
 		if (properties.getProperty(prefix+"lre_use_min_max")!=null)            this.lre_use_min_max=Boolean.parseBoolean(properties.getProperty(prefix+"lre_use_min_max"));// boolean 
 		if (properties.getProperty(prefix+"lre_temp_radius")!=null)            this.lre_temp_radius=Double.parseDouble(properties.getProperty(prefix+"lre_temp_radius"));// double
+		if (properties.getProperty(prefix+"lre_temp_same_radius")!=null)       this.lre_temp_same_radius=Integer.parseInt(properties.getProperty(prefix+"lre_temp_same_radius"));// int     
+		
 		if (properties.getProperty(prefix+"lre_temp_min")!=null)               this.lre_temp_min=Integer.parseInt(properties.getProperty(prefix+"lre_temp_min"));// int     
 		if (properties.getProperty(prefix+"lre_temp_weight")!=null)            this.lre_temp_weight=Double.parseDouble(properties.getProperty(prefix+"lre_temp_weight"));// double
 		if (properties.getProperty(prefix+"lre_min_use_occl")!=null)           this.lre_min_use_occl=Double.parseDouble(properties.getProperty(prefix+"lre_min_use_occl"));// double
@@ -3909,8 +3914,11 @@ public class CLTParameters {
 		
 		gd.addCheckbox ("Use min/max instead of averages",        this.lre_use_min_max, // true
 				"when trimming by tone, use min/max of the FG/BG instead of weighted averages.");
-		gd.addNumericField("Trim by temperature radius",          this.lre_temp_radius, 5,7,"",
+		gd.addNumericField("Trim by temperature radius",          this.lre_temp_radius, 5,7,"pix",
 				"How far to look around for FG trimming by temperature.");
+		gd.addNumericField("Old same transparency within radius", this.lre_temp_same_radius, 0,3,"pix", // 10
+				"New opaque/transparent pixel should have same within +/- this radius from it (<=0 - disable).");
+		
 		gd.addNumericField("Min FG and BG neibs within radius",   this.lre_temp_min, 0,3,"", // 10
 				"Minimal number of each of FG/BG while trimming by temperature.");
 		gd.addNumericField("Cost weight of temperature",          this.lre_temp_weight, 5,7,"",
@@ -5055,7 +5063,9 @@ public class CLTParameters {
 		this.lre_best_dir_frac=            gd.getNextNumber();  // double  
 		
 		this.lre_use_min_max=              gd.getNextBoolean(); // boolean 
-		this.lre_temp_radius=              gd.getNextNumber();  // double  
+		this.lre_temp_radius=              gd.getNextNumber();  // double
+		this.lre_temp_same_radius=   (int) gd.getNextNumber();  // int     
+		
 		this.lre_temp_min=           (int) gd.getNextNumber();  // int     
 		this.lre_temp_weight=              gd.getNextNumber();  // double  
 		this.lre_min_use_occl=             gd.getNextNumber();  // double  
