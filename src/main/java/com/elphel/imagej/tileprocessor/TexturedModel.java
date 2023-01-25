@@ -4059,17 +4059,21 @@ public class TexturedModel {
 	 * @param textures_final    [slice][pixel] final textures, will be modified for BS cluster
 	 * @param shrink_sky_tiles shrink (currently 4 - 2 rows) defined sky tiles before filling
 	 *                         undefined pixels
+	 * @param shrink_sky_pix   shrink by pixels - shrinks from calculated alpha pixels in addition
+	 *                         to tiles
+	 * @param blur_sigma       apply Gaussian blur to sky texture                 
 	 * @param width            image width (640 for Flir Boson)
 	 * @param transform_size   CLT transform size (==8)
 	 * @param dbg_prefix       null or debug image name prefix
 	 */
-
-	public static void extendBlueSKy(
+	public static void extendBlueSky(
 			final TileCluster [] tileClusters,
 			final double [][]    textures_occluded,
 			final double [][]    alphas,
 			final double [][]    textures_final,
 			final int            shrink_sky_tiles,
+			final int            shrink_spy_pix,
+			final double         blur_sigma,
 			final int            width,
 			final int            transform_size,
 			final String         dbg_prefix) {
@@ -4095,6 +4099,7 @@ public class TexturedModel {
 			final double [] sky_disparity = tileClusters[sky_slice].getSubDisparity(sky_subindex); // window
 			final int num_sky_tiles =    sky_disparity.length;
 			final TileNeibs tn_sky_tiles =      new TileNeibs(sky_tiles_bounds.width, sky_tiles_bounds.height);
+			final TileNeibs tp_sky_pixels =    new TileNeibs (sky_pixels_bounds.width, sky_pixels_bounds.height);
 			final boolean [] sky_sel = new boolean [sky_disparity.length];
 			for (int i = 0; i < sky_sel.length; i++) {
 				sky_sel[i] = !Double.isNaN(sky_disparity[i]);
@@ -4104,7 +4109,7 @@ public class TexturedModel {
 					sky_pixels_bounds,            // Rectangle window,
 					textures_occluded[sky_slice], // double [] data,
 					width);                       // int data_width)
-			final String [] dbg_titles = {"source","shrank", "hinted", "filled"};
+			final String [] dbg_titles = {"source","shrank_tiles", "shrank_pix", "hinted", "filled", "blurred"};
 			final String [] dbg_tile_titles = {"start", "filled"};
 			final double [][] dbg_img = (dbg_prefix != null) ? new double [dbg_titles.length][]:null;
 			final double [][] dbg_timg = (dbg_prefix != null) ? new double [dbg_tile_titles.length][]:null;
@@ -4136,7 +4141,6 @@ public class TexturedModel {
 												pix_indx + transform_size, //  int toIndex,
 												Double.NaN);
 									}
-
 								}
 							}
 						}
@@ -4145,7 +4149,41 @@ public class TexturedModel {
 				ImageDtt.startAndJoin(threads);
 			}
 			if (dbg_img != null) dbg_img[1] = sky_pixels.clone();
-
+			if (shrink_spy_pix > 0) {
+				if (dbg_prefix != null) {
+					System.out.println("extendBlueSky(): shrinking Blue Sky by "+shrink_spy_pix);
+				}
+				final boolean [] pix_sel = new boolean[sky_pixels.length]; 
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int sky_pix = ai.getAndIncrement(); sky_pix < sky_pixels.length; sky_pix = ai.getAndIncrement()) {
+								pix_sel[sky_pix] = !Double.isNaN(sky_pixels[sky_pix]);
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				tp_sky_pixels.shrinkSelection(
+						shrink_spy_pix,
+						pix_sel,
+						null);
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int sky_pix = ai.getAndIncrement(); sky_pix < sky_pixels.length; sky_pix = ai.getAndIncrement()) {
+								if (!pix_sel[sky_pix]) {
+									sky_pixels[sky_pix] = Double.NaN;
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+			if (dbg_img != null) dbg_img[2] = sky_pixels.clone();
 			// now fill gaps in disparity and pixels
 			double []sky_disparity_filled = TileProcessor.fillNaNs( // multithreaded
 					sky_disparity,            // final double [] data,
@@ -4198,11 +4236,11 @@ public class TexturedModel {
 					width,            // int              width,
 					THREADS_MAX);        // final int threadsMax)      // maximal number of threads to launch 
 
-			if (dbg_img != null) dbg_img[2] = sky_pixels.clone();
+			if (dbg_img != null) dbg_img[3] = sky_pixels.clone();
 
 			double[] sky_pixels_filled = TileProcessor.fillNaNs( // multithreaded
 					sky_pixels,               // final double [] data, hinted (NaN replaced from low-res )
-					sky_pixels_nan,           // final double []  data_nan, origina with NaN
+					sky_pixels_nan,           // final double []  data_nan, original with NaN
 					null,                     // final boolean [] prohibit,
 					sky_pixels_bounds.width,  // int       width,
 					2 * Math.max(sky_pixels_bounds.width,sky_pixels_bounds.height), // 16,           // final int grow,
@@ -4210,8 +4248,17 @@ public class TexturedModel {
 					100,                      // int       num_passes,
 					0.01,                     // final double     max_rchange, //  = 0.01
 					THREADS_MAX);             // final int threadsMax)      // maximal number of threads to launch 
-			if (dbg_img != null) dbg_img[3] = sky_pixels_filled.clone();
-
+			if (dbg_img != null) dbg_img[4] = sky_pixels_filled.clone();
+			if (blur_sigma > 0.0) {
+				(new DoubleGaussianBlur()).blurDouble(
+						sky_pixels_filled,
+						sky_pixels_bounds.width,
+						sky_pixels_bounds.height,
+						blur_sigma,
+						blur_sigma,
+						0.01);
+			}
+			if (dbg_img != null) dbg_img[5] = sky_pixels_filled.clone();
 			TileNeibs.setDoubleWindow(
 					sky_pixels_bounds,            // Rectangle window,
 					sky_pixels_filled,            // double [] window_data,
@@ -5880,14 +5927,13 @@ public class TexturedModel {
 				tile_booleans[TILE_KEEP],  // final boolean [][]  selected_tiles,
 				transform_size,            // final int           transform_size,
 				tilesX);                   // final int           tilesX)
-
+/*
 		final boolean [][] before_fix_bg_overlap = (dbg_prefix != null)? new boolean [num_slices][] : null;
 		if (dbg_prefix != null) {
 			for (int i = 0; i < num_slices; i++) {
 				before_fix_bg_overlap[i] = unbound_alpha[i].clone();
 			}
 		}
-
 		fix_bg_overlap(
 				unbound_alpha,                     // final boolean [][]  alpha_pix,
 				tile_booleans[TILE_KEEP],          // final boolean [][]  selected_tiles,
@@ -5896,7 +5942,7 @@ public class TexturedModel {
 				border_int_max,                    // final int           neib_max, // now 2
 				transform_size,                    // final int           transform_size,
 				tilesX);                           // final int           tilesX)
-
+	   */
 		final boolean [][] before_fix_same = (dbg_prefix != null)? new boolean [num_slices][] : null;
 		if (dbg_prefix != null) {
 			for (int i = 0; i < num_slices; i++) {
@@ -6106,6 +6152,25 @@ public class TexturedModel {
 				System.out.println("updateFgAlpha() -> "+updated_tiles);
 			}
 		}
+
+		// moving here - after updating alpha
+		final boolean [][] before_fix_bg_overlap = (dbg_prefix != null)? new boolean [num_slices][] : null;
+		if (dbg_prefix != null) {
+			for (int i = 0; i < num_slices; i++) {
+				before_fix_bg_overlap[i] = unbound_alpha[i].clone();
+			}
+		}
+		fix_bg_overlap(
+				unbound_alpha,                     // final boolean [][]  alpha_pix,
+				tile_booleans[TILE_KEEP],          // final boolean [][]  selected_tiles,
+				tile_booleans[TILE_HAS_BG_STRONG], // final boolean [][]  has_bg_strong_tiles,
+				slice_border_int,                  // final int      [][] slice_border_int,
+				border_int_max,                    // final int           neib_max, // now 2
+				transform_size,                    // final int           transform_size,
+				tilesX);                           // final int           tilesX)
+		
+		
+		
 		double [][] alphas = new double[num_slices][];
 		for (int nslice = 0; nslice < num_slices; nslice++) {
 			// replace old alpha with the new binary one
@@ -6115,16 +6180,21 @@ public class TexturedModel {
 			}
 		}
 		
-		final int     shrink_sky_tiles =    2 * (2 +clt_parameters.tex_sky_extra); // 4; // 2; sum of 2 +bg extend 
+		final int     shrink_sky_tiles =    2 * (max_neib_lev +clt_parameters.tex_sky_extra); // 4; // 2; sum of 2 +bg extend
+		final int     shrink_spy_pix =      clt_parameters.tex_shrink_sky_pix; // 4; // shrink from pixel alpha, unrelated to tiles
+
 		final boolean grow_sky =            true;
+		final double         blur_sigma = 1.5;
 		if (grow_sky) {
 			// occluded_filled_textures
-			extendBlueSKy(
+			extendBlueSky(
 					tileClusters,             // final TileCluster [] tileClusters,
 					occluded_textures,        // final double [][][]  textures_occluded,
 					alphas,                   // final double [][]    alphas,
 					occluded_filled_textures, // final double [][][]  textures_final,
 					shrink_sky_tiles,         // final int            shrink_sky_tiles,
+					shrink_spy_pix,           // final int            shrink_spy_pix,
+					blur_sigma,               // final double         blur_sigma,
 					width,                    // final int            width,
 					transform_size,           // final int            transform_size);
 					dbg_prefix);              // dbg_prefix);     // final String         dbg_prefix)
@@ -6206,40 +6276,51 @@ public class TexturedModel {
 					trim_tiles_pix[i] = 
 							(weak_fg_alpha     [nslice][i]? 1.0:0.0) +
 							(before_fix_same   [nslice][i]?  2.0:0.0);
+					/*
+					// modify !
 					fix_bg_pix[i] = 
 							(before_fix_same [nslice][i]? 1.0:0.0) +
 							((before_fix_same [nslice][i] ^ before_fix_bg_overlap[nslice][i])? 2.0:0.0);
+					*/
+					fix_bg_pix[i] = 
+							(before_fix_same [nslice][i]? 1.0:0.0) +
+							((before_fix_same [nslice][i] ^ unbound_alpha[nslice][i])? 2.0:0.0);
+					
+					trim_tiles_pix[i] = 
+							(weak_fg_alpha     [nslice][i]? 1.0:0.0) +
+							(before_fix_same   [nslice][i]?  2.0:0.0);
+					
+					
 					fix_same_pix[i] = 
 							(unbound_alpha  [nslice][i]? 1.0:0.0) +
 							((unbound_alpha  [nslice][i] ^ before_fix_same  [nslice][i])?  2.0:0.0);
 
 					trim_alpha_pix[i] = 
-							(trim_pixels  [nslice][i]? 1.0:0.0) +
+							(trim_pixels  [nslice][i]? 1.0:0.0) + 
 							(unbound_alpha[nslice][i]?  2.0:0.0);
 				}
 				double [][] dbg_img = {
-						vars[0][nslice],
-						vars[1][nslice],
-						vars[2][nslice],
-						vars[3][nslice],
-						vars[4][nslice],
-						trim_fom_pix[nslice], // normalized by blurred
-
-						fom_dbg[0][nslice],
-						fom_dbg[1][nslice],
-						fom_dbg[2][nslice],
-						fom_dbg[3][nslice],
-						vars_fom,
-						half_pix,
-						stitch_trim_pix,
-						trim_seed_pix,
-						seed_trim_grow_pix,
-						unfilt_filt_pix,
-						weak_fg_pix,
-						trim_tiles_pix,
-						fix_bg_pix,
-						fix_same_pix,
-						trim_alpha_pix,
+						vars[0][nslice], // 0
+						vars[1][nslice], // 1
+						vars[2][nslice], // 2
+						vars[3][nslice], // 3
+						vars[4][nslice], // 4 
+						trim_fom_pix[nslice], // 5 normalized by blurred
+						fom_dbg[0][nslice], // 6
+						fom_dbg[1][nslice], // 7
+						fom_dbg[2][nslice], // 8
+						fom_dbg[3][nslice], // 9
+						vars_fom,           // 10
+						half_pix,           // 11 (has_bg_pix? 1.0:0.0)+(is_fg_pix? 2.0:0.0)
+						stitch_trim_pix,    // 12 (stitch_pixels? 1.0:0.0)+(trim_pixels? 2.0:0.0)
+						trim_seed_pix,      // 13 (trim_pixels? 1.0:0.0)+(trim_seeds? 2.0:0.0)
+						seed_trim_grow_pix, // 14 (trim_seeds? 1.0:0.0)+(first_trimmed_alpha?2.0:0.0)+(unfiltered_alpha?4.0:0.0); 
+						unfilt_filt_pix,    // 15 (unfiltered_alpha? 1.0:0.0)+(filtered_alpha?2.0:0.0);
+						weak_fg_pix,        // 16 (filtered_alpha? 1.0:0.0) + (weak_fg_alpha?2.0:0.0);
+						trim_tiles_pix,     // 17 (weak_fg_alpha? 1.0:0.0)+(before_fix_same?2.0:0.0)
+						fix_bg_pix,         // 18 (before_fix_same? 1.0:0.0)+((before_fix_same^before_fix_bg_overlap)? 2.0:0.0)
+						fix_same_pix,       // 19 (unbound_alpha? 1.0:0.0)+((unbound_alpha ^ before_fix_same)?  2.0:0.0);
+						trim_alpha_pix,     // 20 (trim_pixels? 1.0:0.0) + (unbound_alpha[i]?  2.0:0.0);
 						dbg_occluded_map[nslice],
 						gcombo_texture[nslice],
 						occluded_filled_textures[nslice], // put before occluded_textures to compare with gcombo_texture
@@ -6272,7 +6353,7 @@ public class TexturedModel {
 						"TRIM_FOM_FIN", // final fom
 						"TRIM_FOM_THRESH", // var_same_thresholded
 						"TRIM_FOM_THRESH_BLUR", // var_same_thresholded_blured
-						"SEED_FOM", // inter/(same+seed_same_fz)
+						"SEED_FOM",             // inter/(same+seed_same_fz)
 						"HALF_BG_FG",
 						"STITCH_TRIM",
 						"TRIM_SEED",
@@ -6725,20 +6806,6 @@ public class TexturedModel {
 					dbg_titles);
 
 		}
-		// Grow sky - moved to processTexture()
-		/*
-		if (grow_sky) {
-			String dbg_prefix = show_sky_textures ? ref_scene.getImageName() : null;
-
-			extendBlueSKy(
-					tileClusters,     // final TileCluster [] tileClusters,
-					faded_textures,   // final double [][][]  faded_textures,
-					shrink_sky_tiles, // final int            shrink_sky_tiles,
-					width,            // final int            width,
-					transform_size,   // final int            transform_size);
-					dbg_prefix); // dbg_prefix);     // final String         dbg_prefix)
-		}
-		*/
 		// fix alpha
 		if (alphaOverlapFix) {
 			fixAlphaSameDisparity(
@@ -6950,7 +7017,7 @@ public class TexturedModel {
 			int                  debugLevel)
 	{
 		if (debugLevel > -2) {
-			System.out.println("getInterCombinedTextures()m no_alpha=" + no_alpha); // true
+			System.out.println("getInterCombinedTextures(): no_alpha=" + no_alpha); // true
 		}
 		final boolean tex_color =           clt_parameters.tex_color;     //  true;  
 		final int     tex_palette =         clt_parameters.tex_palette;     // 2 ;   

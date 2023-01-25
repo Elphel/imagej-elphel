@@ -414,6 +414,7 @@ public class CLTParameters {
 	public int        tex_subdiv_tiles =              4;    // subdivide tiles to smaller triangles
 	public int        tex_sky_extra =                 2;    // additionally grow sky area (in layers) without marking as sky
 	public int        tex_sky_below =                10;    // extend sky these tile rows below lowest
+	public int        tex_shrink_sky_pix =            4;    // shrink background by pixels
 
 	// gd.addMessage     ("Triangular mesh");
 	public boolean    tex_disp_hires_tri =           true;  // Display high resolution mesh
@@ -1535,6 +1536,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"tex_subdiv_tiles",           this.tex_subdiv_tiles+"");       // int
 		properties.setProperty(prefix+"tex_sky_extra",              this.tex_sky_extra+"");          // int
 		properties.setProperty(prefix+"tex_sky_below",              this.tex_sky_below+"");          // int
+		properties.setProperty(prefix+"tex_shrink_sky_pix",         this.tex_shrink_sky_pix+"");     // int
 		
 		properties.setProperty(prefix+"tex_disp_hires_tri",         this.tex_disp_hires_tri+""); // boolean
 		properties.setProperty(prefix+"tex_dbg_scale_mesh",         this.tex_dbg_scale_mesh+"");       // int
@@ -2531,6 +2533,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"tex_subdiv_tiles")!=null)     this.tex_subdiv_tiles=Integer.parseInt(properties.getProperty(prefix+"tex_subdiv_tiles"));		
 		if (properties.getProperty(prefix+"tex_sky_extra")!=null)        this.tex_sky_extra=Integer.parseInt(properties.getProperty(prefix+"tex_sky_extra"));
 		if (properties.getProperty(prefix+"tex_sky_below")!=null)        this.tex_sky_below=Integer.parseInt(properties.getProperty(prefix+"tex_sky_below"));
+		if (properties.getProperty(prefix+"tex_shrink_sky_pix")!=null)   this.tex_shrink_sky_pix=Integer.parseInt(properties.getProperty(prefix+"tex_shrink_sky_pix"));
 		
 		if (properties.getProperty(prefix+"tex_disp_hires_tri")!=null)   this.tex_disp_hires_tri=Boolean.parseBoolean(properties.getProperty(prefix+"tex_disp_hires_tri"));		
 		if (properties.getProperty(prefix+"tex_dbg_scale_mesh")!=null)   this.tex_dbg_scale_mesh=Integer.parseInt(properties.getProperty(prefix+"tex_dbg_scale_mesh"));		
@@ -3707,6 +3710,8 @@ public class CLTParameters {
 				"additionally grow sky area (in layers) without marking it as sky.");
 		gd.addNumericField("Extend sky area down",               this.tex_sky_below, 0,3,"tiles",
 				"if >=0, extend sky these tile rows below lowest and extend sky up, right and left to full image.");
+		gd.addNumericField("Shrink trimmed sky",                 this.tex_shrink_sky_pix, 0,3,"pix",
+				"Shrink sky area after processing occlusions. Shrink by 1 pixel row  - 2.");
 		
 		gd.addMessage     ("Triangular mesh");
 		gd.addCheckbox ("Display high resolution mesh",          this.tex_disp_hires_tri,
@@ -3902,7 +3907,7 @@ public class CLTParameters {
 		gd.addMessage("Trimming by temperature (tone)");
 		
 		
-		gd.addCheckbox ("Use min/max instead of averages",        this.lre_show_debug, // true
+		gd.addCheckbox ("Use min/max instead of averages",        this.lre_use_min_max, // true
 				"when trimming by tone, use min/max of the FG/BG instead of weighted averages.");
 		gd.addNumericField("Trim by temperature radius",          this.lre_temp_radius, 5,7,"",
 				"How far to look around for FG trimming by temperature.");
@@ -4945,6 +4950,7 @@ public class CLTParameters {
 		this.tex_subdiv_tiles =   (int) gd.getNextNumber();
 		this.tex_sky_extra =      (int) gd.getNextNumber();
 		this.tex_sky_below =      (int) gd.getNextNumber();
+		this.tex_shrink_sky_pix = (int) gd.getNextNumber();
 
 		this.tex_disp_hires_tri =       gd.getNextBoolean();
 		this.tex_dbg_scale_mesh = (int) gd.getNextNumber();
@@ -5051,8 +5057,8 @@ public class CLTParameters {
 		this.lre_use_min_max=              gd.getNextBoolean(); // boolean 
 		this.lre_temp_radius=              gd.getNextNumber();  // double  
 		this.lre_temp_min=           (int) gd.getNextNumber();  // int     
-		this.lre_min_use_occl=             gd.getNextNumber();  // double  
 		this.lre_temp_weight=              gd.getNextNumber();  // double  
+		this.lre_min_use_occl=             gd.getNextNumber();  // double  
 		
 		this.lre_temp_disparity=           gd.getNextNumber();  // double  
 		
