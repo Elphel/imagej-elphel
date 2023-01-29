@@ -2283,41 +2283,41 @@ public class TriMesh {
 
 	  // New version with subdivision
 	  public static void generateClusterX3d(      // New version with alpha
-			  boolean         full_texture,       // true - full size image, false - bounds only
-			  int             subdivide_mesh,     // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
-			  boolean []      alpha,              // boolean alpha - true - opaque, false - transparent. Full/bounds
-			                                      // matching selection
-			  double []       dalpha,             // before boolean
-			  X3dOutput       x3dOutput,          // output x3d if not null
-			  WavefrontExport wfOutput,           // output WSavefront if not null
+			  boolean            full_texture,       // true - full size image, false - bounds only
+			  int                subdivide_mesh,     // 0,1 - full tiles only, 2 - 2x2 pixels, 4 - 2x2 pixels
+			  boolean []         alpha,              // boolean alpha - true - opaque, false - transparent. Full/bounds
+			                                         // matching selection
+			  double []          dalpha,             // before boolean
+			  X3dOutput          x3dOutput,          // output x3d if not null
+			  WavefrontExport    wfOutput,           // output WSavefront if not null
 			  ArrayList<TriMesh> tri_meshes,
-			  String          texturePath,
-			  String          id,
-			  String          class_name,
-			  Rectangle       bounds,
-			  Rectangle       texture_bounds,     // if not null - allows trimmed combo textures
+			  String             texturePath,
+			  String             id,
+			  String             class_name,
+			  Rectangle          bounds,
+			  Rectangle          texture_bounds,     // if not null - allows trimmed combo textures
 			  // Below selected and disparity are bounds.width*bounds.height
-			  boolean []      selected,           // may be either tilesX * tilesY or bounds.width*bounds.height
-			  double []       disparity,          // if null, will use min_disparity
-			  int     []      border_int,
-			  int             max_border,
-			  int             tile_size,
-			  int             tilesX,
-			  int             tilesY,
+			  boolean []         selected,           // may be either tilesX * tilesY or bounds.width*bounds.height
+			  double []          disparity,          // if null, will use min_disparity
+			  int []             border_int,
+			  int                max_border,
+			  int                tile_size,
+			  int                tilesX,
+			  int                tilesY,
 			  GeometryCorrection geometryCorrection,
-			  boolean         correctDistortions, // requires backdrop image to be corrected also
-			  double []       tri_img,   //
-			  int             tri_img_width,
-			  double          min_disparity,
-			  double          max_disparity,
-			  double          maxDispTriangle,    // relative <=0 - do not use
-			  double          maxZtoXY,           // 10.0. <=0 - do not use
-			  double          maxZ,               // far clip (0 - do not clip). Negative - limit by max
-			  boolean         limitZ,
-			  int             debug_level,
-			  boolean         dbg_plot_center, //  = true;
-			  double          dbg_line_color, //  =  1.0;
-			  double          dbg_center_color// = 3.0;
+			  boolean            correctDistortions, // requires backdrop image to be corrected also
+			  double []          tri_img,   //
+			  int                tri_img_width,
+			  double             min_disparity,
+			  double             max_disparity,
+			  double             maxDispTriangle,    // relative <=0 - do not use
+			  double             maxZtoXY,           // 10.0. <=0 - do not use
+			  double             maxZ,               // far clip (0 - do not clip). Negative - limit by max
+			  boolean            limitZ,
+			  int                debug_level,
+			  boolean            dbg_plot_center, //  = true;
+			  double             dbg_line_color, //  =  1.0;
+			  double             dbg_center_color// = 3.0;
 			  ) throws IOException
 	  {
 		  if (bounds == null) {
