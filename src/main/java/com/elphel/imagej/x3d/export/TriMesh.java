@@ -1295,9 +1295,10 @@ public class TriMesh {
 	  /**
 	   * Triangulate all vertice indices - combine triangulation of same-size equailateral 45-degree
 	   * large (tile size) and small (tile subdivisions) and add connections between large and small ones 
-	   * @param indices - array of [height][width]{{index}} for large tiles and [heigh][width][py][px]
-	   *                  for small ones. This array will be modified and re-indexed if needed.
-	   * @return          int [][3] - array of triangles 3 vertex indices, clockwise                 
+	   * @param indices    array of [height][width]{{index}} for large tiles and [heigh][width][py][px]
+	   *                   for small ones. This array will be modified and re-indexed if needed.
+	   * @param no_connect 0 - neutral 1 - max_neib_lev, 2 - max_neib_lev+1                 
+	   * @return           int [][3] - array of triangles 3 vertex indices, clockwise                 
 	   */
 	  public static int [][] triangulateAll(
 			  int [][][][] indices,

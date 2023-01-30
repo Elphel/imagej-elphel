@@ -34,6 +34,8 @@ class TileCluster{
 	int        border_int_max;       // outer border value
 	int []     stitch_stitched;      // +1 - stitch, +2 - stitched
 	int []     no_connect;           // bit mask of prohibited directions
+	int []     class_conn;            // 1 - disconnected from, 2 - disconnected (not only for stitch)
+
 	
 	double []  disparity;            // all and only unused - NaN 
 	int []     cluster_index = null; // for debug purposes, index of the source cluster
@@ -57,12 +59,12 @@ class TileCluster{
 	public TileCluster (
 			Rectangle  bounds,
 			int index, // <0 to skip
-//			boolean [] border,
 			int []     border_int,           // will replace border? Provide on-the-fly? 
 			int        border_int_max,       // outer border value
 			int []     stitch_stitched,      // +1 - stitch, +2 - stitched
 			int []     no_connect,           // bit mask of prohibited directions
 			double []  disparity,
+			int []     class_conn,           // 1 - disconnected from, 2 - disconnected (not only for stitch)
 			boolean is_sky){
 		this.bounds =    bounds;
 		this.index = index;
@@ -101,10 +103,16 @@ class TileCluster{
 			stitch_stitched = new int [bounds.width * bounds.height];
 		}
 		this.stitch_stitched = stitch_stitched;
+		
 		if (no_connect == null) {
 			no_connect =  new int [bounds.width * bounds.height];
 		}
 		this.no_connect = no_connect;
+
+		if (class_conn == null) {
+			class_conn =  new int [bounds.width * bounds.height];
+		}
+		this.class_conn = class_conn;
 	}
 	
 	public boolean isSky() {
@@ -139,6 +147,7 @@ class TileCluster{
 	public int []     getBorderInt() {return border_int;}
 	public int []     getStitchStitched() {return stitch_stitched;}
 	public int []     getNoConnect()      {return no_connect;}
+	public int []     getClassConn()      {return class_conn;}
 	public int        getBorderIntMax() {return border_int_max;}
 	public double []  getDisparity() {return disparity;}
 	public void       setDisparity(double [] disparity) {this.disparity = disparity;}
@@ -263,6 +272,24 @@ class TileCluster{
 		return sub_no_connect;
 	}
 	
+	public int []  getSubClassConn(int indx) {
+		if (clust_list == null) {
+			return null;
+		}
+		Rectangle sub_bounds = clust_list.get(indx).bounds;
+		int [] sub_class_conn = new int [sub_bounds.width * sub_bounds.height];
+		int src_x = sub_bounds.x - bounds.x;
+		for (int dst_y = 0; dst_y < sub_bounds.height; dst_y++) {
+			int src_y = dst_y + sub_bounds.y - bounds.y;
+			System.arraycopy(
+					class_conn,
+					src_y * bounds.width + src_x,
+					sub_class_conn,
+					dst_y * sub_bounds.width,
+					sub_bounds.width);
+		}		
+		return sub_class_conn;
+	}
 	
 	
 	
@@ -418,6 +445,12 @@ class TileCluster{
 					tileCluster.no_connect,
 					src_y * tileCluster.bounds.width,
 					no_connect,
+					dst_y * bounds.width + dst_x,
+					tileCluster.bounds.width);
+			System.arraycopy(
+					tileCluster.class_conn,
+					src_y * tileCluster.bounds.width,
+					class_conn,
 					dst_y * bounds.width + dst_x,
 					tileCluster.bounds.width);
 		}
